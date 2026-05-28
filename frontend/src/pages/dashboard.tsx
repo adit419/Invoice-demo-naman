@@ -3,7 +3,8 @@ import { useRouter } from "next/router";
 import { withAuthGuard } from "@/components/AuthGuard";
 import { UploadModal } from "@/components/UploadModal";
 import { useAuth } from "@/hooks/useAuth";
-import { invoicesService } from "@/services";
+import { invoicesService, settingsService } from "@/services";
+import { useToast } from "@/components/ui";
 import { InvoiceListItem } from "@/types/invoice";
 
 // ── Routing ───────────────────────────────────────────────────────────────────
@@ -141,9 +142,9 @@ function formatTimestamp(dateStr: string): string {
     + " " + d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 }
 
-// Pick source: backend doesn't return source yet, so default to manual.
-// (Once backend adds inv.source.type, swap this for inv.source.type.)
-function getSourceType(_inv: InvoiceListItem): SourceType {
+function getSourceType(inv: InvoiceListItem): SourceType {
+  if (inv.source === "email") return "gmail";
+  if (inv.source === "freshdesk") return "freshdesk";
   return "manual";
 }
 
@@ -443,7 +444,36 @@ function FilterPanel(p: FilterPanelProps) {
 function DashboardPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const { toast } = useToast();
+  const isAdmin = user?.role === "admin";
   const canUpload = user?.role === "admin" || user?.role === "editor";
+
+  // ── STP toggle ────────────────────────────────────────────────────────────
+  const [stpEnabled, setStpEnabled] = useState(false);
+  const [stpLoading, setStpLoading] = useState(true);
+  const [stpSaving, setStpSaving] = useState(false);
+
+  useEffect(() => {
+    settingsService.getStp()
+      .then(d => setStpEnabled(d.stp_enabled))
+      .catch(() => {})
+      .finally(() => setStpLoading(false));
+  }, []);
+
+  const toggleStp = async () => {
+    if (!isAdmin || stpSaving) return;
+    const next = !stpEnabled;
+    setStpSaving(true);
+    setStpEnabled(next);
+    try {
+      await settingsService.setStp(next);
+    } catch {
+      setStpEnabled(!next);
+      toast("Failed to update Auto-Process", "error");
+    } finally {
+      setStpSaving(false);
+    }
+  };
 
   const [invoices, setInvoices] = useState<InvoiceListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -572,6 +602,46 @@ function DashboardPage() {
             }}>Manage and track all your invoice processing workflows</p>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+            {/* STP toggle — visible to all, editable by admin only */}
+            {!stpLoading && (
+              <div
+                style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  padding: "0 12px", height: 32, borderRadius: 6,
+                  border: `1px solid ${stpEnabled ? "#A7F3D0" : "#D5D5D5"}`,
+                  background: stpEnabled ? "#ECFDF5" : "#ffffff",
+                }}
+              >
+                <span style={{ fontSize: 13, fontWeight: 500, color: stpEnabled ? "#059669" : "#717680", fontFamily: "Inter, sans-serif", whiteSpace: "nowrap" }}>
+                  Auto-Process
+                </span>
+                <button
+                  type="button"
+                  onClick={isAdmin ? toggleStp : undefined}
+                  disabled={!isAdmin || stpSaving}
+                  title={!isAdmin ? "Admins only" : stpEnabled ? "Disable Auto-Process (STP)" : "Enable Auto-Process (STP)"}
+                  aria-pressed={stpEnabled}
+                  style={{
+                    display: "inline-flex", alignItems: "center",
+                    width: 36, height: 20, borderRadius: 10,
+                    border: "none", padding: 0,
+                    cursor: !isAdmin ? "default" : "pointer",
+                    background: stpEnabled ? "#059669" : "#D1D5DB",
+                    opacity: stpSaving ? 0.6 : 1,
+                    transition: "background 0.18s",
+                    flexShrink: 0,
+                  }}
+                >
+                  <span style={{
+                    width: 14, height: 14, borderRadius: "50%", background: "#ffffff",
+                    display: "block",
+                    transform: stpEnabled ? "translateX(19px)" : "translateX(3px)",
+                    transition: "transform 0.18s",
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.25)",
+                  }} />
+                </button>
+              </div>
+            )}
             {canUpload && (
               <button
                 onClick={() => setUploadOpen(true)}

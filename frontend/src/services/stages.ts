@@ -73,6 +73,10 @@ export const stagesService = {
   editBillPosting: (invoiceId: string, body: BillPostingEditPayload) =>
     api.patch(`/api/v1/invoices/${invoiceId}/stages/bill_posting/edit`, body),
 
+  /** Persist user-confirmed line-item GRN mappings. */
+  saveLineMappings: (invoiceId: string, body: { checked_grn_ids: string[]; confirmed_item_ids: string[] }) =>
+    api.patch(`/api/v1/invoices/${invoiceId}/stages/line_item_matching/mappings`, body),
+
   /**
    * Approve a stage. `body` is passed through verbatim so callers that send
    * nothing keep sending nothing and callers that send `{}` keep sending `{}`.

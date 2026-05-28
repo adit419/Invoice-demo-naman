@@ -39,16 +39,11 @@ export interface MetadataValidationData {
   document_types: string[];
 }
 
-// ── Line Items tab (mirrors invoice-validator-fe Matching ▸ Line Items) ───────
-//
-// The backend collapses ALL invoice lines into ONE invoice row (= total before
-// VAT) and exposes the granular extraction lines as the GRN matching dataset.
-// One result references the single collapsed invoice line; result_data.grn is
-// the set of GRN ids the matcher selected (and pre-checks on load).
+// ── Line Items tab ────────────────────────────────────────────────────────────
 
 export type MatchStatus = "perfect" | "no_match";
 
-/** The single collapsed invoice line ("Total of invoice"). */
+/** The single collapsed invoice line ("Total of invoice") — used by legacy variance bar. */
 export interface CollapsedInvoiceItem {
   id: string;
   description: string;
@@ -58,7 +53,7 @@ export interface CollapsedInvoiceItem {
   price: number;
 }
 
-/** One row of the matching dataset shown (with a checkbox) on the right. */
+/** One row in the legacy GRN matching dataset. */
 export interface GrnLineItem {
   id: string;
   po_number: string | null;
@@ -102,6 +97,44 @@ export interface MatchResult {
   matched_by?: string | null;
 }
 
+// ── Per-item matching (new UI) ────────────────────────────────────────────────
+
+/** One GRN candidate row for a specific invoice line item. */
+export interface GrnCandidate {
+  id: string;
+  po_number: string | null;
+  grn_number: string | null;
+  document_date?: string;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  line_total: number;
+  /** Pre-selected by the AI matcher. */
+  is_matched: boolean;
+  /** True for "probable" matches — shows "AI Suggests" badge. */
+  is_ai_suggested: boolean;
+  /** Signed difference: grn_qty − invoice_qty. Negative = less qty. */
+  qty_diff: number;
+  /** Signed difference: grn_total − invoice_total. Negative = below. */
+  total_diff: number;
+}
+
+export type InvoiceLineStatus = "matched" | "probable" | "no_match";
+
+/** One invoice line item with its matched GRN candidates. */
+export interface InvoiceLinePerItem {
+  id: string;            // "ILI-0001"
+  item_code: string;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  line_total: number;
+  match_status: InvoiceLineStatus;
+  grn_candidates: GrnCandidate[];
+}
+
+// ── Aggregate data shape ──────────────────────────────────────────────────────
+
 export interface LineItemMatchingData {
   invoice_number: string | null;
   invoice_date: string | null;
@@ -114,6 +147,7 @@ export interface LineItemMatchingData {
   matching: {
     summary: {
       perfect: number;
+      probable: number;
       no_match: number;
       total_items: number;
     };
@@ -121,6 +155,7 @@ export interface LineItemMatchingData {
     invoice_line_items: CollapsedInvoiceItem[];
     grn_line_items: GrnLineItem[];
     results: MatchResult[];
+    per_item_matching: InvoiceLinePerItem[];
     tolerance: ToleranceConfig | null;
     allowed_range: AllowedRange | null;
     variance: VarianceData | null;

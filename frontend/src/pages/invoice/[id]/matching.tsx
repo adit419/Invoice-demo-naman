@@ -40,7 +40,7 @@ function MatchingPage() {
   const { toast } = useToast();
   const canEdit = user?.role === "admin" || user?.role === "editor";
   const isCompleted = usePipelineCompleted(id);
-  const { resolveForwardRoute } = useStagesStatus(id);
+  useStagesStatus(id);
 
   const [activeTab, setActiveTab] = useState<"metadata" | "line_items">(() => {
     // Init priority: explicit URL ?tab= → sessionStorage → "metadata".
@@ -133,6 +133,25 @@ function MatchingPage() {
   }, [id]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // Refresh data when the page is restored from the browser's back-forward cache
+  // (bfcache). Without this, the page re-appears with stale pre-approval state:
+  // liData.stage_status = "in_review" + lineOk = false → Next button disabled
+  // even though both stages were already approved.
+  useEffect(() => {
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) loadData();
+    };
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, [loadData]);
+
+  // Also refresh when Next.js soft-navigates back to this page (router.push).
+  useEffect(() => {
+    const onRouteChange = () => { if (id) loadData(); };
+    router.events.on("routeChangeComplete", onRouteChange);
+    return () => router.events.off("routeChangeComplete", onRouteChange);
+  }, [router.events, id, loadData]);
 
   // The "active" stage drives which approve endpoint Next calls.
   const activeStage: "metadata_validation" | "line_item_matching" = (() => {
@@ -332,14 +351,10 @@ function MatchingPage() {
               metaData?.stage_status === "in_review" || liData?.stage_status === "in_review";
 
             if (!anyInReview) {
-              const currentSlug = activeTab === "metadata" ? "metadata_validation" : "line_item_matching";
               return (
                 <AntButton
                   type="primary"
-                  onClick={() => {
-                    const route = resolveForwardRoute(currentSlug);
-                    if (route) router.push(route);
-                  }}
+                  onClick={() => router.push(`/invoice/${id}/bill-posting`)}
                 >
                   Next
                 </AntButton>
@@ -398,10 +413,10 @@ function MatchingPage() {
             onUnacknowledge={handleUnacknowledge}
             allowedFields={allowedMetaFields}
             confThreshold={confThreshold}
-            editMode={canEdit && metaData?.stage_status === "in_review"}
+            editMode={canEdit && !isCompleted}
             localEdits={metaLocalEdits}
             setLocalEdits={setMetaLocalEdits}
-            onSaveField={canEdit && metaData?.stage_status === "in_review" ? handleSaveMetaField : undefined}
+            onSaveField={canEdit && !isCompleted ? handleSaveMetaField : undefined}
           />
             ),
           },
@@ -410,6 +425,7 @@ function MatchingPage() {
             label: "Line Items",
             children: (
               <LineItemsTab
+                invoiceId={id}
                 data={liData}
                 // Mirrors invoice-validator-fe: GRN selection stays editable
                 // through in_review AND approved — it only locks once the

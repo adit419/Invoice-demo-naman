@@ -15,6 +15,7 @@ export interface InvoiceListItem {
   status: string;
   fixture_key: string;
   percent_complete: number;
+  source?: string;
   created_at: string;
   updated_at: string;
 }

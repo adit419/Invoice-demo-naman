@@ -1,263 +1,850 @@
 // ── Line Items tab ────────────────────────────────────────────────────────────
 //
-// Mirrors invoice-validator-fe's Matching ▸ Line Items screen:
-//   • LEFT  — the single collapsed invoice row ("Total of invoice"),
-//             read-only (all invoice lines are summed by the backend).
-//   • RIGHT — the GRN matching dataset, one checkbox per row. Rows the
-//             matcher selected (result_data.grn) are pre-checked.
-//   • BOTTOM-MIDDLE — a floating variance bar: Invoice ↔ GRN | Variance,
-//             with a green / amber / red status dot. It recomputes live as
-//             GRN rows are toggled and gates the parent's "Next".
-//
-// The collapsed total, GRN dataset, tolerance, allowed_range and the initial
-// variance are all computed server-side (see backend line_item_matching.py),
-// replicating the n8n line-item-computation workflow.
+// Per-line-item matching UI matching the Figma design:
+//   LEFT   – invoice line items list with status icons and filter tabs.
+//   RIGHT  – GRN candidates for the selected invoice line item; each row shows
+//            Matched / AI-Suggests badge and qty / total discrepancy badges.
+//   BOTTOM – manual-selection drawer: slide up when a left-panel checkbox is
+//            checked so the user can confirm or adjust a mapping.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Checkbox } from "antd";
-import { formatCurrencyAmount, getCurrencySymbol } from "@/utils/currency";
-import { formatDate } from "@/utils/format";
+import { formatCurrencyAmount } from "@/utils/currency";
+import { stagesService } from "@/services";
 import type {
-  GrnLineItem,
+  GrnCandidate,
+  InvoiceLinePerItem,
+  InvoiceLineStatus,
   LineItemMatchingData,
-  ToleranceConfig,
   VarianceStatus,
 } from "./types";
 
-const formatMoney = formatCurrencyAmount;
+const fmt = formatCurrencyAmount;
 
-// ── Table cell helpers (kept consistent with the previous tab) ────────────────
+// ── Status icon ───────────────────────────────────────────────────────────────
 
-function panelThStyle(
-  align: "left" | "right" | "center",
-  width?: number,
-): React.CSSProperties {
-  return {
-    textAlign: align,
-    padding: "10px 12px",
-    fontSize: 12,
-    fontWeight: 600,
-    color: "#6B7280",
-    background: "#F9FAFB",
-    borderBottom: "1px solid #E5E7EB",
-    whiteSpace: "nowrap",
-    width,
-  };
-}
-
-function panelTdStyle(
-  align: "left" | "right" | "center",
-  numeric?: "tabular",
-): React.CSSProperties {
-  return {
-    padding: "10px 12px",
-    textAlign: align,
-    color: "#414651",
-    verticalAlign: "middle",
-    fontVariantNumeric: numeric === "tabular" ? "tabular-nums" : undefined,
-    whiteSpace: numeric === "tabular" ? "nowrap" : undefined,
-  };
-}
-
-const panelFooterStyle: React.CSSProperties = {
-  padding: "8px 16px",
-  fontSize: 12,
-  color: "#6B7280",
-  borderTop: "1px solid #E5E7EB",
-  background: "#F9FAFB",
-};
-
-// ── Variance bar (mirrors invoice-validator-fe VariancePanel) ─────────────────
-
-function VariancePanel({
-  invoiceTotal,
-  grnTotal,
-  variance,
-  varianceStatus,
-  tolerance,
-  invoiceLineCount,
-  grnCheckedCount,
-  grnCheckedQty,
-}: {
-  invoiceTotal: number;
-  grnTotal: number;
-  variance: number;
-  varianceStatus: VarianceStatus;
-  tolerance: ToleranceConfig | null;
-  invoiceLineCount: number;
-  grnCheckedCount: number;
-  grnCheckedQty: number;
-}) {
-  const dotInner =
-    varianceStatus === "balanced" ? "#22C55E" :
-    varianceStatus === "within_tolerance" ? "#FB923C" : "#EF4444";
-  const dotOuter =
-    varianceStatus === "balanced" ? "#DCFCE7" :
-    varianceStatus === "within_tolerance" ? "#FFEDD5" : "#FEE2E2";
-  const varColor =
-    varianceStatus === "balanced" ? "#15803D" :
-    varianceStatus === "within_tolerance" ? "#EA580C" : "#DC2626";
-  const varLabel =
-    varianceStatus === "balanced" ? "Invoice = GRN" :
-    varianceStatus === "within_tolerance" ? "Within Tolerance" :
-    varianceStatus === "exceeds_tolerance" ? "Exceeds Tolerance" : "-";
-
-  const currency = tolerance?.currency;
-  const toleranceDisplay = tolerance
-    ? `±${getCurrencySymbol(currency)}${tolerance.value}`
-    : null;
-
+function StatusIcon({ status, size = 20 }: { status: InvoiceLineStatus | string; size?: number }) {
+  const cfg =
+    status === "matched"
+      ? { bg: "#22C55E", label: "✓" }
+      : status === "probable"
+      ? { bg: "#F59E0B", label: "?" }
+      : { bg: "#EF4444", label: "✕" };
   return (
-    <div
+    <span
       style={{
-        display: "inline-flex", alignItems: "center", gap: 32,
-        background: "#ffffff", border: "1px solid #E5E7EB", borderRadius: 16,
-        boxShadow: "0 10px 25px rgba(0,0,0,0.12)", padding: "16px 32px",
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+        width: size, height: size, borderRadius: "50%", flexShrink: 0,
+        background: cfg.bg, color: "#fff",
+        fontSize: size * 0.5, fontWeight: 700, lineHeight: 1,
       }}
     >
-      {/* Invoice side */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-        <span style={{
-          width: 20, height: 20, borderRadius: "50%", flexShrink: 0,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          background: dotOuter,
-        }}>
-          <span style={{ width: 12, height: 12, borderRadius: "50%", background: dotInner }} />
-        </span>
-        <div>
-          <div style={{ fontSize: 11, textTransform: "uppercase", fontWeight: 600, color: "#6B7280", letterSpacing: 0.5 }}>Invoice</div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: "#101828" }}>{formatMoney(invoiceTotal, currency)}</div>
-          <div style={{ fontSize: 11, color: "#6B7280" }}>
-            {invoiceLineCount} {invoiceLineCount === 1 ? "Line" : "Lines"}
+      {cfg.label}
+    </span>
+  );
+}
+
+// ── Discrepancy badge ─────────────────────────────────────────────────────────
+
+function DiscrepancyBadge({ diff, type }: { diff: number; type: "qty" | "total" }) {
+  if (diff === 0) return null;
+  const isNeg = diff < 0;
+  const arrow = isNeg ? "↓" : "↑";
+  const sign = isNeg ? "" : "+";
+  const label =
+    type === "qty"
+      ? `${arrow}${sign}${diff} ${isNeg ? "Less Qty" : "More Qty"}`
+      : `${arrow}${sign}${Math.abs(diff).toFixed(2)} ${isNeg ? "Below Line Total" : "Exceeds Line Total"}`;
+  return (
+    <span
+      style={{
+        display: "inline-block", fontSize: 11, fontWeight: 600,
+        color: "#DC2626", whiteSpace: "nowrap",
+      }}
+    >
+      {label}
+    </span>
+  );
+}
+
+// ── Status badge (Matched / AI Suggests) ─────────────────────────────────────
+
+function StatusBadge({ isAiSuggested }: { isAiSuggested: boolean }) {
+  if (isAiSuggested) {
+    return (
+      <span style={{
+        display: "inline-flex", alignItems: "center", gap: 4,
+        padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 600,
+        color: "#7C3AED", background: "#EDE9FE", whiteSpace: "nowrap",
+      }}>
+        ✦ AI Suggests
+      </span>
+    );
+  }
+  return (
+    <span style={{
+      display: "inline-block", padding: "2px 8px", borderRadius: 4,
+      fontSize: 11, fontWeight: 600, color: "#15803D", background: "#DCFCE7",
+      whiteSpace: "nowrap",
+    }}>
+      Matched
+    </span>
+  );
+}
+
+// ── Checkbox ──────────────────────────────────────────────────────────────────
+
+function Checkbox({
+  checked, indeterminate = false, disabled = false, onChange, green = false,
+}: {
+  checked: boolean; indeterminate?: boolean; disabled?: boolean;
+  onChange?: (v: boolean) => void; green?: boolean;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = indeterminate;
+  }, [indeterminate]);
+
+  const border = checked
+    ? green ? "#22C55E" : "#2563EB"
+    : "#D1D5DB";
+  const bg = checked
+    ? green ? "#22C55E" : "#2563EB"
+    : "#fff";
+
+  return (
+    <span
+      style={{
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+        width: 16, height: 16, borderRadius: 3, border: `2px solid ${border}`,
+        background: bg, cursor: disabled ? "default" : "pointer", flexShrink: 0,
+        position: "relative", boxSizing: "border-box",
+      }}
+      onClick={disabled ? undefined : (e) => { e.stopPropagation(); onChange?.(!checked); }}
+    >
+      {checked && (
+        <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+          <path d="M1 4L3.5 6.5L9 1" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      )}
+      {indeterminate && !checked && (
+        <span style={{ width: 8, height: 2, background: "#6B7280", borderRadius: 1 }} />
+      )}
+    </span>
+  );
+}
+
+// ── PO number pill ────────────────────────────────────────────────────────────
+
+function PoPill({ po }: { po: string }) {
+  return (
+    <span style={{
+      display: "inline-block", padding: "1px 7px", borderRadius: 5,
+      fontSize: 12, fontWeight: 600, color: "#2563EB", background: "#EFF6FF",
+      whiteSpace: "nowrap",
+    }}>
+      {po}
+    </span>
+  );
+}
+
+// ── Left panel ────────────────────────────────────────────────────────────────
+
+type FilterTab = "all" | "matched" | "probable" | "no_match";
+
+function LeftPanel({
+  items,
+  activeIdx,
+  filterTab,
+  manualItemId,
+  localMatched,
+  currency,
+  onSelectItem,
+  onFilterChange,
+  onCheckboxChange,
+}: {
+  items: InvoiceLinePerItem[];
+  activeIdx: number;
+  filterTab: FilterTab;
+  manualItemId: string | null;
+  localMatched: Set<string>;
+  currency: string;
+  onSelectItem: (idx: number) => void;
+  onFilterChange: (tab: FilterTab) => void;
+  onCheckboxChange: (itemId: string, checked: boolean) => void;
+}) {
+  function effectiveStatus(item: InvoiceLinePerItem): InvoiceLineStatus {
+    if (localMatched.has(item.id)) return "matched";
+    return item.match_status;
+  }
+
+  const counts = useMemo(() => ({
+    all: items.length,
+    matched: items.filter(i => effectiveStatus(i) === "matched").length,
+    probable: items.filter(i => effectiveStatus(i) === "probable").length,
+    no_match: items.filter(i => effectiveStatus(i) === "no_match").length,
+  }), [items, localMatched]);
+
+  const filtered = useMemo(() =>
+    filterTab === "all" ? items : items.filter(i => effectiveStatus(i) === filterTab),
+    [items, filterTab, localMatched],
+  );
+
+  const invoiceTotalQty = items.reduce((s, i) => s + i.quantity, 0);
+  const invoiceTotalAmt = items.reduce((s, i) => s + i.line_total, 0);
+
+  const filterLabels: { key: FilterTab; label: string }[] = [
+    { key: "all", label: `All ${counts.all}` },
+    { key: "matched", label: `Matched ${counts.matched}` },
+    { key: "probable", label: `Probable ${counts.probable}` },
+    { key: "no_match", label: `No Match ${counts.no_match}` },
+  ];
+
+  return (
+    <div className="flex flex-col" style={{ width: "40%", minWidth: 0, borderRight: "1px solid #E5E7EB" }}>
+      {/* Filter tabs */}
+      <div style={{ display: "flex", borderBottom: "1px solid #E5E7EB", background: "#fff", flexShrink: 0 }}>
+        {filterLabels.map(({ key, label }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => onFilterChange(key)}
+            style={{
+              padding: "8px 14px", fontSize: 13, fontWeight: filterTab === key ? 600 : 400,
+              color: filterTab === key ? "#101828" : "#6B7280",
+              borderBottom: filterTab === key ? "2px solid #101828" : "2px solid transparent",
+              background: "none", border: "none",
+              cursor: "pointer", whiteSpace: "nowrap",
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Table: header + rows + total — all inside one scroll container so widths always match */}
+      <div style={{ margin: "12px", border: "1px solid #E5E7EB", borderRadius: 8, overflow: "clip" }}>
+        <div style={{ overflowY: "auto", maxHeight: 400 }}>
+          {/* Sticky column header */}
+          <div style={{
+            display: "grid", gridTemplateColumns: "3px 28px 32px 1fr 60px 72px 100px",
+            alignItems: "stretch", fontSize: 11, fontWeight: 600, color: "#6B7280",
+            background: "#F9FAFB", borderBottom: "1px solid #E5E7EB",
+            position: "sticky", top: 0, zIndex: 1,
+          }}>
+            <div />
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "8px 4px" }} />
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "8px 8px", borderRight: "1px solid #E5E7EB" }} />
+            <div style={{ display: "flex", alignItems: "center", padding: "8px 12px", borderRight: "1px solid #E5E7EB" }}>Description</div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "8px 12px", borderRight: "1px solid #E5E7EB" }}>Qty</div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "8px 12px", borderRight: "1px solid #E5E7EB" }}>Unit Price</div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "8px 12px" }}>Line Total</div>
+          </div>
+
+          {/* Item rows */}
+          {filtered.map((item) => {
+            const realIdx = items.indexOf(item);
+            const isActive = realIdx === activeIdx;
+            const status = effectiveStatus(item);
+            const isChecked = manualItemId === item.id;
+            return (
+              <div
+                key={item.id}
+                onClick={() => onSelectItem(realIdx)}
+                style={{
+                  display: "grid", gridTemplateColumns: "3px 28px 32px 1fr 60px 72px 100px",
+                  alignItems: "stretch",
+                  borderBottom: "1px solid #F0F0F0",
+                  background: isActive ? "#F0F6FF" : "#fff",
+                  cursor: "pointer",
+                }}
+              >
+                <div style={{ background: isActive ? "#2563EB" : "transparent" }} />
+                {/* Status icon */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "10px 4px" }}>
+                  <StatusIcon status={status} size={18} />
+                </div>
+                {/* Checkbox */}
+                <div
+                  style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "10px 8px", borderRight: "1px solid #E5E7EB" }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Checkbox checked={isChecked} onChange={(v) => onCheckboxChange(item.id, v)} />
+                </div>
+                {/* Description */}
+                <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", padding: "10px 12px", borderRight: "1px solid #E5E7EB", minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "#6B7280" }}>{item.id}</div>
+                  <div style={{ fontSize: 13, color: "#101828", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={item.description}>
+                    {item.description || item.item_code || "—"}
+                  </div>
+                </div>
+                {/* Qty */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "10px 12px", borderRight: "1px solid #E5E7EB", fontSize: 13, color: "#414651", fontVariantNumeric: "tabular-nums" }}>
+                  {item.quantity}
+                </div>
+                {/* Unit Price */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "10px 12px", borderRight: "1px solid #E5E7EB", fontSize: 13, color: "#414651", fontVariantNumeric: "tabular-nums" }}>
+                  {fmt(item.unit_price, currency)}
+                </div>
+                {/* Line Total */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "10px 12px", fontSize: 13, fontWeight: 600, color: "#101828", fontVariantNumeric: "tabular-nums" }}>
+                  {fmt(item.line_total, currency)}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Sticky total row */}
+          <div style={{
+            display: "grid", gridTemplateColumns: "3px 28px 32px 1fr 60px 72px 100px",
+            alignItems: "stretch",
+            borderTop: "1px solid #E5E7EB", background: "#F9FAFB",
+            position: "sticky", bottom: 0,
+          }}>
+            <div />
+            <div style={{ display: "flex", alignItems: "center", padding: "10px 4px" }} />
+            <div style={{ display: "flex", alignItems: "center", padding: "10px 8px", borderRight: "1px solid #E5E7EB" }} />
+            <div style={{ display: "flex", alignItems: "center", padding: "10px 12px", borderRight: "1px solid #E5E7EB", fontSize: 12, fontWeight: 700, color: "#6B7280" }}>
+              Total Line Items: {items.length}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "10px 12px", borderRight: "1px solid #E5E7EB", fontSize: 13, fontWeight: 700, color: "#101828", fontVariantNumeric: "tabular-nums" }}>
+              {invoiceTotalQty}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", padding: "10px 12px", borderRight: "1px solid #E5E7EB" }} />
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "10px 12px", fontSize: 13, fontWeight: 700, color: "#101828", fontVariantNumeric: "tabular-nums" }}>
+              {fmt(invoiceTotalAmt, currency)}
+            </div>
           </div>
         </div>
-      </div>
-
-      {/* Arrow + tolerance */}
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, flexShrink: 0 }}>
-        <span style={{ color: "#9CA3AF", fontSize: 18 }}>↔</span>
-        {toleranceDisplay && (
-          <span style={{
-            fontSize: 11, color: "#6B7280", whiteSpace: "nowrap",
-            background: "#F3F4F6", borderRadius: 9999, padding: "2px 10px",
-          }}>Tolerance: {toleranceDisplay}</span>
-        )}
-      </div>
-
-      {/* GRN side */}
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 11, textTransform: "uppercase", fontWeight: 600, color: "#6B7280", letterSpacing: 0.5 }}>GRN</div>
-        <div style={{ fontSize: 20, fontWeight: 700, color: "#101828" }}>{formatMoney(grnTotal, currency)}</div>
-        <div style={{ fontSize: 11, color: "#6B7280" }}>
-          {grnCheckedCount} {grnCheckedCount === 1 ? "Line" : "Lines"}
-          {grnCheckedQty > 0 ? ` • ${grnCheckedQty} Qty` : ""}
-        </div>
-      </div>
-
-      <div style={{ width: 1, height: 48, background: "#E5E7EB", flexShrink: 0 }} />
-
-      {/* Variance */}
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 11, textTransform: "uppercase", fontWeight: 600, color: "#6B7280", letterSpacing: 0.5 }}>Variance</div>
-        <div style={{ fontSize: 20, fontWeight: 700, color: varColor }}>
-          {varianceStatus === "balanced" ? "Balanced" : formatMoney(variance, currency)}
-        </div>
-        <div style={{ fontSize: 11, fontWeight: 600, color: varColor }}>{varLabel}</div>
       </div>
     </div>
   );
 }
 
-// ── Tab ───────────────────────────────────────────────────────────────────────
+// ── Right panel ───────────────────────────────────────────────────────────────
+
+const PAGE_SIZE = 10;
+
+function RightPanel({
+  item,
+  effectiveStatus,
+  checkedGrnIds,
+  readOnly,
+  currency,
+  onToggleGrn,
+}: {
+  item: InvoiceLinePerItem | null;
+  effectiveStatus: InvoiceLineStatus;
+  checkedGrnIds: Set<string>;
+  readOnly: boolean;
+  currency: string;
+  onToggleGrn: (id: string, checked: boolean) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+
+  // Reset page when item changes
+  useEffect(() => { setPage(1); setSearch(""); }, [item?.id]);
+
+  if (!item) {
+    return (
+      <div className="flex-1 flex items-center justify-center" style={{ color: "#9CA3AF", fontSize: 14 }}>
+        Select a line item to view GRN candidates.
+      </div>
+    );
+  }
+
+  const candidates = item.grn_candidates;
+  const filtered = candidates.filter(g => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (
+      (g.grn_number ?? "").toLowerCase().includes(q) ||
+      (g.po_number ?? "").toLowerCase().includes(q) ||
+      (g.description ?? "").toLowerCase().includes(q)
+    );
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  // How many GRN candidates are checked for this item
+  const matchedCount = candidates.filter(g => checkedGrnIds.has(g.id)).length;
+
+  // Has multiple distinct POs → show PO column
+  const uniquePOs = new Set(candidates.map(g => g.po_number).filter(Boolean));
+  const showPoCol = uniquePOs.size > 1;
+
+  // Single PO label (for header when only one PO)
+  const singlePo = uniquePOs.size === 1 ? [...uniquePOs][0] : null;
+
+  // Checked GRN totals for this item
+  const checkedCandidates = candidates.filter(g => checkedGrnIds.has(g.id));
+  const checkedQty = checkedCandidates.reduce((s, g) => s + g.quantity, 0);
+  const checkedTotal = checkedCandidates.reduce((s, g) => s + g.line_total, 0);
+  const allChecked = filtered.length > 0 && filtered.every(g => checkedGrnIds.has(g.id));
+  const someChecked = filtered.some(g => checkedGrnIds.has(g.id));
+
+  // Grid template
+  const cols = showPoCol
+    ? "44px 100px 100px 1fr 80px 80px 100px 110px"
+    : "44px 100px 1fr 80px 80px 100px 110px";
+
+  return (
+    <div className="flex-1 flex flex-col" style={{ minWidth: 0 }}>
+      {/* Header */}
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "10px 16px", borderBottom: "1px solid #E5E7EB",
+        background: "#fff", flexShrink: 0, gap: 12,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: "#101828" }}>{item.id}</span>
+          <StatusIcon status={effectiveStatus} size={18} />
+          {singlePo && (
+            <span style={{ fontSize: 12, color: "#6B7280" }}>
+              GRN&nbsp;
+              <PoPill po={singlePo} />
+            </span>
+          )}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {candidates.length > 0 && (
+            <span style={{ fontSize: 12, color: "#6B7280", whiteSpace: "nowrap" }}>
+              {matchedCount} Item{matchedCount !== 1 ? "s" : ""} Matched
+            </span>
+          )}
+          <div style={{ position: "relative" }}>
+            <span style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", color: "#9CA3AF", fontSize: 13 }}>
+              ⌕
+            </span>
+            <input
+              value={search}
+              onChange={e => { setSearch(e.target.value); setPage(1); }}
+              placeholder="Search…"
+              style={{
+                height: 30, paddingLeft: 24, paddingRight: 8, fontSize: 12, color: "#414651",
+                border: "1px solid #D1D5DB", borderRadius: 6, outline: "none", width: 160,
+              }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* GRN table: rounded container — header + rows + total all in one scroll container */}
+      <div style={{ margin: "12px", border: "1px solid #E5E7EB", borderRadius: 8, overflow: "clip" }}>
+        {candidates.length === 0 ? (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 40, color: "#9CA3AF", fontSize: 14 }}>
+            No GRN candidates found for this line item.
+          </div>
+        ) : (
+          <div style={{ overflowY: "auto", maxHeight: 400 }}>
+            {/* Sticky column header */}
+            <div style={{
+              display: "grid", gridTemplateColumns: cols, alignItems: "stretch",
+              fontSize: 11, fontWeight: 600, color: "#6B7280",
+              background: "#F9FAFB", borderBottom: "1px solid #E5E7EB",
+              position: "sticky", top: 0, zIndex: 1,
+            }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "8px 10px" }}>
+                <Checkbox
+                  checked={allChecked}
+                  indeterminate={someChecked && !allChecked}
+                  disabled={readOnly || filtered.length === 0}
+                  onChange={(v) => filtered.forEach(g => onToggleGrn(g.id, v))}
+                  green
+                />
+              </div>
+              {showPoCol && <div style={{ display: "flex", alignItems: "center", padding: "8px 10px", borderRight: "1px solid #E5E7EB" }}>PO No.</div>}
+              <div style={{ display: "flex", alignItems: "center", padding: "8px 10px", borderRight: "1px solid #E5E7EB" }}>GRN No.</div>
+              <div style={{ display: "flex", alignItems: "center", padding: "8px 10px", borderRight: "1px solid #E5E7EB" }}>Description</div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "8px 10px", borderRight: "1px solid #E5E7EB" }}>Quantity</div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "8px 10px", borderRight: "1px solid #E5E7EB" }}>Unit Price</div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "8px 10px", borderRight: "1px solid #E5E7EB" }}>Line Total</div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "8px 10px" }}>Status</div>
+            </div>
+
+            {/* Body rows */}
+            {paged.map(g => {
+              const isChecked = checkedGrnIds.has(g.id);
+              return (
+                <div
+                  key={g.id}
+                  onClick={() => !readOnly && onToggleGrn(g.id, !isChecked)}
+                  style={{
+                    display: "grid", gridTemplateColumns: cols, alignItems: "stretch",
+                    borderBottom: "1px solid #F0F0F0",
+                    background: isChecked ? "#F0FDF4" : "#fff",
+                    cursor: readOnly ? "default" : "pointer",
+                    fontSize: 13,
+                  }}
+                >
+                  <div
+                    style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "10px 10px" }}
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <Checkbox checked={isChecked} disabled={readOnly} onChange={(v) => onToggleGrn(g.id, v)} green />
+                  </div>
+                  {showPoCol && (
+                    <div style={{ display: "flex", alignItems: "center", padding: "10px 10px", borderRight: "1px solid #E5E7EB" }}>
+                      {g.po_number ? <PoPill po={g.po_number} /> : <span style={{ color: "#9CA3AF" }}>—</span>}
+                    </div>
+                  )}
+                  <div style={{ display: "flex", alignItems: "center", padding: "10px 10px", borderRight: "1px solid #E5E7EB", color: "#414651", fontWeight: 500 }}>
+                    {g.grn_number || "—"}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", padding: "10px 10px", borderRight: "1px solid #E5E7EB", color: "#414651", wordBreak: "break-word" }}>
+                    {g.description || "—"}
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", justifyContent: "center", padding: "10px 10px", borderRight: "1px solid #E5E7EB", fontVariantNumeric: "tabular-nums" }}>
+                    <div>{g.quantity}</div>
+                    {g.qty_diff !== 0 && <div style={{ marginTop: 2 }}><DiscrepancyBadge diff={g.qty_diff} type="qty" /></div>}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "10px 10px", borderRight: "1px solid #E5E7EB", color: "#414651", fontVariantNumeric: "tabular-nums" }}>
+                    {fmt(g.unit_price, currency)}
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", justifyContent: "center", padding: "10px 10px", borderRight: "1px solid #E5E7EB", fontVariantNumeric: "tabular-nums" }}>
+                    <div>{fmt(g.line_total, currency)}</div>
+                    {g.total_diff !== 0 && <div style={{ marginTop: 2 }}><DiscrepancyBadge diff={g.total_diff} type="total" /></div>}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "10px 10px" }}>
+                    {isChecked && <StatusBadge isAiSuggested={g.is_ai_suggested} />}
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Sticky matched total row */}
+            {checkedCandidates.length > 0 && (
+              <div style={{
+                display: "grid", gridTemplateColumns: cols, alignItems: "stretch",
+                borderTop: "1px solid #E5E7EB", background: "#F0FDF4",
+                fontSize: 13, fontWeight: 700,
+                position: "sticky", bottom: 0,
+              }}>
+                <div style={{ display: "flex", alignItems: "center", padding: "8px 10px" }} />
+                {showPoCol && <div style={{ display: "flex", alignItems: "center", padding: "8px 10px", borderRight: "1px solid #E5E7EB" }} />}
+                <div style={{ display: "flex", alignItems: "center", padding: "8px 10px", borderRight: "1px solid #E5E7EB" }} />
+                <div style={{ display: "flex", alignItems: "center", padding: "8px 10px", borderRight: "1px solid #E5E7EB", color: "#15803D" }}>Total</div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "8px 10px", borderRight: "1px solid #E5E7EB", color: "#15803D", fontVariantNumeric: "tabular-nums" }}>{checkedQty}</div>
+                <div style={{ display: "flex", alignItems: "center", padding: "8px 10px", borderRight: "1px solid #E5E7EB" }} />
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "8px 10px", borderRight: "1px solid #E5E7EB", color: "#15803D", fontVariantNumeric: "tabular-nums" }}>{fmt(checkedTotal, currency)}</div>
+                <div style={{ display: "flex", alignItems: "center", padding: "8px 10px" }} />
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "8px 16px", borderTop: "1px solid #E5E7EB",
+          background: "#F9FAFB", flexShrink: 0, fontSize: 12, color: "#6B7280",
+        }}>
+          <span>Total {filtered.length} items</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <button
+              type="button"
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              style={{ padding: "2px 8px", cursor: page === 1 ? "default" : "pointer", color: page === 1 ? "#D1D5DB" : "#6B7280" }}
+            >
+              &lsaquo;
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setPage(p)}
+                style={{
+                  width: 28, height: 28, borderRadius: 4, fontSize: 12,
+                  fontWeight: p === page ? 700 : 400,
+                  background: p === page ? "#101828" : "transparent",
+                  color: p === page ? "#fff" : "#6B7280",
+                  border: "none", cursor: "pointer",
+                }}
+              >
+                {p}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              style={{ padding: "2px 8px", cursor: page === totalPages ? "default" : "pointer", color: page === totalPages ? "#D1D5DB" : "#6B7280" }}
+            >
+              &rsaquo;
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Manual selection drawer ───────────────────────────────────────────────────
+
+function ManualSelectionDrawer({
+  invoiceItem,
+  selectedGrnCandidates,
+  currency,
+  isPerfect,
+  onCancel,
+  onConfirm,
+}: {
+  invoiceItem: InvoiceLinePerItem;
+  selectedGrnCandidates: GrnCandidate[];
+  currency: string;
+  isPerfect?: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const grnQty = selectedGrnCandidates.reduce((s, g) => s + g.quantity, 0);
+  const grnTotal = selectedGrnCandidates.reduce((s, g) => s + g.line_total, 0);
+  const qtyDiff = grnQty - invoiceItem.quantity;
+  const totalDiff = round2(grnTotal - invoiceItem.line_total);
+  const canConfirm = selectedGrnCandidates.length > 0;
+
+  return (
+    <div style={{
+      position: "absolute", bottom: 0, left: 0, right: 0,
+      background: "#fff", borderTop: "1px solid #E5E7EB",
+      boxShadow: "0 -4px 16px rgba(0,0,0,0.08)",
+      padding: "16px 24px", zIndex: 20,
+    }}>
+      <div style={{ fontSize: 14, fontWeight: 700, color: "#101828", marginBottom: 12 }}>
+        Manual Selection ({selectedGrnCandidates.length})
+      </div>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 24 }}>
+        {/* Invoice Selected */}
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.4 }}>
+            Invoice Selected
+          </div>
+          <div style={{
+            display: "inline-flex", alignItems: "center", gap: 6,
+            padding: "4px 10px", borderRadius: 20,
+            border: "1px solid #E5E7EB", background: "#F9FAFB",
+            fontSize: 13, color: "#101828", marginBottom: 8,
+          }}>
+            {invoiceItem.description || invoiceItem.id} · {invoiceItem.quantity}
+          </div>
+          <div style={{ fontSize: 12, color: "#6B7280" }}>
+            Lines: 1&nbsp;&nbsp;Quantity: <b style={{ color: "#101828" }}>{invoiceItem.quantity}</b>&nbsp;&nbsp;
+            Line Total: <b style={{ color: "#101828" }}>{fmt(invoiceItem.line_total, currency)}</b>
+          </div>
+        </div>
+
+        {/* Arrow */}
+        <div style={{ paddingTop: 28, fontSize: 20, color: "#9CA3AF", flexShrink: 0 }}>→</div>
+
+        {/* GRN Selected */}
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.4 }}>
+            PO + GRN Selected
+          </div>
+          {selectedGrnCandidates.length === 0 ? (
+            <div style={{ fontSize: 13, color: "#9CA3AF", marginBottom: 8 }}>—</div>
+          ) : (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+              {selectedGrnCandidates.map(g => (
+                <div
+                  key={g.id}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 6,
+                    padding: "4px 10px", borderRadius: 20,
+                    border: "1px solid #E5E7EB", background: "#F9FAFB",
+                    fontSize: 13, color: "#101828",
+                  }}
+                >
+                  {g.description} · {g.quantity}
+                </div>
+              ))}
+            </div>
+          )}
+          {selectedGrnCandidates.length > 0 && (
+            <div style={{ fontSize: 12, color: "#6B7280" }}>
+              Lines: {selectedGrnCandidates.length}&nbsp;&nbsp;Quantity: <b style={{ color: "#101828" }}>{grnQty}</b>&nbsp;&nbsp;
+              Line Total: <b style={{ color: "#101828" }}>{fmt(grnTotal, currency)}</b>
+            </div>
+          )}
+        </div>
+
+        {/* Confirm / Cancel */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8, flexShrink: 0, paddingTop: 20 }}>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              type="button"
+              onClick={onCancel}
+              style={{
+                height: 34, padding: "0 16px", fontSize: 13, fontWeight: 500,
+                border: "1px solid #D1D5DB", borderRadius: 6, background: "#fff",
+                color: "#374151", cursor: "pointer",
+              }}
+            >
+              Cancel
+            </button>
+            {!isPerfect && (
+              <button
+                type="button"
+                onClick={canConfirm ? onConfirm : undefined}
+                disabled={!canConfirm}
+                style={{
+                  height: 34, padding: "0 16px", fontSize: 13, fontWeight: 600,
+                  border: "none", borderRadius: 6,
+                  background: canConfirm ? "#2563EB" : "#BFDBFE",
+                  color: "#fff", cursor: canConfirm ? "pointer" : "default",
+                }}
+              >
+                ✓ Confirm Mapping
+              </button>
+            )}
+          </div>
+          {/* Discrepancy summary */}
+          {selectedGrnCandidates.length > 0 && (qtyDiff !== 0 || totalDiff !== 0) && (
+            <div style={{ display: "flex", gap: 8 }}>
+              {qtyDiff !== 0 && (
+                <span style={{
+                  padding: "2px 10px", borderRadius: 20,
+                  border: "1px solid #FECACA", background: "#FEF2F2",
+                  fontSize: 12,
+                }}>
+                  Quantity: <DiscrepancyBadge diff={qtyDiff} type="qty" />
+                </span>
+              )}
+              {totalDiff !== 0 && (
+                <span style={{
+                  padding: "2px 10px", borderRadius: 20,
+                  border: "1px solid #FECACA", background: "#FEF2F2",
+                  fontSize: 12,
+                }}>
+                  Line Total: <DiscrepancyBadge diff={totalDiff} type="total" />
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function round2(n: number) { return Math.round(n * 100) / 100; }
+
+// ── Main tab ──────────────────────────────────────────────────────────────────
 
 export function LineItemsTab({
+  invoiceId,
   data,
   readOnly = false,
   onVarianceChange,
 }: {
+  invoiceId: string;
   data: LineItemMatchingData | null;
   readOnly?: boolean;
-  /** Reports gating state up so the page can enable/disable "Next". */
   onVarianceChange?: (ok: boolean, status: VarianceStatus) => void;
 }) {
-  const matching = data?.matching;
-  const collapsed = matching?.invoice_line_items?.[0] ?? null;
-  const grnItems: GrnLineItem[] = useMemo(
-    () => matching?.grn_line_items ?? [],
-    [matching],
+  const perItem: InvoiceLinePerItem[] = useMemo(
+    () => data?.matching?.per_item_matching ?? [],
+    [data],
   );
-  const tolerance = matching?.tolerance ?? null;
-  const allowedRange = matching?.allowed_range ?? null;
-  const currency = data?.currency ?? tolerance?.currency ?? "USD";
+  const currency = data?.currency ?? "USD";
 
-  // GRN ids the matcher selected → the initial checked set.
-  const serverMatchedIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const r of matching?.results ?? []) {
-      for (const g of r.result_data?.grn ?? []) ids.add(String(g));
-    }
-    return ids;
-  }, [matching]);
+  const [activeIdx, setActiveIdx] = useState(0);
+  const [filterTab, setFilterTab] = useState<FilterTab>("all");
+  const [checkedGrnIds, setCheckedGrnIds] = useState<Set<string>>(new Set());
+  const [manualItemId, setManualItemId] = useState<string | null>(null);
+  const [localMatched, setLocalMatched] = useState<Set<string>>(new Set());
 
-  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
-  const [grnSearch, setGrnSearch] = useState("");
-
-  // Re-seed whenever the underlying server data changes (load / refetch).
+  // Initialise checked GRN IDs from all pre-matched candidates
   const seededFor = useRef<string | null>(null);
   useEffect(() => {
-    const key = `${data?.fixture_key}:${grnItems.length}:${serverMatchedIds.size}`;
+    const key = `${data?.fixture_key}:${perItem.length}`;
     if (seededFor.current === key) return;
     seededFor.current = key;
-    setCheckedIds(new Set(serverMatchedIds));
-  }, [data?.fixture_key, grnItems.length, serverMatchedIds]);
+    const ids = new Set<string>();
+    for (const item of perItem) {
+      for (const g of item.grn_candidates) {
+        if (g.is_matched) ids.add(g.id);
+      }
+    }
+    setCheckedGrnIds(ids);
+  }, [data?.fixture_key, perItem]);
 
-  const invoiceTotal = collapsed ? Number(collapsed.line_total) || 0 : 0;
-
-  const grnTotal = useMemo(
-    () =>
-      Math.round(
-        grnItems
-          .filter((g) => checkedIds.has(String(g.id)))
-          .reduce((s, g) => s + (Number(g.amount) || 0), 0) * 100,
-      ) / 100,
-    [grnItems, checkedIds],
-  );
-
-  const grnCheckedQty = useMemo(
-    () =>
-      grnItems
-        .filter((g) => checkedIds.has(String(g.id)))
-        .reduce((s, g) => s + (Number(g.quantity) || 0), 0),
-    [grnItems, checkedIds],
-  );
-
-  const variance = useMemo(
-    () => Math.round((invoiceTotal - grnTotal) * 100) / 100,
-    [invoiceTotal, grnTotal],
-  );
-
+  // Variance gating for parent.
+  // Items the user explicitly confirmed via the manual-selection drawer are
+  // treated as accepted: their shortfall no longer blocks the Next button.
+  const tolerance = data?.matching?.tolerance ?? null;
   const varianceStatus: VarianceStatus = useMemo(() => {
-    if (checkedIds.size === 0) return "unchecked";
-    if (variance === 0) return "balanced";
-    if (tolerance != null && Math.abs(variance) <= tolerance.value)
-      return "within_tolerance";
-    if (
-      allowedRange != null &&
-      grnTotal >= Math.min(allowedRange.min, allowedRange.max) &&
-      grnTotal <= Math.max(allowedRange.min, allowedRange.max)
-    )
-      return "within_tolerance";
+    if (checkedGrnIds.size === 0) return "unchecked";
+    // Sum variance only for items NOT yet manually confirmed.
+    // Skip items in localMatched (confirmed this session) AND items the backend
+    // already marked "matched" via saved confirmed_mappings (restored after nav).
+    const unconfirmedVariance = round2(
+      perItem.reduce((total, item) => {
+        if (localMatched.has(item.id)) return total; // confirmed this session
+        if (item.match_status === "matched") return total; // confirmed in prior session (backend-restored)
+        const itemGrnTotal = item.grn_candidates
+          .filter(g => checkedGrnIds.has(g.id))
+          .reduce((s, g) => s + g.line_total, 0);
+        return total + (item.line_total - itemGrnTotal);
+      }, 0),
+    );
+    if (Math.abs(unconfirmedVariance) < 0.01) return "balanced";
+    if (tolerance && Math.abs(unconfirmedVariance) <= tolerance.value) return "within_tolerance";
     return "exceeds_tolerance";
-  }, [checkedIds.size, variance, tolerance, allowedRange, grnTotal]);
+  }, [checkedGrnIds, perItem, localMatched, tolerance]);
 
-  const varianceOk =
-    varianceStatus === "balanced" || varianceStatus === "within_tolerance";
-
-  // Report gating state to the parent (matching.tsx) so it can gate "Next".
   useEffect(() => {
-    onVarianceChange?.(varianceOk, varianceStatus);
-  }, [varianceOk, varianceStatus, onVarianceChange]);
+    const ok = varianceStatus === "balanced" || varianceStatus === "within_tolerance";
+    onVarianceChange?.(ok, varianceStatus);
+  }, [varianceStatus, onVarianceChange]);
 
-  if (!data || !collapsed) {
+  function effectiveStatus(item: InvoiceLinePerItem): InvoiceLineStatus {
+    if (localMatched.has(item.id)) return "matched";
+    return item.match_status;
+  }
+
+  // Toggle a single GRN row
+  const toggleGrn = (id: string, checked: boolean) => {
+    if (readOnly) return;
+    setCheckedGrnIds(prev => {
+      const next = new Set(prev);
+      checked ? next.add(id) : next.delete(id);
+      return next;
+    });
+  };
+
+  // Left panel checkbox toggle (manual selection mode)
+  const handleCheckbox = (itemId: string, checked: boolean) => {
+    setManualItemId(checked ? itemId : null);
+    // Jump right panel to that item
+    const idx = perItem.findIndex(i => i.id === itemId);
+    if (idx >= 0) setActiveIdx(idx);
+  };
+
+  // Confirm manual mapping and persist to backend
+  const handleConfirm = () => {
+    if (!manualItemId) return;
+    const newLocalMatched = new Set([...localMatched, manualItemId]);
+    setLocalMatched(newLocalMatched);
+    setManualItemId(null);
+    stagesService.saveLineMappings(invoiceId, {
+      checked_grn_ids: [...checkedGrnIds],
+      confirmed_item_ids: [...newLocalMatched],
+    }).catch(() => {});
+  };
+
+  const activeItem = perItem[activeIdx] ?? null;
+  const activeEffectiveStatus = activeItem ? effectiveStatus(activeItem) : "no_match";
+
+  // GRN candidates currently checked for the active item (for manual drawer)
+  const activeCheckedCandidates = useMemo(() => {
+    if (!activeItem || !manualItemId) return [];
+    return activeItem.grn_candidates.filter(g => checkedGrnIds.has(g.id));
+  }, [activeItem, manualItemId, checkedGrnIds]);
+
+  if (!data || perItem.length === 0) {
     return (
       <div className="flex items-center justify-center h-full" style={{ color: "#6B7280" }}>
         Line item matching data not available.
@@ -265,263 +852,45 @@ export function LineItemsTab({
     );
   }
 
-  const filteredGrn = grnItems.filter((g) => {
-    if (!grnSearch) return true;
-    const q = grnSearch.toLowerCase();
-    return (
-      (g.po_number ?? "").toLowerCase().includes(q) ||
-      (g.grn_number ?? "").toLowerCase().includes(q) ||
-      (g.description ?? "").toLowerCase().includes(q)
-    );
-  });
-
-  const filteredIds = filteredGrn.map((g) => String(g.id));
-  const allFilteredChecked =
-    filteredIds.length > 0 && filteredIds.every((id) => checkedIds.has(id));
-  const someFilteredChecked = filteredIds.some((id) => checkedIds.has(id));
-
-  const toggleOne = (id: string) => {
-    if (readOnly) return;
-    setCheckedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const toggleAll = (checked: boolean) => {
-    if (readOnly) return;
-    setCheckedIds((prev) => {
-      const next = new Set(prev);
-      if (checked) filteredIds.forEach((id) => next.add(id));
-      else filteredIds.forEach((id) => next.delete(id));
-      return next;
-    });
-  };
+  const showDrawer = manualItemId !== null;
+  const drawerItem = perItem.find(i => i.id === manualItemId) ?? null;
 
   return (
     <div className="h-full flex flex-col" style={{ position: "relative" }}>
-      {/* Checked GRN checkboxes turn green — replicates invoice-validator-fe's
-          GRNMappingPanel `!bg-green-500 !border-green-500` override (Tailwind v4
-          here can't reuse the main app's v3 `!`-prefixed arbitrary variants, so
-          this scoped block does the same thing). */}
-      <style>{`
-        .grn-cb-green .ant-checkbox-checked .ant-checkbox-inner,
-        .grn-cb-green .ant-checkbox-checked:hover .ant-checkbox-inner,
-        .grn-cb-green:hover .ant-checkbox-checked .ant-checkbox-inner {
-          background-color: #22C55E;
-          border-color: #22C55E;
-        }
-        .grn-cb-green .ant-checkbox-checked .ant-checkbox-inner::after {
-          border-color: #ffffff;
-        }
-        .grn-cb-green .ant-checkbox-checked::after {
-          border-color: #22C55E;
-        }
-      `}</style>
       <div
         className="flex-1 flex overflow-hidden"
-        style={{ paddingBottom: checkedIds.size > 0 ? 140 : 0 }}
+        style={{ paddingBottom: showDrawer ? 140 : 0 }}
       >
-        {/* ── LEFT: collapsed invoice line (read-only) ──────────────────────── */}
-        <div
-          className="flex flex-col"
-          style={{ width: "44%", minWidth: 0, borderRight: "1px solid #E5E7EB" }}
-        >
-          <div
-            className="shrink-0"
-            style={{
-              padding: "10px 16px", borderBottom: "1px solid #E5E7EB",
-              background: "#F9FAFB", fontSize: 12, fontWeight: 700,
-              letterSpacing: 0.6, color: "#6B7280",
-            }}
-          >
-            INVOICE LINE ITEMS
-          </div>
-          <div className="flex-1 overflow-auto">
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-              <thead style={{ position: "sticky", top: 0, zIndex: 1 }}>
-                <tr>
-                  <th style={panelThStyle("center", 44)}>
-                    <Checkbox checked disabled />
-                  </th>
-                  <th style={panelThStyle("left", 110)}>Item No.</th>
-                  <th style={panelThStyle("left")}>Description</th>
-                  <th style={panelThStyle("right", 70)}>Qty</th>
-                  <th style={panelThStyle("right", 130)}>Line Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr style={{ borderBottom: "1px solid #F0F0F0", background: "#ffffff" }}>
-                  <td style={{ ...panelTdStyle("center"), width: 44 }}>
-                    <Checkbox checked disabled />
-                  </td>
-                  <td style={panelTdStyle("left")}>
-                    <span style={{ color: "#414651", fontWeight: 500 }}>
-                      ILI-0001
-                    </span>
-                  </td>
-                  <td style={panelTdStyle("left")} title={collapsed.description}>
-                    <span style={{ color: "#414651", fontWeight: 500 }}>
-                      {collapsed.description}
-                    </span>
-                  </td>
-                  <td style={panelTdStyle("right", "tabular")}>{collapsed.quantity}</td>
-                  <td style={panelTdStyle("right", "tabular")}>
-                    {formatMoney(invoiceTotal, currency)}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <div style={panelFooterStyle}>
-            All invoice lines collapsed into one total row.
-          </div>
-        </div>
-
-        {/* ── RIGHT: GRN dataset with checkboxes ────────────────────────────── */}
-        <div className="flex-1 flex flex-col" style={{ minWidth: 0 }}>
-          <div
-            className="shrink-0 flex items-center justify-between"
-            style={{
-              padding: "10px 16px", borderBottom: "1px solid #E5E7EB",
-              background: "#F9FAFB",
-            }}
-          >
-            <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.6, color: "#6B7280" }}>
-              PO/GRN
-            </span>
-            <input
-              value={grnSearch}
-              placeholder="Search…"
-              onChange={(e) => setGrnSearch(e.target.value)}
-              style={{
-                height: 28, padding: "0 8px", fontSize: 12, color: "#414651",
-                border: "1px solid #D1D5DB", borderRadius: 4, outline: "none", width: 160,
-              }}
-            />
-          </div>
-          <div className="flex-1 overflow-auto">
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-              <thead style={{ position: "sticky", top: 0, zIndex: 1 }}>
-                <tr>
-                  <th style={panelThStyle("center", 44)}>
-                    <Checkbox
-                      checked={allFilteredChecked}
-                      indeterminate={someFilteredChecked && !allFilteredChecked}
-                      disabled={readOnly || filteredIds.length === 0}
-                      onChange={(e) => toggleAll(e.target.checked)}
-                    />
-                  </th>
-                  <th style={panelThStyle("left", 120)}>PO No.</th>
-                  <th style={panelThStyle("left", 120)}>GRN No.</th>
-                  <th style={panelThStyle("left", 130)}>Document Date</th>
-                  <th style={panelThStyle("left")}>Description</th>
-                  <th style={panelThStyle("right", 90)}>Quantity</th>
-                  <th style={panelThStyle("right", 130)}>Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredGrn.map((g) => {
-                  const id = String(g.id);
-                  const isChecked = checkedIds.has(id);
-                  return (
-                    <tr
-                      key={id}
-                      onClick={() => toggleOne(id)}
-                      style={{
-                        borderBottom: "1px solid #F0F0F0",
-                        // Checked rows turn light-green (matches invoice-validator-fe
-                        // GRNMappingPanel's bg-green-50 + green-500 checkbox).
-                        background: isChecked ? "#F0FDF4" : "#ffffff",
-                        cursor: readOnly ? "default" : "pointer",
-                      }}
-                    >
-                      <td style={{ ...panelTdStyle("center"), width: 44 }}>
-                        <span className={isChecked ? "grn-cb grn-cb-green" : "grn-cb"}>
-                          <Checkbox
-                            checked={isChecked}
-                            disabled={readOnly}
-                            onChange={() => toggleOne(id)}
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        </span>
-                      </td>
-                      <td style={panelTdStyle("left")}>
-                        {g.po_number && String(g.po_number).trim() !== "" ? (
-                          <span style={{
-                            display: "inline-flex", alignItems: "center",
-                            padding: "1px 8px", borderRadius: 6, fontSize: 12,
-                            fontWeight: 600, color: "#2563EB", background: "#EFF6FF",
-                          }}>
-                            {g.po_number}
-                          </span>
-                        ) : (
-                          <span style={{ color: "#9CA3AF" }}>-</span>
-                        )}
-                      </td>
-                      <td style={panelTdStyle("left")}>
-                        <span style={{ color: "#414651", fontWeight: 500 }}>
-                          {g.grn_number || "-"}
-                        </span>
-                      </td>
-                      <td style={panelTdStyle("left")}>
-                        <span style={{ color: "#414651" }}>
-                          {formatDate(g.document_date)}
-                        </span>
-                      </td>
-                      <td style={panelTdStyle("left")} title={g.description}>
-                        <span style={{
-                          color: "#414651", display: "inline-block", maxWidth: 280,
-                          overflow: "hidden", textOverflow: "ellipsis",
-                          whiteSpace: "nowrap", verticalAlign: "middle",
-                        }}>
-                          {g.description || "-"}
-                        </span>
-                      </td>
-                      <td style={panelTdStyle("right", "tabular")}>{g.quantity ?? "-"}</td>
-                      <td style={panelTdStyle("right", "tabular")}>
-                        {formatMoney(g.amount, currency)}
-                      </td>
-                    </tr>
-                  );
-                })}
-                {filteredGrn.length === 0 && (
-                  <tr>
-                    <td colSpan={7} style={{ ...panelTdStyle("center"), color: "#9CA3AF", padding: 32 }}>
-                      {grnSearch ? "No GRN lines match the search." : "No GRN lines to match against."}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-          <div style={panelFooterStyle}>
-            {filteredGrn.length} GRN line item{filteredGrn.length === 1 ? "" : "s"}
-          </div>
-        </div>
+        <LeftPanel
+          items={perItem}
+          activeIdx={activeIdx}
+          filterTab={filterTab}
+          manualItemId={manualItemId}
+          localMatched={localMatched}
+          currency={currency}
+          onSelectItem={setActiveIdx}
+          onFilterChange={(tab) => { setFilterTab(tab); setActiveIdx(0); }}
+          onCheckboxChange={handleCheckbox}
+        />
+        <RightPanel
+          item={activeItem}
+          effectiveStatus={activeEffectiveStatus}
+          checkedGrnIds={checkedGrnIds}
+          readOnly={readOnly}
+          currency={currency}
+          onToggleGrn={toggleGrn}
+        />
       </div>
 
-      {/* ── Variance bar — floats centered just above the page footer ──────── */}
-      {checkedIds.size > 0 && (
-        <div
-          style={{
-            position: "absolute", bottom: 24, left: "50%",
-            transform: "translateX(-50%)", zIndex: 10, pointerEvents: "none",
-          }}
-        >
-          <VariancePanel
-            invoiceTotal={invoiceTotal}
-            grnTotal={grnTotal}
-            variance={variance}
-            varianceStatus={varianceStatus}
-            tolerance={tolerance}
-            invoiceLineCount={1}
-            grnCheckedCount={checkedIds.size}
-            grnCheckedQty={grnCheckedQty}
-          />
-        </div>
+      {showDrawer && drawerItem && (
+        <ManualSelectionDrawer
+          invoiceItem={drawerItem}
+          selectedGrnCandidates={activeCheckedCandidates}
+          currency={currency}
+          isPerfect={drawerItem.match_status === "matched" && !drawerItem.grn_candidates.some(g => g.is_ai_suggested)}
+          onCancel={() => setManualItemId(null)}
+          onConfirm={handleConfirm}
+        />
       )}
     </div>
   );

@@ -38,7 +38,7 @@ const AVATAR_COLORS = [
   { bg: "rgba(129,140,248,0.15)",     fg: "#818cf8",  border: "1px solid rgba(129,140,248,0.3)" },
   { bg: "#34d399",                    fg: "#fff",     border: "none" },
   { bg: "rgba(251,191,36,0.15)",      fg: "#fbbf24",  border: "1px solid rgba(251,191,36,0.3)" },
-  { bg: "#F0F0F0",                    fg: "#717680",  border: "1px solid #D5D5D5" },
+  { bg: "rgba(255,255,255,0.07)",     fg: "#94a3b8",  border: "1px solid rgba(255,255,255,0.1)" },
 ];
 
 const STATUS_LABEL: Record<DisplayStatus, string> = {
@@ -53,7 +53,7 @@ const STATUS_BG: Record<DisplayStatus, string> = {
 };
 
 const HEAT: { bg: string; color: string }[] = [
-  { bg: "#F5F5F5", color: "#475569" },
+  { bg: "rgba(255,255,255,0.03)", color: "#475569" },
   { bg: "rgba(52,211,153,0.08)",  color: "#34d399" },
   { bg: "rgba(129,140,248,0.1)",  color: "#818cf8" },
   { bg: "rgba(251,191,36,0.1)",   color: "#fbbf24" },
@@ -161,7 +161,7 @@ const CARD: React.CSSProperties = {
  border: "1px solid rgb(229, 231, 235)",borderRadius: "8px"
 };
 const CARD_HEAD: React.CSSProperties = {
-  padding: "14px 18px", borderBottom: "1px solid #E6E6E6",
+  padding: "14px 18px", borderBottom: "1px solid rgba(255,255,255,0.06)",
   display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12,
 };
 const CARD_BODY: React.CSSProperties = { padding: "16px 18px" };
@@ -169,7 +169,7 @@ const CARD_BODY: React.CSSProperties = { padding: "16px 18px" };
 function ScopePill({ children, variant = "range" }: { children: React.ReactNode; variant?: "range" | "today" }) {
   const c = variant === "range"
     ? { bg: "rgba(59,130,246,0.1)", color: "#60a5fa", border: "1px solid rgba(59,130,246,0.2)", dot: "#3b82f6" }
-    : { bg: "#F0F0F0", color: "#64748b", border: "1px solid #D5D5D5", dot: "#64748b" };
+    : { bg: "rgba(255,255,255,0.05)", color: "#64748b", border: "1px solid rgba(255,255,255,0.08)", dot: "#64748b" };
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 8px", borderRadius: 999,
       background: c.bg, color: c.color, border: c.border, fontSize: 10.5, fontWeight: 500, whiteSpace: "nowrap" }}>
@@ -183,17 +183,17 @@ function BarTooltipContent({ active, payload, label }: { active?: boolean; paylo
   if (!active || !payload?.length) return null;
   const total = payload.reduce((s, p) => s + (p.value || 0), 0);
   return (
-    <div style={{ background: "#ffffff", border: "1px solid #E6E6E6", borderRadius: 8, padding: "10px 12px", minWidth: 140, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}>
-      <p style={{ color: "#717680", fontSize: 11, marginBottom: 6 }}>{label}</p>
+    <div style={{ background: "#0e1424", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "10px 12px", minWidth: 140 }}>
+      <p style={{ color: "#94a3b8", fontSize: 11, marginBottom: 6 }}>{label}</p>
       {payload.map(p => (
         <div key={p.name} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
           <span style={{ width: 8, height: 8, borderRadius: 2, background: p.fill, display: "inline-block", flexShrink: 0 }} />
-          <span style={{ color: "#717680", fontSize: 11 }}>{p.name}:</span>
-          <span style={{ color: "#101828", fontSize: 11, fontWeight: 600, marginLeft: "auto", paddingLeft: 8 }}>{p.value}</span>
+          <span style={{ color: "#94a3b8", fontSize: 11 }}>{p.name}:</span>
+          <span style={{ color: "#f1f5f9", fontSize: 11, fontWeight: 600, marginLeft: "auto", paddingLeft: 8 }}>{p.value}</span>
         </div>
       ))}
       {payload.length > 1 && (
-        <div style={{ borderTop: "1px solid #E6E6E6", marginTop: 6, paddingTop: 6, color: "#101828", fontSize: 11, fontWeight: 600 }}>
+        <div style={{ borderTop: "1px solid rgba(255,255,255,0.07)", marginTop: 6, paddingTop: 6, color: "#f1f5f9", fontSize: 11, fontWeight: 600 }}>
           Total: {total}
         </div>
       )}
@@ -206,9 +206,9 @@ function DonutTooltipContent({ active, payload }: { active?: boolean; payload?: 
   const p = payload[0];
   const total = INVOICES.filter(i => i.status === "extraction" || i.status === "review" || (i.status === "approved" && i.ageDays <= 30)).length;
   return (
-    <div style={{ background: "#ffffff", border: "1px solid #E6E6E6", borderRadius: 8, padding: "8px 12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}>
-      <p style={{ color: "#101828", fontSize: 12, fontWeight: 600 }}>{p.name}</p>
-      <p style={{ color: "#717680", fontSize: 11 }}>{fmt(p.value)} ({(p.value / total * 100).toFixed(1)}%)</p>
+    <div style={{ background: "#0e1424", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "8px 12px" }}>
+      <p style={{ color: "#f1f5f9", fontSize: 12, fontWeight: 600 }}>{p.name}</p>
+      <p style={{ color: "#94a3b8", fontSize: 11 }}>{fmt(p.value)} ({(p.value / total * 100).toFixed(1)}%)</p>
     </div>
   );
 }
@@ -224,18 +224,18 @@ function AgingSection({ title, tag, rows, colHeaders }: {
 
   const hStyle: React.CSSProperties = {
     fontSize: 11, color: "#64748b", fontWeight: 500,
-    padding: "8px 10px", borderBottom: "1px solid #E6E6E6",
-    background: "#F5F5F5",
+    padding: "8px 10px", borderBottom: "1px solid rgba(255,255,255,0.06)",
+    background: "rgba(255,255,255,0.03)",
   };
-  const cStyle: React.CSSProperties = { padding: "8px 10px", borderBottom: "1px solid #F0F0F0" };
-  const tStyle: React.CSSProperties = { padding: "10px", background: "#F5F5F5", fontSize: 12, fontWeight: 600, fontVariantNumeric: "tabular-nums" };
+  const cStyle: React.CSSProperties = { padding: "8px 10px", borderBottom: "1px solid rgba(255,255,255,0.04)" };
+  const tStyle: React.CSSProperties = { padding: "10px", background: "rgba(255,255,255,0.03)", fontSize: 12, fontWeight: 600, fontVariantNumeric: "tabular-nums" };
   const cols = `160px repeat(${colHeaders.length}, 1fr) 64px`;
 
   return (
     <div style={{ marginBottom: 20 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
         <span style={{ fontSize: 11, fontWeight: 500, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em" }}>{title}</span>
-        <span style={{ padding: "2px 8px", borderRadius: 999, background: "#F0F0F0", color: "#64748b", fontSize: 10, fontWeight: 500 }}>{tag}</span>
+        <span style={{ padding: "2px 8px", borderRadius: 999, background: "rgba(255,255,255,0.05)", color: "#64748b", fontSize: 10, fontWeight: 500 }}>{tag}</span>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: cols, gap: 0, alignItems: "stretch" }}>
         <div style={hStyle}>Status</div>
@@ -616,7 +616,7 @@ function InsightsPage() {
               { label: "Outstanding value",    value: usdFmt(outstanding.value), sub: "in pipeline",    color: "#34d399" },
               { label: "Aged > 7 days",        value: fmt(outstanding.aged),  sub: "at risk",           color: "#f87171" },
             ].map((m, i, arr) => (
-              <div key={i} style={{ padding: "4px 18px", borderRight: i < arr.length - 1 ? "1px solid #E6E6E6" : "none", display: "flex", flexDirection: "column", gap: 4 }}>
+              <div key={i} style={{ padding: "4px 18px", borderRight: i < arr.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none", display: "flex", flexDirection: "column", gap: 4 }}>
                 <p style={{ fontSize: 11, color: "#64748b", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.04em", margin: 0 }}>{m.label}</p>
                 <p style={{ fontSize: 24, fontWeight: 600, color: m.color, letterSpacing: "-0.01em", margin: 0, fontVariantNumeric: "tabular-nums" }}>{m.value}</p>
                 <p style={{ fontSize: 11.5, color: "#475569", margin: 0 }}>{m.sub}</p>
@@ -654,10 +654,10 @@ function InsightsPage() {
               {mounted && chartHasData ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={chartData} barCategoryGap="20%" barGap={2}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#E6E6E6" vertical={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                     <XAxis dataKey="label" tick={{ fill: "#64748b", fontSize: 10 }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
                     <YAxis tick={{ fill: "#64748b", fontSize: 10 }} tickLine={false} axisLine={false} width={28} />
-                    <Tooltip content={<BarTooltipContent />} cursor={{ fill: "rgba(0,0,0,0.03)" }} />
+                    <Tooltip content={<BarTooltipContent />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
                     {(statusFilter === "all" || statusFilter === "extraction") && <Bar dataKey="Extraction" stackId="a" fill={STATUS_COLOR.extraction} maxBarSize={24} />}
                     {(statusFilter === "all" || statusFilter === "review")     && <Bar dataKey="In Review"  stackId="a" fill={STATUS_COLOR.review}     maxBarSize={24} />}
                     {(statusFilter === "all" || statusFilter === "approved")   && <Bar dataKey="Approved"   stackId="a" fill={STATUS_COLOR.approved}   maxBarSize={24} />}
@@ -745,10 +745,10 @@ function InsightsPage() {
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
-                <tr style={{ background: "#F5F5F5", borderBottom: "1px solid #E0E0E0" }}>
+                <tr style={{ background: "rgba(255,255,255,0.03)",borderBottom:"1px solid rgb(229, 231, 235)" }}>
                   {["User", "Total", "Extraction", "In Review", "Approved", "Rejected", "Status mix", "Value (USD)", "Avg. cycle"].map(h => (
                     <th key={h} style={{ textAlign: h === "User" ? "left" : "right", fontSize: 11, fontWeight: 500, color: "#64748b",
-                      padding: "10px 14px", borderBottom: "1px solid #E6E6E6" }}>{h}</th>
+                      padding: "10px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -786,7 +786,7 @@ function InsightsPage() {
                         </td>
                       ))}
                       <td style={{ padding: "12px 14px", minWidth: 130 }}>
-                        <div style={{ display: "flex", height: 8, borderRadius: 999, overflow: "hidden", background: "#E6E6E6" }}>
+                        <div style={{ display: "flex", height: 8, borderRadius: 999, overflow: "hidden", background: "rgba(255,255,255,0.05)" }}>
                           {[{ v: u.ext, s: "extraction" }, { v: u.rev, s: "review" }, { v: u.apr, s: "approved" }, { v: u.rej, s: "rejected" }].map(({ v, s }) => (
                             <span key={s} style={{ width: w(v), background: STATUS_COLOR[s as DisplayStatus], display: "block" }} />
                           ))}
@@ -818,7 +818,7 @@ function InsightsPage() {
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
-                <tr style={{ background: "#F5F5F5" }}>
+                <tr style={{ background: "rgba(255,255,255,0.03)" }}>
                   {["User", "Open", "Extraction", "In Review", "Aged > 7d", "Oldest item", "Open value (USD)"].map(h => (
                     <th key={h} style={{ textAlign: h === "User" ? "left" : "right", fontSize: 11, fontWeight: 500, color: "#64748b",
                       padding: "10px 14px",borderBottom: "1px solid rgb(229, 231, 235) "}}>{h}</th>
@@ -830,7 +830,7 @@ function InsightsPage() {
                   <tr><td colSpan={7} style={{ padding: 28, textAlign: "center", color: "#64748b", fontSize: 13 }}>No open invoices in any queue.</td></tr>
                 ) : workloadData.map(u => {
                   const oldestColor = u.oldest > 7 ? "#f87171" : u.oldest > 3 ? "#fbbf24" : "#64748b";
-                  const oldestBg    = u.oldest > 7 ? "rgba(239,68,68,0.1)" : u.oldest > 3 ? "rgba(251,191,36,0.1)" : "rgba(0,0,0,0.05)";
+                  const oldestBg    = u.oldest > 7 ? "rgba(239,68,68,0.1)" : u.oldest > 3 ? "rgba(251,191,36,0.1)" : "rgba(255,255,255,0.05)";
                   const av = AVATAR_COLORS[u.ci];
                   return (
                     <tr key={u.name} style={{  borderBottom: "1px solid rgb(229, 231, 235) " }}>
@@ -863,7 +863,7 @@ function InsightsPage() {
                           ? <span style={{ color: "#475569" }}>—</span>
                           : <span style={{ padding: "3px 10px", borderRadius: 999, background: oldestBg, color: oldestColor, fontSize: 11.5, fontWeight: 500 }}>{u.oldest}d</span>}
                       </td>
-                      <td style={{ padding: "12px 14px", textAlign: "right" }}><strong style={{ color: "#101828" }}>{u.total > 0 ? usdFmt(u.value) : "$0"}</strong></td>
+                      <td style={{ padding: "12px 14px", textAlign: "right" }}><strong style={{ color: "#f1f5f9" }}>{u.total > 0 ? usdFmt(u.value) : "$0"}</strong></td>
                     </tr>
                   );
                 })}
@@ -907,7 +907,7 @@ function InsightsPage() {
                   { label: "Critical", style: HEAT[4] },
                 ].map(({ label, style }) => (
                   <span key={label} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "#64748b" }}>
-                    <span style={{ width: 10, height: 10, borderRadius: 3, background: style.bg, border: "1px solid #E6E6E6", display: "inline-block" }} />
+                    <span style={{ width: 10, height: 10, borderRadius: 3, background: style.bg, border: "1px solid rgba(255,255,255,0.06)", display: "inline-block" }} />
                     {label}
                   </span>
                 ))}

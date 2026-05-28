@@ -320,6 +320,9 @@ function ReviewPage() {
   }
 
   const isActionable = data.stage_status === "in_review";
+  // Allow edits on any non-completed stage (extraction approved but matching/
+  // bill-posting not yet done). Locks only once the pipeline is fully posted.
+  const isEditable = !isCompleted && canEdit;
 
   const metaMap: Record<string, string> = {};
   data.invoice_schema.metadata.forEach(m => { metaMap[m.field] = m.value; });
@@ -661,7 +664,7 @@ function ReviewPage() {
                             background: cellBg,
                           }}
                         >
-                          {(isActionable && canEdit) ? (
+                          {isEditable ? (
                             <input
                               className="w-full focus:outline-none"
                               style={{
@@ -774,9 +777,9 @@ function ReviewPage() {
                           style={{
                             border: "0px solid",
                             background: isActive ? "rgba(22,118,255,0.06)" : undefined,
-                            cursor: (isActionable && canEdit) ? "default" : "pointer",
+                            cursor: isEditable ? "default" : "pointer",
                           }}
-                          onMouseEnter={e => { if (!isActive && !(isActionable && canEdit)) (e.currentTarget as HTMLElement).style.background = "#FAFAFA"; }}
+                          onMouseEnter={e => { if (!isActive && !isEditable) (e.currentTarget as HTMLElement).style.background = "#FAFAFA"; }}
                           onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = ""; }}
                         >
                           {/* Row # — left bar if any cell in the row has issues */}
@@ -802,35 +805,60 @@ function ReviewPage() {
                             return (
                               <td
                                 key={c.field}
-                                title={typeof c.display === "string" ? c.display : undefined}
+                                title={c.field !== "item_description" && typeof c.display === "string" ? c.display : undefined}
                                 style={{
                                   padding: "4px 8px",
                                   textAlign: c.align ?? "left",
                                   color: "#414651",
                                   background: s.bg,
                                   whiteSpace: c.isNum ? "nowrap" : (c.field === "item_description" ? "normal" : "nowrap"),
+                                  wordBreak: c.field === "item_description" ? "break-word" : undefined,
                                   fontVariantNumeric: c.isNum ? "tabular-nums" : undefined,
                                   border: "1px solid #d1d5db",
-
                                 }}
-                                onClick={e => { if (isActionable && canEdit) { e.stopPropagation(); setActiveKey(li.row_id); } }}
+                                onClick={e => { if (isEditable) { e.stopPropagation(); setActiveKey(li.row_id); } }}
                               >
-                                {(isActionable && canEdit) ? (
-                                  <input
-                                    type={c.isNum ? "number" : "text"}
-                                    step={c.isNum ? "any" : undefined}
-                                    className="w-full focus:outline-none"
-                                    style={{
-                                      fontSize: 14, padding: 0,
-                                      background: "transparent", border: "none",
-                                      color: "#414651", width: "100%",
-                                      textAlign: c.align ?? "left",
-                                      fontVariantNumeric: c.isNum ? "tabular-nums" : undefined,
-                                    }}
-                                    value={inputValue}
-                                    onChange={e => setLineItemEdit(c.field, e.target.value)}
-                                    onKeyDown={e => { if (e.key === "Enter") void saveLineItemField(li.row_id, c.field, inputValue); }}
-                                  />
+                                {isEditable ? (
+                                  c.field === "item_description" ? (
+                                    <textarea
+                                      className="w-full focus:outline-none"
+                                      rows={1}
+                                      ref={el => {
+                                        if (el) { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; }
+                                      }}
+                                      style={{
+                                        fontSize: 14, padding: 0,
+                                        background: "transparent", border: "none",
+                                        color: "#414651", width: "100%",
+                                        resize: "none", lineHeight: "1.4",
+                                        overflow: "hidden",
+                                        whiteSpace: "pre-wrap", wordBreak: "break-word",
+                                        fontFamily: "inherit",
+                                      }}
+                                      value={inputValue}
+                                      onChange={e => {
+                                        e.target.style.height = "auto";
+                                        e.target.style.height = e.target.scrollHeight + "px";
+                                        setLineItemEdit(c.field, e.target.value);
+                                      }}
+                                    />
+                                  ) : (
+                                    <input
+                                      type={c.isNum ? "number" : "text"}
+                                      step={c.isNum ? "any" : undefined}
+                                      className="w-full focus:outline-none"
+                                      style={{
+                                        fontSize: 14, padding: 0,
+                                        background: "transparent", border: "none",
+                                        color: "#414651", width: "100%",
+                                        textAlign: c.align ?? "left",
+                                        fontVariantNumeric: c.isNum ? "tabular-nums" : undefined,
+                                      }}
+                                      value={inputValue}
+                                      onChange={e => setLineItemEdit(c.field, e.target.value)}
+                                      onKeyDown={e => { if (e.key === "Enter") void saveLineItemField(li.row_id, c.field, inputValue); }}
+                                    />
+                                  )
                                 ) : (
                                   s.text === "" ? "" : c.display
                                 )}

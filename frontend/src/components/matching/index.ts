@@ -16,4 +16,7 @@ export type {
   MatchStatus,
   VarianceStatus,
   EffectiveStatus,
+  GrnCandidate,
+  InvoiceLinePerItem,
+  InvoiceLineStatus,
 } from "./types";

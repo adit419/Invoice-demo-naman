@@ -1,0 +1,849 @@
+{
+  "_id": {
+    "$oid": "69b9a12d9c49de24e52ee875"
+  },
+  "file_name": "yellow brick",
+  "line_item_validation": {
+    "run_id": "69b9956a7d57e334cf5936d3",
+    "status": "completed",
+    "total_processed": 1,
+    "results": [
+      {
+        "id": 1,
+        "invoice_line_id": "c0d6c083",
+        "match_status": "no_match",
+        "result_data": {
+          "po": [],
+          "grn": [],
+          "confidence": 0
+        },
+        "ai_reasoning": "Invoice line item describes \"ZALORA 11.11 KICK OFF PARTY\" (event/party expense) with unit price of 785,280.72. No corresponding item found in merged PO+GRN data. All merged records are for physical products (LED lights, cardboard boxes, storage cabinet, electrical cable) with significantly lower unit prices ranging from 1,750 to 6,500. The invoice item appears to be a non-product expense with no match in the procurement data.",
+        "created_at": {
+          "$date": "2026-03-17T18:36:14.000Z"
+        }
+      }
+    ],
+    "summary": {
+      "perfect": 0,
+      "probable": 0,
+      "no_match": 1
+    },
+    "compaction_mode": "batch",
+    "batch_size": 10,
+    "metrics": {
+      "total_cost_usd": 0.0164,
+      "total_time_ms": 12437,
+      "wall_clock_time_ms": 14117,
+      "items_processed": 1,
+      "avg_cost_per_item_usd": 0.0164,
+      "avg_time_per_item_ms": 12437,
+      "compaction": {
+        "count": 0,
+        "total_cost_usd": 0,
+        "total_time_ms": 0,
+        "avg_cost_per_compaction_usd": 0,
+        "avg_time_per_compaction_ms": 0
+      },
+      "processing_only": {
+        "cost_usd": 0.0164,
+        "time_ms": 12437
+      }
+    },
+    "po_numbers": [
+      "PO-00004"
+    ]
+  },
+  "metadata_validation": {
+    "has_error": false,
+    "invoice_number": 47,
+    "po_numbers": [
+      "PO-00004"
+    ],
+    "grn_numbers": [
+      "PR-00002"
+    ],
+    "fields": [
+      {
+        "field_name": "po_number",
+        "display_name": "PO Numbers",
+        "type": "string",
+        "required": false,
+        "match_status": "match",
+        "similarity_score": 100,
+        "values": {
+          "invoice": "PO-00004",
+          "po": "PO-00004",
+          "grn": "PO-00004"
+        },
+        "matching_strategy": "exact",
+        "tolerance_percentage": 0,
+        "is_acknowledged": false,
+        "acknowledged_by": null,
+        "acknowledged_at": null
+      },
+      {
+        "field_name": "customer_name",
+        "display_name": "Company Legal Entity",
+        "type": "string",
+        "required": false,
+        "match_status": "mismatch",
+        "similarity_score": 0,
+        "values": {
+          "invoice": null,
+          "po": "Neoflo capability test",
+          "grn": "Neoflo capability test"
+        },
+        "matching_strategy": "exact",
+        "tolerance_percentage": 0,
+        "is_acknowledged": false,
+        "acknowledged_by": null,
+        "acknowledged_at": null
+      },
+      {
+        "field_name": "customer_vat_id",
+        "display_name": "Company VAT ID",
+        "type": "string",
+        "required": false,
+        "match_status": "mismatch",
+        "similarity_score": 0,
+        "values": {
+          "invoice": null,
+          "po": null,
+          "grn": null
+        },
+        "matching_strategy": "exact",
+        "tolerance_percentage": 0,
+        "is_acknowledged": false,
+        "acknowledged_by": null,
+        "acknowledged_at": null
+      },
+      {
+        "field_name": "customer_address",
+        "display_name": "Company Address",
+        "type": "string",
+        "required": false,
+        "match_status": "mismatch",
+        "similarity_score": 0,
+        "values": {
+          "invoice": null,
+          "po": "Organization Address, Delhi, Karnataka, 11034, India",
+          "grn": "Organization Address, Delhi, Karnataka, 11034, India"
+        },
+        "matching_strategy": "fuzzy",
+        "tolerance_percentage": 0,
+        "is_acknowledged": false,
+        "acknowledged_by": null,
+        "acknowledged_at": null
+      },
+      {
+        "field_name": "currency",
+        "display_name": "Currency",
+        "type": "string",
+        "required": false,
+        "match_status": "mismatch",
+        "similarity_score": 0,
+        "values": {
+          "invoice": "PHP",
+          "po": "INR",
+          "grn": null
+        },
+        "matching_strategy": "exact",
+        "tolerance_percentage": 0,
+        "is_acknowledged": false,
+        "acknowledged_by": null,
+        "acknowledged_at": null
+      },
+      {
+        "field_name": "amount_before_vat",
+        "display_name": "Total Amount before VAT/GST",
+        "type": "number",
+        "required": false,
+        "match_status": "mismatch",
+        "similarity_score": 0,
+        "values": {
+          "invoice": null,
+          "po": 13550,
+          "grn": null
+        },
+        "matching_strategy": "exact",
+        "tolerance_percentage": 1,
+        "is_acknowledged": false,
+        "acknowledged_by": null,
+        "acknowledged_at": null
+      },
+      {
+        "field_name": "vat_amount",
+        "display_name": "VAT/GST",
+        "type": "number",
+        "required": false,
+        "match_status": "mismatch",
+        "similarity_score": 0,
+        "values": {
+          "invoice": null,
+          "po": 2413.64,
+          "grn": null
+        },
+        "matching_strategy": "exact",
+        "tolerance_percentage": 1,
+        "is_acknowledged": false,
+        "acknowledged_by": null,
+        "acknowledged_at": null
+      },
+      {
+        "field_name": "total_amount",
+        "display_name": "Total Amount after VAT/GST",
+        "type": "number",
+        "required": false,
+        "match_status": "mismatch",
+        "similarity_score": -4674,
+        "values": {
+          "invoice": 771267.85,
+          "po": 15822.74,
+          "grn": null
+        },
+        "matching_strategy": "exact",
+        "tolerance_percentage": 1,
+        "is_acknowledged": false,
+        "acknowledged_by": null,
+        "acknowledged_at": null
+      },
+      {
+        "field_name": "terms_of_payment",
+        "display_name": "Payment Terms",
+        "type": "string",
+        "required": false,
+        "match_status": "mismatch",
+        "similarity_score": 0,
+        "values": {
+          "invoice": null,
+          "po": "60",
+          "grn": null
+        },
+        "matching_strategy": "exact",
+        "tolerance_percentage": 0,
+        "is_acknowledged": false,
+        "acknowledged_by": null,
+        "acknowledged_at": null
+      },
+      {
+        "field_name": "due_date",
+        "display_name": "Due Date",
+        "type": "date",
+        "required": false,
+        "match_status": "mismatch",
+        "similarity_score": 0,
+        "values": {
+          "invoice": "2026-02-16",
+          "po": null,
+          "grn": null
+        },
+        "matching_strategy": "exact",
+        "tolerance_percentage": 0,
+        "is_acknowledged": false,
+        "acknowledged_by": null,
+        "acknowledged_at": null
+      },
+      {
+        "field_name": "total_quantity",
+        "display_name": "Total Quantity",
+        "type": "number",
+        "required": false,
+        "match_status": "mismatch",
+        "similarity_score": 0,
+        "values": {
+          "invoice": null,
+          "po": null,
+          "grn": null
+        },
+        "matching_strategy": "exact",
+        "tolerance_percentage": 0,
+        "is_acknowledged": false,
+        "acknowledged_by": null,
+        "acknowledged_at": null
+      }
+    ],
+    "summary": {
+      "total_fields": 11,
+      "matched": 1,
+      "mismatched": 10,
+      "missing_required": 0,
+      "missing": 0,
+      "match_percentage": 9.09,
+      "validation_result": "fail",
+      "document_types": [
+        "invoice",
+        "po",
+        "grn"
+      ]
+    },
+    "required_missing_fields": [],
+    "error": null,
+    "error_details": null
+  },
+  "ocr": {
+    "extracted_json": {
+      "metadata": [
+        {
+          "row_id": "9a9a007b",
+          "field": "invoice_number",
+          "value": 47,
+          "value_confidence": 0.991,
+          "bbox_left": 0.6146400483968542,
+          "bbox_top": 0.23728088926891835,
+          "bbox_width": 0.12764670296430733,
+          "bbox_height": 0.01966652415562206,
+          "page": 1
+        },
+        {
+          "row_id": "507b1b23",
+          "field": "invoice_date",
+          "value": "2015-11-24",
+          "value_confidence": 0.834,
+          "bbox_left": 0.6588021778584392,
+          "bbox_top": 0.27105600684053016,
+          "bbox_width": 0.10405323653962492,
+          "bbox_height": 0.01453612654980761,
+          "page": 1
+        },
+        {
+          "row_id": "4255d950",
+          "field": "due_date",
+          "value": "",
+          "value_confidence": 0,
+          "bbox_left": "",
+          "bbox_top": "",
+          "bbox_width": "",
+          "bbox_height": "",
+          "page": ""
+        },
+        {
+          "row_id": "75693012",
+          "field": "vendor_name",
+          "value": "YBM YELLOW BRICK MEDIA GROUP INC.",
+          "value_confidence": 0.982,
+          "bbox_left": 0.20084694494857835,
+          "bbox_top": 0.15946985891406584,
+          "bbox_width": 0.5493042952208107,
+          "bbox_height": 0.02436938862761864,
+          "page": 1
+        },
+        {
+          "row_id": "5c7c9e82",
+          "field": "vendor_code",
+          "value": "YBM",
+          "value_confidence": 0.931,
+          "bbox_left": 0.20084694494857835,
+          "bbox_top": 0.1616075245831552,
+          "bbox_width": 0.102843315184513,
+          "bbox_height": 0.022231722958529286,
+          "page": 1
+        },
+        {
+          "row_id": "29f41fd8",
+          "field": "vendor_tax_id",
+          "value": "008-250-060-00000",
+          "value_confidence": 0.983,
+          "bbox_left": 0.4337568058076225,
+          "bbox_top": 0.17999144933732364,
+          "bbox_width": 0.132486388384755,
+          "bbox_height": 0.00983326207781103,
+          "page": 1
+        },
+        {
+          "row_id": "dfcf7932",
+          "field": "vendor_address",
+          "value": "U-203 Maripola Bldg Perea St. Legaspi Village San Lorenzo Makati 1229 City of Makati NCR, Fourth District Philippines",
+          "value_confidence": 0.982,
+          "bbox_left": 0.3333333333333333,
+          "bbox_top": 0.19025224454895254,
+          "bbox_width": 0.40411373260738054,
+          "bbox_height": 0.023086789226165028,
+          "page": 1
+        },
+        {
+          "row_id": "11bf7004",
+          "field": "vendor_contact",
+          "value": "",
+          "value_confidence": 0,
+          "bbox_left": "",
+          "bbox_top": "",
+          "bbox_width": "",
+          "bbox_height": "",
+          "page": ""
+        },
+        {
+          "row_id": "b8a3dfee",
+          "field": "vendor_email",
+          "value": "",
+          "value_confidence": 0,
+          "bbox_left": "",
+          "bbox_top": "",
+          "bbox_width": "",
+          "bbox_height": "",
+          "page": ""
+        },
+        {
+          "row_id": "875435ed",
+          "field": "po_number",
+          "value": "",
+          "value_confidence": 0,
+          "bbox_left": "",
+          "bbox_top": "",
+          "bbox_width": "",
+          "bbox_height": "",
+          "page": ""
+        },
+        {
+          "row_id": "03c92cec",
+          "field": "total_amount",
+          "value": 771267.85,
+          "value_confidence": 0.777,
+          "bbox_left": 0.6684815486993345,
+          "bbox_top": 0.804617357845233,
+          "bbox_width": 0.1161524500907441,
+          "bbox_height": 0.01410859341598974,
+          "page": 1
+        },
+        {
+          "row_id": "e8f8da6c",
+          "field": "currency",
+          "value": "PHP",
+          "value_confidence": 0.5,
+          "bbox_left": 0.2988505747126437,
+          "bbox_top": 0.7956391620350577,
+          "bbox_width": 0.029643073200241985,
+          "bbox_height": 0.029499786233433092,
+          "page": 1
+        },
+        {
+          "row_id": "21750cab",
+          "field": "payment_terms",
+          "value": "CHARGE SALES",
+          "value_confidence": 0.511,
+          "bbox_left": 0.20931639443436176,
+          "bbox_top": 0.27575887131252674,
+          "bbox_width": 0.2147610405323654,
+          "bbox_height": 0.02907225309961522,
+          "page": 1
+        }
+      ],
+      "line_items": [
+        {
+          "row_id": "c0d6c083",
+          "description": "ZALORA 11.11 KICK OFF PARTY",
+          "description_confidence": 0.679,
+          "quantity": 1,
+          "quantity_confidence": 0,
+          "unit_price": 785280.72,
+          "unit_price_confidence": 0.698,
+          "line_total": 785280.72,
+          "line_total_confidence": 0.698,
+          "bbox_left": 0.22565033272837265,
+          "bbox_top": 0.44164172723386064,
+          "bbox_width": 0.5904416212946159,
+          "bbox_height": 0.01966652415562206,
+          "page": 1
+        }
+      ]
+    },
+    "debugging_json": {
+      "pipeline_stages": [
+        {
+          "stage": "download",
+          "file_type": "pdf",
+          "total_pages": 1,
+          "size_bytes": 160610,
+          "duration_seconds": 0.4550000000000409,
+          "status": "success"
+        },
+        {
+          "stage": "ocr",
+          "total_words": 219,
+          "pages_processed": 1,
+          "duration_seconds": 3.0399999999999636,
+          "status": "success"
+        },
+        {
+          "stage": "ocr_to_markdown",
+          "markdown_length": 1833,
+          "images_count": 1,
+          "duration_seconds": 104.72299999999996,
+          "cost_info": {
+            "phase": "markdown_generation",
+            "timestamp": 1773770202.8637686,
+            "invoice_name": "invoice",
+            "total_cost_usd": 0.2822785,
+            "duration_ms": 102912,
+            "duration_api_ms": 106273,
+            "session_id": "158e45a4-98f4-4ff1-981f-3cef549e0711",
+            "usage": {
+              "input_tokens": 48,
+              "cache_creation_input_tokens": 28712,
+              "cache_read_input_tokens": 290405,
+              "output_tokens": 5056,
+              "server_tool_use": {
+                "web_search_requests": 0,
+                "web_fetch_requests": 0
+              },
+              "service_tier": "standard",
+              "cache_creation": {
+                "ephemeral_1h_input_tokens": 0,
+                "ephemeral_5m_input_tokens": 28712
+              }
+            }
+          },
+          "status": "success"
+        },
+        {
+          "stage": "schema_generation",
+          "metadata_fields_count": 13,
+          "line_item_fields_count": 4,
+          "duration_seconds": 45.82000000000005,
+          "cost_info": {
+            "phase": "schema_generation",
+            "timestamp": 1773770249.7827961,
+            "invoice_name": "invoice",
+            "total_cost_usd": 0.0943167,
+            "duration_ms": 44622,
+            "duration_api_ms": 44118,
+            "session_id": "15ec6c22-027f-40f0-9379-fa26825af5eb",
+            "usage": {
+              "input_tokens": 13,
+              "cache_creation_input_tokens": 10466,
+              "cache_read_input_tokens": 57884,
+              "output_tokens": 2511,
+              "server_tool_use": {
+                "web_search_requests": 0,
+                "web_fetch_requests": 0
+              },
+              "service_tier": "standard",
+              "cache_creation": {
+                "ephemeral_1h_input_tokens": 0,
+                "ephemeral_5m_input_tokens": 10466
+              }
+            }
+          },
+          "status": "success"
+        },
+        {
+          "stage": "schema_transformation",
+          "duration_seconds": 0.03600000000005821,
+          "status": "success"
+        },
+        {
+          "stage": "claude_extraction",
+          "fields_extracted": 13,
+          "duration_seconds": 86.77599999999995,
+          "cost_info": {
+            "phase": "invoice_extraction",
+            "timestamp": 1773770337.6941962,
+            "invoice_name": "invoice",
+            "duration_ms": 86759.99402999878,
+            "usage": {
+              "input_tokens": 5330,
+              "output_tokens": 1894,
+              "total_tokens": 7224
+            }
+          },
+          "status": "success"
+        },
+        {
+          "stage": "bbox_matching",
+          "stats": {
+            "total_fields": 13,
+            "matched_fields": 12,
+            "exact_matches": 1,
+            "strict_matches": 2,
+            "fuzzy_matches": 3,
+            "phrase_matches": 0,
+            "substring_matches": 2,
+            "no_matches": 1,
+            "llm_mapped_matches": 4,
+            "match_rate": 92.31
+          },
+          "duration_seconds": 3.230000000000018,
+          "status": "success"
+        },
+        {
+          "stage": "frontend_transform",
+          "metadata_rows": 13,
+          "line_item_rows": 1,
+          "duration_seconds": 0,
+          "status": "success"
+        }
+      ],
+      "extracted_json": {
+        "metadata": [
+          {
+            "row_id": "9a9a007b",
+            "field": "invoice_number",
+            "value": 47,
+            "value_confidence": 0.991,
+            "bbox_left": 0.6146400483968542,
+            "bbox_top": 0.23728088926891835,
+            "bbox_width": 0.12764670296430733,
+            "bbox_height": 0.01966652415562206,
+            "page": 1
+          },
+          {
+            "row_id": "507b1b23",
+            "field": "invoice_date",
+            "value": "2015-11-24",
+            "value_confidence": 0.834,
+            "bbox_left": 0.6588021778584392,
+            "bbox_top": 0.27105600684053016,
+            "bbox_width": 0.10405323653962492,
+            "bbox_height": 0.01453612654980761,
+            "page": 1
+          },
+          {
+            "row_id": "4255d950",
+            "field": "due_date",
+            "value": "",
+            "value_confidence": 0,
+            "bbox_left": "",
+            "bbox_top": "",
+            "bbox_width": "",
+            "bbox_height": "",
+            "page": ""
+          },
+          {
+            "row_id": "75693012",
+            "field": "vendor_name",
+            "value": "YBM YELLOW BRICK MEDIA GROUP INC.",
+            "value_confidence": 0.982,
+            "bbox_left": 0.20084694494857835,
+            "bbox_top": 0.15946985891406584,
+            "bbox_width": 0.5493042952208107,
+            "bbox_height": 0.02436938862761864,
+            "page": 1
+          },
+          {
+            "row_id": "5c7c9e82",
+            "field": "vendor_code",
+            "value": "YBM",
+            "value_confidence": 0.931,
+            "bbox_left": 0.20084694494857835,
+            "bbox_top": 0.1616075245831552,
+            "bbox_width": 0.102843315184513,
+            "bbox_height": 0.022231722958529286,
+            "page": 1
+          },
+          {
+            "row_id": "29f41fd8",
+            "field": "vendor_tax_id",
+            "value": "008-250-060-00000",
+            "value_confidence": 0.983,
+            "bbox_left": 0.4337568058076225,
+            "bbox_top": 0.17999144933732364,
+            "bbox_width": 0.132486388384755,
+            "bbox_height": 0.00983326207781103,
+            "page": 1
+          },
+          {
+            "row_id": "dfcf7932",
+            "field": "vendor_address",
+            "value": "U-203 Maripola Bldg Perea St. Legaspi Village San Lorenzo Makati 1229 City of Makati NCR, Fourth District Philippines",
+            "value_confidence": 0.982,
+            "bbox_left": 0.3333333333333333,
+            "bbox_top": 0.19025224454895254,
+            "bbox_width": 0.40411373260738054,
+            "bbox_height": 0.023086789226165028,
+            "page": 1
+          },
+          {
+            "row_id": "11bf7004",
+            "field": "vendor_contact",
+            "value": "",
+            "value_confidence": 0,
+            "bbox_left": "",
+            "bbox_top": "",
+            "bbox_width": "",
+            "bbox_height": "",
+            "page": ""
+          },
+          {
+            "row_id": "b8a3dfee",
+            "field": "vendor_email",
+            "value": "",
+            "value_confidence": 0,
+            "bbox_left": "",
+            "bbox_top": "",
+            "bbox_width": "",
+            "bbox_height": "",
+            "page": ""
+          },
+          {
+            "row_id": "875435ed",
+            "field": "po_number",
+            "value": "",
+            "value_confidence": 0,
+            "bbox_left": "",
+            "bbox_top": "",
+            "bbox_width": "",
+            "bbox_height": "",
+            "page": ""
+          },
+          {
+            "row_id": "03c92cec",
+            "field": "total_amount",
+            "value": 771267.85,
+            "value_confidence": 0.777,
+            "bbox_left": 0.6684815486993345,
+            "bbox_top": 0.804617357845233,
+            "bbox_width": 0.1161524500907441,
+            "bbox_height": 0.01410859341598974,
+            "page": 1
+          },
+          {
+            "row_id": "e8f8da6c",
+            "field": "currency",
+            "value": "PHP",
+            "value_confidence": 0.5,
+            "bbox_left": 0.2988505747126437,
+            "bbox_top": 0.7956391620350577,
+            "bbox_width": 0.029643073200241985,
+            "bbox_height": 0.029499786233433092,
+            "page": 1
+          },
+          {
+            "row_id": "21750cab",
+            "field": "payment_terms",
+            "value": "CHARGE SALES",
+            "value_confidence": 0.511,
+            "bbox_left": 0.20931639443436176,
+            "bbox_top": 0.27575887131252674,
+            "bbox_width": 0.2147610405323654,
+            "bbox_height": 0.02907225309961522,
+            "page": 1
+          }
+        ],
+        "line_items": [
+          {
+            "row_id": "c0d6c083",
+            "description": "ZALORA 11.11 KICK OFF PARTY",
+            "description_confidence": 0.679,
+            "quantity": 1,
+            "quantity_confidence": 0,
+            "unit_price": 785280.72,
+            "unit_price_confidence": 0.698,
+            "line_total": 785280.72,
+            "line_total_confidence": 0.698,
+            "bbox_left": 0.22565033272837265,
+            "bbox_top": 0.44164172723386064,
+            "bbox_width": 0.5904416212946159,
+            "bbox_height": 0.01966652415562206,
+            "page": 1
+          }
+        ]
+      },
+      "statistics": {
+        "total_stages": 8,
+        "successful_stages": 8,
+        "total_claude_cost_usd": 0.376595,
+        "claude_costs_breakdown": {
+          "markdown_generation": 0.2822785,
+          "schema_generation": 0.0943167,
+          "structured_extraction": 0
+        },
+        "bbox_match_rate": "12/13 (92.3%)",
+        "output_metadata_fields": 13,
+        "output_line_items": 1
+      },
+      "errors": []
+    }
+  },
+  "vendor_validation": {
+    "has_error": false,
+    "invoice_number": 47,
+    "po_numbers": [
+      "PO-00004"
+    ],
+    "fields": [
+      {
+        "field_name": "vendor_name",
+        "display_name": "Vendor Legal Entity",
+        "match_status": "match",
+        "invoice_value": "GimBooks Ltd",
+        "master_value": "GimBooks Ltd",
+        "similarity_score": 1,
+        "required": true,
+        "matching_strategy": "fuzzy",
+        "tolerance_percentage": 0,
+        "field_type": "string"
+      },
+      {
+        "field_name": "vendor_tax_id",
+        "display_name": "Vendor VAT ID",
+        "match_status": "mismatch",
+        "invoice_value": "008-250-060-00000",
+        "master_value": null,
+        "similarity_score": null,
+        "required": false,
+        "matching_strategy": "fuzzy",
+        "tolerance_percentage": 0,
+        "field_type": "string"
+      },
+      {
+        "field_name": "vendor_address",
+        "display_name": "Vendor Address",
+        "match_status": "mismatch",
+        "invoice_value": "U-203 Maripola Bldg Perea St. Legaspi Village San Lorenzo Makati 1229 City of Makati NCR, Fourth District Philippines",
+        "master_value": "Unit No. 18, 2nd Floor, Galaxy Industrial Estate, mumbai, Maharashtra, 400069, India",
+        "similarity_score": 30,
+        "required": false,
+        "matching_strategy": "fuzzy",
+        "tolerance_percentage": 0,
+        "field_type": "string"
+      },
+      {
+        "field_name": "vendor_bank_name",
+        "display_name": "Vendor Bank Name",
+        "match_status": "mismatch",
+        "master_value": null,
+        "similarity_score": null,
+        "required": false,
+        "matching_strategy": "fuzzy",
+        "tolerance_percentage": 0,
+        "field_type": "string"
+      },
+      {
+        "field_name": "vendor_bank_account_name",
+        "display_name": "Vendor Bank Account Name",
+        "match_status": "mismatch",
+        "master_value": null,
+        "similarity_score": null,
+        "required": false,
+        "matching_strategy": "fuzzy",
+        "tolerance_percentage": 0,
+        "field_type": "string"
+      },
+      {
+        "field_name": "vendor_bank_swift",
+        "display_name": "Vendor Bank SWIFT",
+        "match_status": "mismatch",
+        "master_value": null,
+        "similarity_score": null,
+        "required": false,
+        "matching_strategy": "fuzzy",
+        "tolerance_percentage": 0,
+        "field_type": "string"
+      }
+    ],
+    "summary": {
+      "total_fields": 6,
+      "matched": 0,
+      "mismatched": 6,
+      "missing": 0,
+      "match_percentage": 0,
+      "validation_result": "fail",
+      "document_types": [
+        "invoice",
+        "po"
+      ]
+    },
+    "required_missing_fields": [],
+    "error": null,
+    "error_details": null
+  }
+}
