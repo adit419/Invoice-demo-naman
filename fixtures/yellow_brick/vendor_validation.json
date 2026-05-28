@@ -1,0 +1,190 @@
+[
+  {
+    "fields": [
+      {
+        "field_name": "vendor_name",
+        "display_name": "Vendor Legal Entity",
+        "type": "string",
+        "required": true,
+        "match_status": "match",
+        "values": {
+          "invoice": [
+            {
+              "document_id": "0000047",
+              "value": "YBM YELLOW BRICK MEDIA GROUP INC."
+            }
+          ],
+          "po": [
+            {
+              "document_id": "PO-00060",
+              "value": "YBM YELLOW BRICK MEDIA GROUP INC."
+            }
+          ]
+        },
+        "is_acknowledged": false,
+        "acknowledged_by": null,
+        "acknowledged_at": null
+      },
+      {
+        "field_name": "vendor_vat_id",
+        "display_name": "Vendor VAT ID",
+        "type": "string",
+        "required": false,
+        "match_status": "match",
+        "values": {
+          "invoice": [
+            {
+              "document_id": "0000047",
+              "value": "32ABCDE1234F1Z5"
+            }
+          ],
+          "po": [
+            {
+              "document_id": "PO-00060",
+              "value": "32ABCDE1234F1Z5"
+            }
+          ]
+        },
+        "is_acknowledged": false,
+        "acknowledged_by": null,
+        "acknowledged_at": null
+      },
+      {
+        "field_name": "vendor_address",
+        "display_name": "Vendor Address",
+        "type": "string",
+        "required": false,
+        "match_status": "match",
+        "values": {
+          "invoice": [
+            {
+              "document_id": "0000047",
+              "value": "U-203 Maripola Bldg Perea St. Legaspi Village San Lorenzo, Makati 1229 City of Makati NCR, Fourth District Philippines"
+            }
+          ],
+          "po": [
+            {
+              "document_id": "PO-00060",
+              "value": "U-203 Maripola Bldg Peria St. Legaspi Village San Lorenzo, Makati 1229 City of makati NCR, Fourth District Philippines, Philippines"
+            }
+          ]
+        },
+        "is_acknowledged": false,
+        "acknowledged_by": null,
+        "acknowledged_at": null
+      },
+      {
+        "field_name": "vendor_bank_name",
+        "display_name": "Vendor Bank Name",
+        "type": "string",
+        "required": false,
+        "match_status": "mismatch",
+        "values": {
+          "invoice": [
+            {
+              "document_id": "0000047",
+              "value": ""
+            }
+          ],
+          "po": [
+            {
+              "document_id": "PO-00060",
+              "value": "Banco de Manila"
+            }
+          ]
+        },
+        "is_acknowledged": false,
+        "acknowledged_by": null,
+        "acknowledged_at": null
+      },
+      {
+        "field_name": "vendor_bank_account_number",
+        "display_name": "Vendor Bank Account Number",
+        "type": "string",
+        "required": false,
+        "match_status": "mismatch",
+        "values": {
+          "invoice": [
+            {
+              "document_id": "0000047",
+              "value": ""
+            }
+          ],
+          "po": [
+            {
+              "document_id": "PO-00060",
+              "value": "987654321098"
+            }
+          ]
+        },
+        "is_acknowledged": false,
+        "acknowledged_by": null,
+        "acknowledged_at": null
+      },
+      {
+        "field_name": "vendor_bank_account_name",
+        "display_name": "Vendor Bank Account Name",
+        "type": "string",
+        "required": false,
+        "match_status": "mismatch",
+        "values": {
+          "invoice": [
+            {
+              "document_id": "0000047",
+              "value": ""
+            }
+          ],
+          "po": [
+            {
+              "document_id": "PO-00060",
+              "value": "YBM YELLOW BRICK MEDIA GROUP INC."
+            }
+          ]
+        },
+        "is_acknowledged": false,
+        "acknowledged_by": null,
+        "acknowledged_at": null
+      },
+      {
+        "field_name": "vendor_bank_swift",
+        "display_name": "Vendor Bank SWIFT",
+        "type": "string",
+        "required": false,
+        "match_status": "mismatch",
+        "values": {
+          "invoice": [
+            {
+              "document_id": "0000047",
+              "value": ""
+            }
+          ],
+          "po": [
+            {
+              "document_id": "PO-00060",
+              "value": "PNBMPHMMXXX"
+            }
+          ]
+        },
+        "is_acknowledged": false,
+        "acknowledged_by": null,
+        "acknowledged_at": null
+      }
+    ],
+    "summary": {
+      "total_fields": 7,
+      "matched": 3,
+      "mismatched": 4,
+      "missing_required": 0,
+      "missing": 0,
+      "match_percentage": 42.86,
+      "document_types": [
+        "invoice",
+        "po"
+      ],
+      "validation_result": "fail"
+    },
+    "required_missing_fields": [],
+    "error_message": null,
+    "error_code": null
+  }
+]

@@ -1,0 +1,54 @@
+# ── General ──────────────────────────────────────────────────────────────────
+.DS_Store
+*.pem
+*.log
+
+# Claude Code local state (worktrees, etc.) — never commit
+.claude/
+
+# ── Backend ──────────────────────────────────────────────────────────────────
+
+# Secrets — never push real env
+backend/.env
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environment
+backend/.venv/
+backend/venv/
+backend/env/
+
+# Uploaded invoice files (user data, can be large)
+backend/uploads/
+
+# ── Frontend ─────────────────────────────────────────────────────────────────
+frontend/node_modules/
+# Redundant lockfile — npm is authoritative (Dockerfile uses `npm ci`)
+frontend/pnpm-lock.yaml
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/.env*
+frontend/.vercel/
+frontend/coverage/
+frontend/*.tsbuildinfo
+frontend/next-env.d.ts
+frontend/.pnp
+frontend/.pnp.*
+frontend/.yarn/*
+!frontend/.yarn/patches
+!frontend/.yarn/plugins
+!frontend/.yarn/releases
+!frontend/.yarn/versions
+
+# Local demo files to ignore
+demo_app_requirement.md
+flow.png
+PROGRESS.md
+
+# Deployment scripts (local, contains environment-specific config)
+deploy-ec2.sh
+RUN_LOCAL.md

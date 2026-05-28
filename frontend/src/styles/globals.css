@@ -1,0 +1,206 @@
+@import "tailwindcss";
+@import "./tokens.css";
+
+@theme inline {
+  /* ── Font families (unified on Inter to match invoice-validator-fe) ── */
+  --font-family-dm-sans: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-family-jakarta: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-family-clash: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-family-serif: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+
+  /* ── Radii ── */
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-xl: var(--radius-xl);
+
+  /* ── Shadows ── */
+  --shadow-small: var(--shadow-small);
+  --shadow-medium: var(--shadow-medium);
+  --shadow-large: var(--shadow-large);
+
+  /* ── Surface colors ── */
+  --color-surface-page: var(--surface-pagecard-page);
+  --color-surface-card-1: var(--surface-pagecard-card-1);
+  --color-surface-card-2: var(--surface-pagecard-card-2);
+  --color-surface-card-3: var(--surface-pagecard-card-3);
+  --color-surface-callout-1: var(--surface-call-out-card-1);
+  --color-surface-callout-2: var(--surface-call-out-card-2);
+  --color-surface-callout-3: var(--surface-call-out-card-3);
+
+  --color-surface-primary: var(--surface-primary-default);
+  --color-surface-primary-hover: var(--surface-primary-default-hover);
+  --color-surface-primary-pressed: var(--surface-primary-default-pressed);
+  --color-surface-primary-subtle: var(--surface-primary-subtle);
+  --color-surface-primary-subtle-hover: var(--surface-primary-subtle-hover);
+  --color-surface-primary-bg: var(--surface-primary-background);
+
+  --color-surface-info: var(--surface-information-default);
+  --color-surface-info-hover: var(--surface-information-default-hover);
+  --color-surface-info-subtle: var(--surface-information-subtle);
+  --color-surface-info-subtle-hover: var(--surface-information-subtle-hover);
+
+  --color-surface-success: var(--surface-success-default);
+  --color-surface-success-hover: var(--surface-success-default-hover);
+  --color-surface-success-subtle: var(--surface-success-subtle);
+  --color-surface-success-subtle-hover: var(--surface-success-subtle-hover);
+
+  --color-surface-error: var(--surface-error-default);
+  --color-surface-error-hover: var(--surface-error-default-hover);
+  --color-surface-error-subtle: var(--surface-error-subtle);
+  --color-surface-error-subtle-hover: var(--surface-error-subtle-hover);
+
+  --color-surface-warning: var(--surface-warning-default);
+  --color-surface-warning-hover: var(--surface-warning-default-hover);
+  --color-surface-warning-subtle: var(--surface-warning-subtle);
+  --color-surface-warning-subtle-hover: var(--surface-warning-subtle-hover);
+
+  --color-surface-disabled: var(--surface-disabled-default);
+
+  /* ── Border colors ── */
+  --color-border-default: var(--border-default-default);
+  --color-border-default-hover: var(--border-default-default-hover);
+  --color-border-page: var(--border-pagecard-page);
+  --color-border-card-1: var(--border-pagecard-card-1);
+  --color-border-card-2: var(--border-pagecard-card-2);
+  --color-border-card-3: var(--border-pagecard-card-3);
+
+  --color-border-primary: var(--border-primary-default);
+  --color-border-primary-hover: var(--border-primary-default-hover);
+  --color-border-primary-focus: var(--border-primary-focus);
+
+  --color-border-success: var(--border-success-default);
+  --color-border-error: var(--border-error-default);
+  --color-border-warning: var(--border-warning-default);
+  --color-border-info: var(--border-information-default);
+  --color-border-disabled: var(--border-disabled-default);
+
+  /* ── Text colors ── */
+  --color-text-heading: var(--text-default-heading);
+  --color-text-body: var(--text-default-body);
+  --color-text-caption: var(--text-default-caption);
+  --color-text-placeholder: var(--text-default-placeholder);
+  --color-text-on-color: var(--text-on-colour-body);
+  --color-text-on-color-heading: var(--text-on-colour-heading);
+  --color-text-on-color-caption: var(--text-on-colour-caption);
+
+  --color-text-primary: var(--text-primary-default);
+  --color-text-primary-hover: var(--text-primary-hover);
+  --color-text-info: var(--text-information-default);
+  --color-text-success: var(--text-success-default);
+  --color-text-error: var(--text-error-default);
+  --color-text-warning: var(--text-warning-default);
+  --color-text-disabled: var(--text-disabled-default);
+
+  --color-text-success-on: var(--text-success-on-color);
+  --color-text-error-on: var(--text-error-on-color);
+  --color-text-warning-on: var(--text-warning-on-color);
+  --color-text-info-on: var(--text-information-on-color);
+  --color-text-primary-on: var(--text-primary-on-color);
+
+  /* ── Icon colors ── */
+  --color-icon-body: var(--icon-default-body);
+  --color-icon-placeholder: var(--icon-default-placeholder);
+  --color-icon-primary: var(--icon-primary-default);
+  --color-icon-success: var(--icon-success-default);
+  --color-icon-warning: var(--icon-warning-default);
+  --color-icon-error: var(--icon-error-default);
+  --color-icon-info: var(--icon-information-default);
+  --color-icon-disabled: var(--icon-disabled-default);
+  --color-icon-on-color: var(--icon-on-colour-body);
+
+  /* ── Grey palette ── */
+  --color-grey-25: var(--grey-25);
+  --color-grey-50: var(--grey-50);
+  --color-grey-75: var(--grey-75);
+  --color-grey-100: var(--grey-100);
+  --color-grey-200: var(--grey-200);
+  --color-grey-300: var(--grey-300);
+  --color-grey-400: var(--grey-400);
+  --color-grey-500: var(--grey-500);
+  --color-grey-600: var(--grey-600);
+  --color-grey-700: var(--grey-700);
+  --color-grey-800: var(--grey-800);
+  --color-grey-900: var(--grey-900);
+  --color-grey-1000: var(--grey-1000);
+
+  /* ── Primary palette ── */
+  --color-primary-100: var(--primary-100);
+  --color-primary-200: var(--primary-200);
+  --color-primary-300: var(--primary-300);
+  --color-primary-400: var(--primary-400);
+  --color-primary-500: var(--primary-500);
+  --color-primary-600: var(--primary-600);
+  --color-primary-700: var(--primary-700);
+  --color-primary-800: var(--primary-800);
+}
+
+/* ── Base styles ── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: #ffffff;
+  color: var(--text-default-body);
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 14px;
+  line-height: 22px;
+  letter-spacing: -0.08px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  color: var(--text-default-heading);
+  font-weight: 600;
+  letter-spacing: -0.2px;
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes count-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(59,130,246,0.2); }
+  50%       { box-shadow: 0 0 0 8px rgba(59,130,246,0.05); }
+}
+
+@keyframes badge-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-slide-up    { animation: slide-up 0.25s ease-out both; }
+.animate-count-up    { animation: count-up 0.4s ease-out both; }
+.animate-fade-in     { animation: fade-in 0.3s ease-out both; }
+.animate-pulse-glow  { animation: pulse-glow 2.5s ease-in-out infinite; }
+.animate-badge-pulse { animation: badge-pulse 2s ease-in-out infinite; }
+
+/* Card utility */
+.glass {
+  background: rgba(255,255,255,0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(0,0,0,0.08);
+}

@@ -1,0 +1,31 @@
+{
+  "bill_header": {
+    "vendor_id": "vendor_ybm_01",
+    "vendor_name": "YBM YELLOW BRICK MEDIA GROUP INC.",
+    "bill_number": "BILL-0000047",
+    "bill_date": "2025-11-24",
+    "due_date": "2025-12-24",
+    "reference": "PO-00060",
+    "currency": "PHP",
+    "subtotal": 701143.5,
+    "tax_amount": 84137.22,
+    "total": 785280.72,
+    "wht": 14022.87,
+    "net_amount_after_wht": 771257.85
+  },
+  "line_items": [
+    {
+      "id": "bl_1",
+      "invoice_line_id": "tgdq6363",
+      "description": "AAA 11.11 Kick off Party",
+      "account_code": "6010",
+      "account_name": "Marketing & Events",
+      "quantity": 1,
+      "unit_price": 701143.5,
+      "tax_type": "VAT 12%",
+      "vat_tax_code": "IB",
+      "wht_tax_code": "01",
+      "total": 701143.5
+    }
+  ]
+}

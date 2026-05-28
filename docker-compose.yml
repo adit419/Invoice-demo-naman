@@ -1,0 +1,17 @@
+# Runs the backend with in-memory database.
+# No external services required!
+# Frontend: cd frontend && npm run dev
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8099:8099"
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./backend:/app
+      - ./fixtures:/fixtures
