@@ -1,5 +1,3 @@
-"use client"
-
 /**
  * Ask Neoflo — full chat UI, ported from the Flask app.
  *
@@ -13,6 +11,7 @@ import React, {
   useState, useRef, useEffect, useCallback,
   type KeyboardEvent,
 } from "react"
+import { withAuthGuard } from "@/components/AuthGuard"
 
 // ─────────────────────────────────────────── types ───────────────────────────
 
@@ -227,7 +226,7 @@ function renderMarkdown(raw: string, invNums: string[], vendors: string[]): stri
 
 // ──────────────────────────────────────── component ──────────────────────────
 
-export default function AskNeoFloPage() {
+function AskNeoFloPage() {
   const [msgs,          setMsgs]          = useState<Msg[]>([])
   const [input,         setInput]         = useState("")
   const [busy,          setBusy]          = useState(false)
@@ -747,6 +746,8 @@ export default function AskNeoFloPage() {
     </>
   )
 }
+
+export default withAuthGuard(AskNeoFloPage)
 
 // ──────────────────────────────────────────── CSS ─────────────────────────────
 // All classes are prefixed "anf-" to avoid conflicts with app globals.
