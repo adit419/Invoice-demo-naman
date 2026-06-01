@@ -161,13 +161,13 @@
           "invoice": [
             {
               "document_id": "1001312123",
-              "value": 155091.24
+              "value": 155089.80
             }
           ],
           "po": [
             {
               "document_id": "PO-00058",
-              "value": 155091.24
+              "value": 155089.80
             }
           ],
           "grn": [
@@ -221,13 +221,13 @@
           "invoice": [
             {
               "document_id": "1001312123",
-              "value": 155091.24
+              "value": 155089.80
             }
           ],
           "po": [
             {
               "document_id": "PO-00058",
-              "value": 155091.24
+              "value": 155089.80
             }
           ],
           "grn": [
@@ -251,13 +251,13 @@
           "invoice": [
             {
               "document_id": "1001312123",
-              "value": "Net 776"
+              "value": "Net 60"
             }
           ],
           "po": [
             {
               "document_id": "PO-00058",
-              "value": "776"
+              "value": "60"
             }
           ],
           "grn": [
@@ -281,13 +281,13 @@
           "invoice": [
             {
               "document_id": "1001312123",
-              "value": "2027-06-22"
+              "value": "2026-08-29"
             }
           ],
           "po": [
             {
               "document_id": "PO-00058",
-              "value": "2027-06-22"
+              "value": "2026-08-29"
             }
           ],
           "grn": [

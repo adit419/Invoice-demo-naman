@@ -347,7 +347,7 @@ function BillPostingPage() {
                       rel="noopener noreferrer"
                       className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-white bg-green-600 hover:bg-green-700 transition-colors"
                     >
-                      View in Zoho ↗
+                      View in ERP ↗
                     </a>
                   </>
                 )}

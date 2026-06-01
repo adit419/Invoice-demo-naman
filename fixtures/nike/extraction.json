@@ -16,19 +16,19 @@
       {
         "row_id": "0c4wbxgo",
         "field": "invoice_date",
-        "value": "2025-05-07",
+        "value": "2026-06-30",
         "is_required": true
       },
       {
         "row_id": "rts3bldh",
         "field": "payment_terms",
-        "value": "Net 776",
+        "value": "Net 60",
         "is_required": false
       },
       {
         "row_id": "ag0m58p9",
         "field": "due_date",
-        "value": "2027-06-22",
+        "value": "2026-08-29",
         "is_required": false
       },
       {

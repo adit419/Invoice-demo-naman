@@ -3,13 +3,13 @@
     "vendor_id": "vendor_nike_01",
     "vendor_name": "NIKE SALES (MALAYSIA)",
     "bill_number": "BILL-1001312123",
-    "bill_date": "2025-05-07",
-    "due_date": "2027-06-22",
+    "bill_date": "2026-06-30",
+    "due_date": "2026-08-29",
     "reference": "PO-00058",
     "currency": "INR",
-    "subtotal": 155091.24,
+    "subtotal": 155089.80,
     "tax_amount": 0,
-    "total": 155091.24
+    "total": 155089.80
   },
   "line_items": [
     {
