@@ -51,9 +51,13 @@ async def _get_org_id(client: ZohoApiClient) -> str:
     return str(orgs[0]["organization_id"])
 
 
-async def _search_vendor_exact(client: ZohoApiClient, org_id: str, vendor_name: str) -> str | None:
-    """Search all pages of Zoho contacts for an exact (case-insensitive) name match."""
+async def _find_all_vendors_by_name(
+    client: ZohoApiClient, org_id: str, vendor_name: str
+) -> list[dict]:
+    """Return ALL Zoho vendor contacts whose name exactly matches vendor_name (case-insensitive).
+    Each dict has 'contact_id' and 'currency_code'."""
     target = vendor_name.strip().lower()
+    matches: list[dict] = []
     page = 1
     while True:
         body = await client.get(
@@ -69,83 +73,84 @@ async def _search_vendor_exact(client: ZohoApiClient, org_id: str, vendor_name: 
         contacts = body.get("contacts", [])
         for c in contacts:
             if (c.get("contact_name") or "").strip().lower() == target:
-                return str(c["contact_id"])
-        # Stop if fewer than a full page returned (no more pages)
+                matches.append({
+                    "contact_id": str(c["contact_id"]),
+                    "currency_code": (c.get("currency_code") or "").upper(),
+                })
         if len(contacts) < 200:
             break
         page += 1
-    return None
+    return matches
 
 
-async def _get_or_create_vendor(client: ZohoApiClient, org_id: str, vendor_name: str) -> str:
+async def _get_or_create_vendor(
+    client: ZohoApiClient, org_id: str, vendor_name: str, currency_code: str = ""
+) -> str:
     """
-    Look up a vendor contact by exact name match.
-    If not found, create it in Zoho Books so the bill always shows the correct vendor.
-
-    Zoho's search_text is a prefix/fuzzy search — it can return the wrong vendor
-    (e.g. searching "NIKE SALES (MALAYSIA)" might return "12 Guno Power Ltd").
-    We therefore:
-      1. Check ALL returned contacts for an exact name match.
-      2. If still not found, try to create.
-      3. If create fails with 3062 (already exists), search again without search_text
-         to locate the vendor that Zoho insists exists.
+    Find a vendor by name, preferring the one whose currency matches currency_code.
+    If multiple vendors share the same name (e.g. one INR, one USD), picks the
+    matching-currency contact so the bill is created in the right currency.
+    Falls back to creating a new vendor if none found.
     """
-    # Step 1: search with the vendor name and check every result
-    contact_id = await _search_vendor_exact(client, org_id, vendor_name)
-    if contact_id:
-        return contact_id
+    want_ccy = currency_code.upper()
+    matches = await _find_all_vendors_by_name(client, org_id, vendor_name)
 
-    # Step 2: try to create
-    try:
-        create_body = await client.post(
-            "/contacts",
-            params={"organization_id": org_id},
-            json={
-                "contact_name": vendor_name,
-                "contact_type": "vendor",
-            },
+    if matches:
+        # Prefer exact currency match; fall back to first result
+        for m in matches:
+            if m["currency_code"] == want_ccy:
+                logger.info(
+                    "Vendor '%s' resolved to contact %s (currency %s).",
+                    vendor_name, m["contact_id"], m["currency_code"],
+                )
+                return m["contact_id"]
+        # No currency match found — use first result and log a warning
+        logger.warning(
+            "Vendor '%s': no contact with currency %s found; using contact %s (currency %s).",
+            vendor_name, want_ccy, matches[0]["contact_id"], matches[0]["currency_code"],
         )
-        contact = create_body.get("contact", {})
-        contact_id = str(contact.get("contact_id", ""))
+        return matches[0]["contact_id"]
+
+    # No vendor found — create one with the right currency
+    logger.info("Vendor '%s' not found; creating with currency %s.", vendor_name, want_ccy)
+    payload: dict = {"contact_name": vendor_name, "contact_type": "vendor"}
+    if want_ccy:
+        payload["currency_code"] = want_ccy
+    try:
+        body = await client.post("/contacts", params={"organization_id": org_id}, json=payload)
+        contact_id = str(body.get("contact", {}).get("contact_id", ""))
         if contact_id:
             return contact_id
     except Exception as exc:
-        # Error 3062 = vendor already exists (name conflict) — search without search_text
         if "3062" not in str(exc):
             raise
-
-    # Step 3: Zoho says it already exists but search_text didn't find it.
-    # Fetch all vendors (no search_text) and scan for exact match.
-    logger.info("Vendor '%s' already exists per Zoho (3062); scanning all vendors.", vendor_name)
-    target = vendor_name.strip().lower()
-    page = 1
-    while True:
-        body = await client.get(
-            "/contacts",
-            params={
-                "organization_id": org_id,
-                "contact_type": "vendor",
-                "page": page,
-                "per_page": 200,
-            },
-        )
-        contacts = body.get("contacts", [])
-        for c in contacts:
-            if (c.get("contact_name") or "").strip().lower() == target:
-                return str(c["contact_id"])
-        if len(contacts) < 200:
-            break
-        page += 1
+        # Zoho says it exists but search didn't find it — scan without search_text
+        logger.info("Vendor '%s' exists per Zoho (3062); full scan.", vendor_name)
+        target = vendor_name.strip().lower()
+        page = 1
+        while True:
+            body = await client.get(
+                "/contacts",
+                params={"organization_id": org_id, "contact_type": "vendor",
+                        "page": page, "per_page": 200},
+            )
+            contacts = body.get("contacts", [])
+            for c in contacts:
+                if (c.get("contact_name") or "").strip().lower() == target:
+                    if not want_ccy or (c.get("currency_code") or "").upper() == want_ccy:
+                        return str(c["contact_id"])
+            if len(contacts) < 200:
+                break
+            page += 1
 
     raise RuntimeError(
-        f"Vendor '{vendor_name}' not found in Zoho Books and could not be created. "
-        f"Please add this vendor manually in Zoho Books and retry."
+        f"Vendor '{vendor_name}' not found in Zoho Books and could not be created."
     )
 
 
 # Keep the old name as an alias for any callers that use it directly
-async def _get_vendor_id(client: ZohoApiClient, org_id: str, vendor_name: str) -> str:
-    return await _get_or_create_vendor(client, org_id, vendor_name)
+async def _get_vendor_id(client: ZohoApiClient, org_id: str, vendor_name: str, currency_code: str = "") -> str:
+    return await _get_or_create_vendor(client, org_id, vendor_name, currency_code)
 
 
 async def get_gl_accounts(client: ZohoApiClient, org_id: str) -> list[dict]:
@@ -158,6 +163,15 @@ async def get_taxes(client: ZohoApiClient, org_id: str) -> list[dict]:
     """Returns tax list from Zoho."""
     body = await client.get("/settings/taxes", params={"organization_id": org_id})
     return body.get("taxes", [])
+
+
+async def get_tax_exemptions(client: ZohoApiClient, org_id: str) -> list[dict]:
+    """Returns tax exemption reasons from Zoho (used for overseas/foreign vendor line items)."""
+    try:
+        body = await client.get("/settings/taxexemptions", params={"organization_id": org_id})
+        return body.get("tax_exemptions", [])
+    except Exception:
+        return []
 
 
 def _build_account_maps(accounts: list[dict]) -> tuple[dict, dict]:
@@ -246,38 +260,52 @@ async def _post_bill_live(
     """Internal: actually calls the Zoho Books API."""
     async with ZohoApiClient() as client:
         org_id = await _get_org_id(client)
-        vendor_id = await _get_or_create_vendor(client, org_id, vendor_name)
+        vendor_id = await _get_or_create_vendor(client, org_id, vendor_name, currency_code)
         accounts = await get_gl_accounts(client, org_id)
         by_code, by_name = _build_account_maps(accounts)
 
-        # ── Demo defaults ───────────────────────────────────────────────────
-        # The new SAP-style UI no longer asks users to pick an account / tax
-        # per line, but Zoho requires both. We pin the demo to:
-        #   - Account: "Purchase Discount"
-        #   - Tax:     "IGST0"
-        # The values match what the legacy Zoho-aware UI sent (see the prior
-        # bill-posting.tsx loadData defaults).
         default_account_id: str | None = next(
             (str(a.get("account_id", "")) for a in accounts
              if "purchase discount" in (a.get("account_name", "") or "").lower()),
             None,
         )
-        # Fallback: first account on the chart, so the demo never sends a
-        # blank account_id (Zoho rejects with code 13009).
         if not default_account_id and accounts:
             default_account_id = str(accounts[0].get("account_id", ""))
 
-        taxes = await get_taxes(client, org_id)
-        default_tax_id: str | None = next(
-            (str(t.get("tax_id", "")) for t in taxes
-             if (t.get("tax_name", "") or "").lower() == "igst0"),
-            None,
-        )
+        # For foreign-currency (non-INR) bills Zoho India requires either a tax,
+        # a tax_exemption_id, or reverse charge on every line item (error 110802).
+        # Applying IGST to overseas vendors also fails (error 71512), so we fetch
+        # a tax exemption reason and apply it per line, plus set the bill-level
+        # reverse charge flag which is the correct GST treatment for imports.
+        is_foreign = bool(currency_code and currency_code.upper() != "INR")
+        default_tax_id: str | None = None
+        default_exemption_id: str | None = None
+
+        if is_foreign:
+            exemptions = await get_tax_exemptions(client, org_id)
+            if exemptions:
+                # Prefer an exemption clearly related to overseas / out-of-scope purchases.
+                default_exemption_id = next(
+                    (str(e.get("tax_exemption_id", "")) for e in exemptions
+                     if any(kw in (e.get("tax_exemption_name") or "").lower()
+                            for kw in ("out of scope", "exempt", "overseas", "zero", "nil", "export"))),
+                    str(exemptions[0].get("tax_exemption_id", "")),
+                ) or None
+            logger.info(
+                "[zoho_bill] foreign bill — using tax_exemption_id=%s + is_reverse_charge_applicable",
+                default_exemption_id,
+            )
+        else:
+            taxes = await get_taxes(client, org_id)
+            default_tax_id = next(
+                (str(t.get("tax_id", "")) for t in taxes
+                 if (t.get("tax_name", "") or "").lower() == "igst0"),
+                None,
+            )
 
         zoho_line_items = []
         for item in line_items:
             account_id = _resolve_account_id(item, by_code, by_name) or default_account_id
-            tax_id = item.get("tax_id") or default_tax_id
             li: dict = {
                 "description": item.get("description", ""),
                 "rate": float(item.get("unit_price", 0)),
@@ -286,8 +314,13 @@ async def _post_bill_live(
             }
             if account_id:
                 li["account_id"] = account_id
-            if tax_id:
-                li["tax_id"] = tax_id
+            if is_foreign:
+                if default_exemption_id:
+                    li["tax_exemption_id"] = default_exemption_id
+            else:
+                tax_id = item.get("tax_id") or default_tax_id
+                if tax_id:
+                    li["tax_id"] = tax_id
             zoho_line_items.append(li)
 
         # Generate a unique bill_number — Zoho India orgs require it (auto-numbering disabled)
@@ -305,6 +338,8 @@ async def _post_bill_live(
             payload["reference_number"] = reference_number
         if currency_code:
             payload["currency_code"] = currency_code
+        if is_foreign:
+            payload["is_reverse_charge_applicable"] = True
 
         logger.info("[zoho_bill] posting bill payload (excl line_items): %s", {k: v for k, v in payload.items() if k != "line_items"})
 
