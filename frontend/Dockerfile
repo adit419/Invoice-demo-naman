@@ -27,6 +27,6 @@ COPY --from=builder /app/public ./public/
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
 
-EXPOSE 3001
+EXPOSE 3002
 
 CMD ["/app/docker-entrypoint.sh"]

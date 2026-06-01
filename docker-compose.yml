@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
-      - "8099:8099"
+      - "8001:8099"
     env_file:
       - ./backend/.env
     volumes:
@@ -18,14 +18,14 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_BE_BASE_URL: ""
+        NEXT_PUBLIC_BE_BASE_URL: "https://invoicedemo-api.neoflo.ai"
     restart: unless-stopped
     ports:
-      - "3001:3001"
+      - "3002:3002"
     environment:
-      PORT: "3001"
+      PORT: "3002"
       HOSTNAME: "0.0.0.0"
-      BE_BASE_URL: "http://backend:8099"
+      BE_BASE_URL: "https://invoicedemo-api.neoflo.ai"
       # Anthropic API key for Neo chat (/api/neo/chat)
       ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
       # Auth credentials (defaults match the hardcoded fallbacks in lib/auth.ts)
