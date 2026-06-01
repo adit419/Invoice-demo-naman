@@ -229,6 +229,27 @@ async def approve_stage(
     # Trigger next stage (start → in_progress → in_review)
     await _trigger_stage(db, run_id, next_slug, now)
 
+    # If STP is enabled and the next stage is bill_posting, auto-post to ERP.
+    # Lazy import avoids circular dependency (stp.py imports from stages.py).
+    if next_slug == "bill_posting":
+        import asyncio as _asyncio
+        import logging as _logging
+
+        async def _stp_auto_post(db_inner, run_id_inner):
+            _log = _logging.getLogger(__name__)
+            try:
+                from .stp import get_global_stp, _auto_post_bill  # noqa: PLC0415
+                if not await get_global_stp(db_inner):
+                    return
+                # Brief pause to ensure bill_posting is fully settled in in_review
+                await _asyncio.sleep(1)
+                await _auto_post_bill(db_inner, run_id_inner)
+                _log.info("STP auto-post triggered (manual approval flow) for run %s", run_id_inner)
+            except Exception:
+                _log.exception("STP auto-post (manual flow) failed for run %s", run_id_inner)
+
+        _asyncio.create_task(_stp_auto_post(db, run_id))
+
     # Update pipeline_run.current_stage
     await pipeline_runs(db).update_one(
         {"_id": run_id},
