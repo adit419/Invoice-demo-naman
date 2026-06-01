@@ -360,6 +360,12 @@ const NAV_ICON: Record<string, React.ReactNode> = {
   vendorOnboarding: <IconVendorOnboarding />,
 };
 
+// Vendor Onboarding sub-sections
+const VENDOR_ONBOARDING_CHILDREN = [
+  { label: "Vendor Portal", href: "/vendor-onboarding/portal", dot: "#3b82f6" },
+  { label: "Admin Portal",  href: "/vendor-onboarding/admin",  dot: "#8b5cf6" },
+];
+
 // Finance OS sub-sections — shown as an expandable group under "Finance OS"
 const FINANCE_OS_CHILDREN = [
   { label: "Workspace",          href: "/finance-os",                   dot: "#6366f1" },
@@ -399,6 +405,11 @@ export function NavSidebar({ collapsed, onCollapse }: NavSidebarProps) {
   const [financeOSOpen, setFinanceOSOpen] = useState(false);
   // Auto-expand when user navigates to any Finance OS route
   useEffect(() => { if (isOnFinanceOS) setFinanceOSOpen(true); }, [isOnFinanceOS]);
+
+  const isOnVendorOnboarding = router.pathname.startsWith("/vendor-onboarding");
+  const [vendorOnboardingOpen, setVendorOnboardingOpen] = useState(false);
+  // Auto-expand when user navigates to any Vendor Onboarding route
+  useEffect(() => { if (isOnVendorOnboarding) setVendorOnboardingOpen(true); }, [isOnVendorOnboarding]);
 
   // Persist user info to localStorage so the App Router Finance OS sidebar
   // (which can't access AuthContext) can read the logged-in user.
@@ -592,6 +603,84 @@ export function NavSidebar({ collapsed, onCollapse }: NavSidebarProps) {
           };
 
           const renderMainItem = (item: typeof navItems[number]) => {
+            if (item.pageKey === "vendorOnboarding") {
+              const active = isOnVendorOnboarding;
+              return (
+                <div key="vendorOnboarding">
+                  <button
+                    onClick={() => setVendorOnboardingOpen(o => !o)}
+                    title={collapsed ? item.label : undefined}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      width: collapsed ? 40 : "calc(100% - 16px)",
+                      height: collapsed ? 40 : "auto",
+                      margin: collapsed ? "2px auto" : "2px 8px",
+                      padding: collapsed ? 0 : "10px 12px",
+                      justifyContent: collapsed ? "center" : "flex-start",
+                      background: active ? ACTIVE_BG : "transparent",
+                      borderRadius: 8,
+                      color: "#fff",
+                      fontSize: 14,
+                      fontWeight: 400,
+                      border: "none",
+                      cursor: "pointer",
+                      transition: "background 0.15s",
+                      textAlign: "left",
+                    }}
+                    onMouseEnter={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.08)"; }}
+                    onMouseLeave={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
+                  >
+                    <span style={{ flexShrink: 0 }}>{item.icon}</span>
+                    {!collapsed && (
+                      <>
+                        <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.label}</span>
+                        <svg
+                          width="12" height="12" viewBox="0 0 12 12" fill="none"
+                          style={{ flexShrink: 0, transition: "transform 0.18s", transform: vendorOnboardingOpen ? "rotate(180deg)" : "rotate(0deg)" }}
+                        >
+                          <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </>
+                    )}
+                  </button>
+
+                  {vendorOnboardingOpen && !collapsed && (
+                    <div style={{ marginLeft: 8, marginRight: 8, marginBottom: 4 }}>
+                      {VENDOR_ONBOARDING_CHILDREN.map(child => {
+                        const childActive = router.pathname === child.href || router.pathname.startsWith(child.href);
+                        return (
+                          <Link
+                            key={child.href}
+                            href={child.href}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 10,
+                              padding: "7px 12px 7px 36px",
+                              borderRadius: 7,
+                              color: childActive ? "#fff" : "rgba(255,255,255,0.6)",
+                              fontSize: 13,
+                              fontWeight: childActive ? 500 : 400,
+                              textDecoration: "none",
+                              background: childActive ? "rgba(255,255,255,0.1)" : "transparent",
+                              transition: "background 0.13s, color 0.13s",
+                            }}
+                            onMouseEnter={e => { if (!childActive) { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(255,255,255,0.06)"; (e.currentTarget as HTMLAnchorElement).style.color = "#fff"; } }}
+                            onMouseLeave={e => { if (!childActive) { (e.currentTarget as HTMLAnchorElement).style.background = "transparent"; (e.currentTarget as HTMLAnchorElement).style.color = "rgba(255,255,255,0.6)"; } }}
+                          >
+                            <span style={{ width: 6, height: 6, borderRadius: "50%", background: childActive ? child.dot : "rgba(255,255,255,0.25)", flexShrink: 0, transition: "background 0.13s" }} />
+                            <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{child.label}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
             if (item.pageKey === "financeOS") {
               const active = isOnFinanceOS;
               return (
