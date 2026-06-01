@@ -202,6 +202,7 @@ async def post_bill(
     due_date: str,
     line_items: list[dict],
     reference_number: str = "",
+    currency_code: str = "",
 ) -> dict[str, Any]:
     """
     Posts a bill to Zoho Books.
@@ -221,7 +222,7 @@ async def post_bill(
         return _demo_post_bill(vendor_name, bill_date, reference_number)
 
     try:
-        return await _post_bill_live(vendor_name, bill_date, due_date, line_items, reference_number)
+        return await _post_bill_live(vendor_name, bill_date, due_date, line_items, reference_number, currency_code)
     except Exception as exc:
         err_str = str(exc).lower()
         # Credential errors: fall back to demo instead of surfacing a 502
@@ -240,6 +241,7 @@ async def _post_bill_live(
     due_date: str,
     line_items: list[dict],
     reference_number: str = "",
+    currency_code: str = "",
 ) -> dict[str, Any]:
     """Internal: actually calls the Zoho Books API."""
     async with ZohoApiClient() as client:
@@ -301,6 +303,10 @@ async def _post_bill_live(
         }
         if reference_number:
             payload["reference_number"] = reference_number
+        if currency_code:
+            payload["currency_code"] = currency_code
+
+        logger.info("[zoho_bill] posting bill payload (excl line_items): %s", {k: v for k, v in payload.items() if k != "line_items"})
 
         body = await client.post(
             "/bills",

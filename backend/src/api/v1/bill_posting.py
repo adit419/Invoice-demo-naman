@@ -511,6 +511,7 @@ async def post_bill_to_erp(invoice_id: str, current_user: CurrentUser):
     bill_date = saved.get("invoice_date") or _extract_field(invoice_schema, "invoice_date") or header.get("bill_date", "")
     due_date = saved.get("due_date") or header.get("due_date", "")
     reference = header.get("reference", "")
+    currency = _extract_field(invoice_schema, "currency") or header.get("currency", "")
 
     now = datetime.now(timezone.utc)
 
@@ -520,6 +521,7 @@ async def post_bill_to_erp(invoice_id: str, current_user: CurrentUser):
             bill_date=bill_date,
             due_date=due_date,
             reference_number=reference,
+            currency_code=currency,
             line_items=[
                 {
                     "description": li.get("description", ""),
