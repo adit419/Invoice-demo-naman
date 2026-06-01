@@ -76,7 +76,7 @@ function fmtTimeOfDay(): string {
 export default function CollectionsDisputeDetailPage() {
   const params = useParams<{ disputeId: string }>()
   const router = useRouter()
-  const maybeDispute = getDispute(params.disputeId)
+  const maybeDispute = getDispute(params!.disputeId)
   if (!maybeDispute) {
     notFound()
     return null

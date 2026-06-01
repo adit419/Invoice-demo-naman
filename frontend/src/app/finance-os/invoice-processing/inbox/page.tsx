@@ -86,7 +86,7 @@ export default function InvoiceProcessingInboxPage() {
 function InvoiceProcessingInboxInner() {
   // Deep-link from Insights "View aged": ?aged=true narrows to >30d, unpaid.
   const searchParams = useSearchParams()
-  const agedOnly = searchParams.get("aged") === "true"
+  const agedOnly = searchParams?.get("aged") === "true"
 
   // Persisted filter + search (sessionStorage via the invoice-processing store)
   const inboxFilter = useHydratedInvoiceProcessingStore((s) => s.inboxFilter)

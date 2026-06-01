@@ -101,7 +101,7 @@ function CashAppInboxPageInner() {
   )
 
   // Filter state from URL — single source of truth so back/forward works.
-  const filterParam = (searchParams.get("filter") as FilterId | null) ?? "all"
+  const filterParam = (searchParams?.get("filter") as FilterId | null) ?? "all"
   const activeFilter: FilterId = FILTERS.some((f) => f.id === filterParam)
     ? filterParam
     : "all"
@@ -109,7 +109,7 @@ function CashAppInboxPageInner() {
   const [search, setSearch] = React.useState("")
 
   function setFilter(next: FilterId) {
-    const params = new URLSearchParams(searchParams.toString())
+    const params = new URLSearchParams(searchParams?.toString() ?? "")
     if (next === "all") params.delete("filter")
     else params.set("filter", next)
     const qs = params.toString()

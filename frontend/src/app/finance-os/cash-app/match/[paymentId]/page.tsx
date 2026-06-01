@@ -54,7 +54,7 @@ function fmtHeadline(n: number): string {
 export default function CashAppMatchDetailPage() {
   const params = useParams<{ paymentId: string }>()
   const router = useRouter()
-  const paymentId = params.paymentId
+  const paymentId = params!.paymentId
 
   const payment = getPayment(paymentId)
   const application = getApplicationByPaymentId(paymentId)

@@ -71,7 +71,7 @@ function AllWorkPageInner() {
   const setPersona = usePersonaStore((s) => s.setPersona)
   const persona = getPersona(activePersonaId)
 
-  const rawFilter = params.get("filter")
+  const rawFilter = params?.get("filter") ?? null
   const active: FilterKey = isFilterKey(rawFilter) ? rawFilter : "all"
 
   // Filter by persona first, then by chip — counts on chips reflect the

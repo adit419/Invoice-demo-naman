@@ -104,7 +104,7 @@ function KnowledgePageInner() {
 
   // Deep-link: ?source=src-vendor-msa opens the dialog for that source.
   React.useEffect(() => {
-    const id = params.get("source")
+    const id = params?.get("source")
     if (!id) return
     const found = getSourceById(id)
     if (found) {
@@ -119,7 +119,7 @@ function KnowledgePageInner() {
   // Clear the URL param when the dialog closes so refreshing doesn't reopen.
   function handleDialogChange(open: boolean) {
     setDialogOpen(open)
-    if (!open && params.get("source")) {
+    if (!open && params?.get("source")) {
       router.replace("/neoflo-workspace/knowledge", { scroll: false })
     }
   }

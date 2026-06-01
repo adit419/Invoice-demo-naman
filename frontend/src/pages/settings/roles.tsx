@@ -12,7 +12,8 @@ const ALL_PAGES = [
   { key: "arForecast",      label: "AR Forecast",      description: "Accounts receivable forecasting" },
   { key: "cashApplication", label: "Cash Application", description: "Cash application module" },
   { key: "financeOS",       label: "Finance OS",       description: "Neoflo Finance OS workspace demo" },
-  { key: "askNeoflo",       label: "Ask Neoflo",       description: "AI-powered invoice knowledge graph chat" },
+  { key: "askNeoflo",        label: "Ask Neoflo",        description: "AI-powered invoice knowledge graph chat" },
+  { key: "vendorOnboarding", label: "Vendor Onboarding", description: "Vendor onboarding portal" },
 ];
 
 const ROLES = [

@@ -81,7 +81,7 @@ export default function MaverickDetailPage() {
   const params = useParams<{ maverickId: string }>()
   const router = useRouter()
 
-  const maybeMaverick = getMaverick(params.maverickId)
+  const maybeMaverick = getMaverick(params!.maverickId)
   if (!maybeMaverick) {
     notFound()
     return null

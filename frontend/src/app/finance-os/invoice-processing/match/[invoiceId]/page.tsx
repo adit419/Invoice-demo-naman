@@ -82,7 +82,7 @@ function fmtReceivedAt(iso: string): string {
 export default function InvoiceProcessingMatchDetailPage() {
   const params = useParams<{ invoiceId: string }>()
   const router = useRouter()
-  const invoiceId = params.invoiceId
+  const invoiceId = params!.invoiceId
 
   const invoice = getInvoice(invoiceId)
   if (!invoice) {

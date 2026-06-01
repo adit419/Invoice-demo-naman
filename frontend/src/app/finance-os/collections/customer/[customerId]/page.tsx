@@ -95,7 +95,7 @@ function reasoningBullets(reasoning: string): string[] {
 
 export default function CollectionsCustomerDetailPage() {
   const params = useParams<{ customerId: string }>()
-  const customerId = params.customerId
+  const customerId = params!.customerId
 
   const customer = getCustomer(customerId)
   if (!customer) {

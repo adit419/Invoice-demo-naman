@@ -108,6 +108,16 @@ function IconAskNeoflo() {
   );
 }
 
+function IconVendorOnboarding() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+      <rect x="2" y="4" width="14" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M6 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M9 8v4M7 10h4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function IconFinanceOS() {
   return (
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -321,30 +331,33 @@ const NAV_CONFIG_KEY = 'nav_view_config';
 interface NavItemConfig { key: string; label: string; }
 
 const DEFAULT_NAV_CONFIG: NavItemConfig[] = [
-  { key: 'dashboard',        label: 'Dashboard'         },
-  { key: 'reporting',        label: 'Reporting'         },
-  { key: 'arForecast',       label: 'AR Forecast'       },
-  { key: 'cashApplication',  label: 'Cash Application'  },
-  { key: 'askNeoflo',        label: 'Ask Neoflo'        },
-  { key: 'financeOS',        label: 'Finance OS'        },
+  { key: 'dashboard',          label: 'Dashboard'           },
+  { key: 'reporting',          label: 'Reporting'           },
+  { key: 'arForecast',         label: 'AR Forecast'         },
+  { key: 'cashApplication',    label: 'Cash Application'    },
+  { key: 'askNeoflo',          label: 'Ask Neoflo'          },
+  { key: 'vendorOnboarding',   label: 'Vendor Onboarding'  },
+  { key: 'financeOS',          label: 'Finance OS'          },
 ];
 
 const NAV_HREF: Record<string, string> = {
-  dashboard:       '/dashboard',
-  reporting:       '/insights',
-  arForecast:      '/forecasting',
-  cashApplication: '/cash-application',
-  financeOS:       '/finance-os',
-  askNeoflo:       '/ask-neoflo',
+  dashboard:        '/dashboard',
+  reporting:        '/insights',
+  arForecast:       '/forecasting',
+  cashApplication:  '/cash-application',
+  financeOS:        '/finance-os',
+  askNeoflo:        '/ask-neoflo',
+  vendorOnboarding: '/vendor-onboarding',
 };
 
 const NAV_ICON: Record<string, React.ReactNode> = {
-  dashboard:       <IconDashboard />,
-  reporting:       <IconInsights />,
-  arForecast:      <IconForecast />,
-  cashApplication: <IconCash />,
-  financeOS:       <IconFinanceOS />,
-  askNeoflo:       <IconAskNeoflo />,
+  dashboard:        <IconDashboard />,
+  reporting:        <IconInsights />,
+  arForecast:       <IconForecast />,
+  cashApplication:  <IconCash />,
+  financeOS:        <IconFinanceOS />,
+  askNeoflo:        <IconAskNeoflo />,
+  vendorOnboarding: <IconVendorOnboarding />,
 };
 
 // Finance OS sub-sections — shown as an expandable group under "Finance OS"
