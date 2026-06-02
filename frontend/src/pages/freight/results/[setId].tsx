@@ -522,12 +522,18 @@ function ResultsPage() {
   const [docTab,           setDocTab]           = useState<DocTab>("bol");
   const [activeTab,        setActiveTab]        = useState<"metadata"|"line_items">("metadata");
 
-  // LOCAL line items — always initialized fresh from DOCUMENT_SETS so previous
-  // approvals from other rows never bleed into this view.
-  // Lazy initializer reads directly from DOCUMENT_SETS so it's always fresh.
+  // LOCAL line items — initialized from DOCUMENT_SETS.
+  // If report already generated for this rowId → mark all exceptions as approved
+  // so the user sees the final approved state when revisiting.
   const [localLineItems, setLocalLineItems] = useState<typeof DOCUMENT_SETS[string]["lineItems"]>(() => {
     const s = setId ? DOCUMENT_SETS[setId] : null;
-    return s ? s.lineItems.map(i => ({ ...i })) : [];
+    if (!s) return [];
+    const alreadyDone = typeof window !== "undefined" && rowId && isReportGeneratedForRow(rowId as string);
+    return s.lineItems.map(i =>
+      alreadyDone && i.requiresDecision
+        ? { ...i, status: "approved-exception" as const }
+        : { ...i }
+    );
   });
 
 

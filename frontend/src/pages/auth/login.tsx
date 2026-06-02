@@ -166,7 +166,11 @@ export default function LoginPage() {
       if (selectedModules.length > 0) {
         localStorage.setItem(NAV_MODULE_FILTER_KEY, JSON.stringify(selectedModules));
       } else {
-        localStorage.removeItem(NAV_MODULE_FILTER_KEY);
+        // Default: show all modules except Vendor Onboarding & Driver Onboarding
+        const defaultModules = ALL_MODULES
+          .map(m => m.key)
+          .filter(k => k !== "vendorOnboarding" && k !== "driverOnboarding");
+        localStorage.setItem(NAV_MODULE_FILTER_KEY, JSON.stringify(defaultModules));
       }
       router.push("/dashboard");
     } catch (err) {

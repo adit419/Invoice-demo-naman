@@ -32,8 +32,11 @@ interface SideChat   { id: string; title: string }
 
 // ──────────────────────────────────────── constants ──────────────────────────
 
-const API      = (p: string) => `/api/ask-neoflo/${p}`
-const SID_KEY  = "ask_neoflo_sid"
+const API      = (p: string) => `/api/ask-neo/${p}`
+const SID_KEY       = "ask_neoflo_sid"
+const MSGS_KEY      = "ask_neoflo_msgs"
+const CHATS_KEY     = "ask_neoflo_chats"
+const ACTIVE_CHAT_KEY = "ask_neoflo_active_chat"
 
 const STEP_LABELS: Record<string, string> = {
   router:        "Intent Detection",
@@ -227,7 +230,9 @@ function renderMarkdown(raw: string, invNums: string[], vendors: string[]): stri
 // ──────────────────────────────────────── component ──────────────────────────
 
 function AskNeoFloPage() {
-  const [msgs,          setMsgs]          = useState<Msg[]>([])
+  const [msgs,          setMsgs]          = useState<Msg[]>(() => {
+    try { return JSON.parse(localStorage.getItem(MSGS_KEY) || "[]") } catch { return [] }
+  })
   const [input,         setInput]         = useState("")
   const [busy,          setBusy]          = useState(false)
   const [traceOpen,     setTraceOpen]     = useState(true)
@@ -236,7 +241,9 @@ function AskNeoFloPage() {
   const [traceLabel,    setTraceLabel]    = useState("PEV Trace")
   const [traceCount,    setTraceCount]    = useState(0)
   const [activeCtx,     setActiveCtx]     = useState<Record<string,string>>({})
-  const [sideChats,     setSideChats]     = useState<SideChat[]>([])
+  const [sideChats,     setSideChats]     = useState<SideChat[]>(() => {
+    try { return JSON.parse(localStorage.getItem(CHATS_KEY) || "[]") } catch { return [] }
+  })
   const [traceHist,     setTraceHist]     = useState<TraceEntry[]>([])
   const [activeTrace,   setActiveTrace]   = useState(-1)
   const [stageLabel,    setStageLabel]    = useState("Thinking…")
@@ -256,6 +263,20 @@ function AskNeoFloPage() {
     const s = localStorage.getItem(SID_KEY)
     if (s) sidRef.current = s
   }, [])
+
+  // ── Persist messages to localStorage ─────────────────────────────────────
+  useEffect(() => {
+    // Don't save while a message is still streaming (has __TYPING__ placeholder)
+    const hasTyping = msgs.some(m => m.text === "__TYPING__")
+    if (!hasTyping) {
+      try { localStorage.setItem(MSGS_KEY, JSON.stringify(msgs)) } catch { /* quota */ }
+    }
+  }, [msgs])
+
+  // ── Persist side chats list ───────────────────────────────────────────────
+  useEffect(() => {
+    try { localStorage.setItem(CHATS_KEY, JSON.stringify(sideChats)) } catch { /* quota */ }
+  }, [sideChats])
 
   // ── Auto-scroll messages ──────────────────────────────────────────────────
   useEffect(() => {
@@ -317,6 +338,17 @@ function AskNeoFloPage() {
     function handleChunk(c: Record<string, unknown>) {
       if (c.type === "trace") {
         const step = c.step as TraceStep
+        // Handle GTM status events forwarded as trace steps
+        if (step.step === "status") {
+          const statusMsg = step.message as string
+          if (statusMsg === "forming" && !pipelineStarted) {
+            pipelineStarted = true
+            startPipeline()
+          } else if (statusMsg === "thinking") {
+            setStageLabel("Thinking…")
+          }
+          return
+        }
         if (step.step === "pev_plan" && !pipelineStarted) { pipelineStarted = true; startPipeline() }
         liveTrace = [...liveTrace, step]
         setTraceSteps([...liveTrace])
@@ -431,6 +463,7 @@ function AskNeoFloPage() {
     }
     sidRef.current = crypto.randomUUID()
     localStorage.setItem(SID_KEY, sidRef.current)
+    localStorage.removeItem(MSGS_KEY)
     setMsgs([]); setTraceSteps([]); setTraceCount(0)
     setActiveCtx({}); setTraceHist([]); setActiveTrace(-1)
     setTraceLabel("PEV Trace")
