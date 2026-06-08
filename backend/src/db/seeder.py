@@ -126,6 +126,21 @@ SEED_NEOFLO_DEMO_USERS = [
 
 NEOFLO_DEMO_PASSWORD = "Admin@123"
 
+SEED_NEOFLO_TEAM_USERS = [
+    {"email": "hem@neoflo.ai",       "full_name": "Hem"},
+    {"email": "nipun@neoflo.ai",     "full_name": "Nipun"},
+    {"email": "naman.s@neoflo.ai",   "full_name": "Naman Sharma"},
+    {"email": "prithvi@neoflo.ai",   "full_name": "Prithvi"},
+    {"email": "rajesh.ks@neoflo.ai", "full_name": "Rajesh KS"},
+    {"email": "kaustav.r@neoflo.ai", "full_name": "Kaustav Ray"},
+    {"email": "shubham.s@neoflo.ai", "full_name": "Shubham S"},
+    {"email": "sundip@neoflo.ai",    "full_name": "Sundip"},
+    {"email": "vibs@neoflo.ai",      "full_name": "Vibs"},
+    {"email": "adit.n@neoflo.ai",    "full_name": "Adit"},
+]
+
+NEOFLO_TEAM_PASSWORD = "Neoflo@123"
+
 
 async def seed_tenants(db: AsyncIOMotorDatabase) -> None:
     """Idempotent — inserts tenants that don't exist yet."""
@@ -228,12 +243,43 @@ async def seed_neoflo_demo_users(db: AsyncIOMotorDatabase) -> None:
         print(f"[seeder] {count} Neoflo demo user(s) seeded (reviewer/member/workspace_admin).")
 
 
+async def seed_neoflo_team_users(db: AsyncIOMotorDatabase) -> None:
+    """Seed Neoflo team accounts as workspace_admin in the Neoflo tenant."""
+    tenant_doc = await tenants(db).find_one({"slug": "neoflo"})
+    if not tenant_doc:
+        return
+
+    now = datetime.now(timezone.utc)
+    pw_hash = bcrypt.hashpw(NEOFLO_TEAM_PASSWORD.encode(), bcrypt.gensalt()).decode()
+    count = 0
+    for u in SEED_NEOFLO_TEAM_USERS:
+        if await users(db).find_one({"email": u["email"]}):
+            continue
+        await users(db).insert_one({
+            "email": u["email"],
+            "full_name": u["full_name"],
+            "password_hash": pw_hash,
+            "role": "workspace_admin",
+            "is_active": True,
+            "tenant_id": tenant_doc["_id"],
+            "page_access": [],
+            "ar_sub_access": [],
+            "created_at": now,
+            "updated_at": now,
+            "last_login_at": None,
+        })
+        count += 1
+    if count:
+        print(f"[seeder] {count} Neoflo team user(s) seeded (workspace_admin, password: Neoflo@123).")
+
+
 async def seed_pipeline(db: AsyncIOMotorDatabase) -> None:
     """Idempotent — does nothing if pipeline already seeded."""
     await seed_tenants(db)
     await seed_admin_user(db)
     await seed_acme_users(db)
     await seed_neoflo_demo_users(db)
+    await seed_neoflo_team_users(db)
 
     existing = await pipelines(db).find_one({"slug": PIPELINE_SLUG})
     if existing:
