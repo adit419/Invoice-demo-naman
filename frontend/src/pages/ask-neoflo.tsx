@@ -24,11 +24,37 @@ interface Msg {
   invNums?: string[]
   vendorNames?: string[]
   question?: string
+  isHtml?: boolean       // pre-formatted HTML — skip renderMarkdown
+}
+
+// ──────────────────────────────── Source-to-Procure types ────────────────────
+
+interface S2POwner    { name: string; email: string; slack: string; seniority: string }
+interface S2PSupplier {
+  name: string; tier: string; contract_type?: string; contract_id?: string | null
+  buying_channel: string; po_required: string; p_card_eligible: string
+  approval_threshold_usd?: number | null; notes?: string
+}
+interface S2PQuestion {
+  id: string; level: "L1" | "L2"; question: string; answer: string
+  structured_answer: Record<string, unknown>
 }
 
 interface TraceStep { step: string; [k: string]: unknown }
 interface TraceEntry { question: string; trace: TraceStep[] }
 interface SideChat   { id: string; title: string }
+
+interface PRLineItem {
+  id: string; description: string; category: string; supplier: string
+  qty: string; unit: string; unitCost: string; glAccount: string; buyingChannel: string
+}
+interface PRFormData {
+  prNumber: string; prDate: string; requestor: string
+  department: string; businessUnit: string; costCenter: string
+  currency: string; needByDate: string; deliverToLocation: string
+  description: string; justification: string
+  lineItems: PRLineItem[]; approvalChain: string[]; notes: string
+}
 
 // ──────────────────────────────────────── constants ──────────────────────────
 
@@ -37,6 +63,9 @@ const SID_KEY       = "ask_neoflo_sid"
 const MSGS_KEY      = "ask_neoflo_msgs"
 const CHATS_KEY     = "ask_neoflo_chats"
 const ACTIVE_CHAT_KEY = "ask_neoflo_active_chat"
+
+// Per-chat message storage key
+const chatKey = (id: string) => `ask_neoflo_chat_${id}`
 
 const STEP_LABELS: Record<string, string> = {
   router:        "Intent Detection",
@@ -227,11 +256,315 @@ function renderMarkdown(raw: string, invNums: string[], vendors: string[]): stri
   return html + srcHtml
 }
 
+// ──────────────────────────────── S2P question data ──────────────────────────
+
+const S2P_QUESTIONS: S2PQuestion[] = [
+  {
+    id: "L1-01", level: "L1",
+    question: "Who is the procurement manager for Travel & Accommodation in Vietnam?",
+    answer: "The procurement manager for Travel & Accommodation (CAT-09) in Vietnam is Hoang Thi Lan (ht.lan@grab.com / @ht_lan). You can reach them directly on Slack at @ht_lan or via email.",
+    structured_answer: {
+      procurement_owners: [{ name: "Hoang Thi Lan", email: "ht.lan@grab.com", slack: "@ht_lan", seniority: "Junior" }],
+      country: "Vietnam (VN)", category: "Travel & Accommodation (CAT-09)"
+    }
+  },
+  {
+    id: "L1-02", level: "L1",
+    question: "What is the buying channel for Cloud & Infrastructure in Singapore?",
+    answer: "The default buying channel for Cloud & Infrastructure (CAT-03) in Singapore is the Self-service Cloud Portal at portal.grab.com/cloud. Preferred suppliers are AWS and Microsoft Azure — both use the Self-service Cloud Portal with a $1,000 approval threshold. Google Cloud is Approved for ML/AI workloads only and requires a PO via Oracle ERP above $5,000. All cloud workloads must be tagged with a cost centre at the time of provisioning.",
+    structured_answer: {
+      default_channel: "Self-service Cloud Portal (BC-04)",
+      suppliers: [
+        { name: "AWS", tier: "Preferred", contract_type: "CPA", buying_channel: "Self-service Cloud Portal", po_required: "Yes", p_card_eligible: "No", approval_threshold_usd: 1000, notes: "Primary cloud. Tag all workloads with cost centre. Monthly PO release." },
+        { name: "Microsoft Azure", tier: "Preferred", contract_type: "CPA", buying_channel: "Self-service Cloud Portal", po_required: "Yes", p_card_eligible: "No", approval_threshold_usd: 1000, notes: "Secondary cloud. Preferred for data residency workloads." },
+        { name: "Google Cloud", tier: "Approved", contract_type: "BPA", buying_channel: "PO via Oracle ERP", po_required: "Yes", p_card_eligible: "No", approval_threshold_usd: 5000, notes: "Approved for ML/AI workloads only. Requires CTO sign-off." },
+        { name: "Cloudflare", tier: "Approved", contract_type: "BPA", buying_channel: "PO via Oracle ERP", po_required: "Yes", p_card_eligible: "No", approval_threshold_usd: 2000, notes: "CDN and security. Route to Cloud Procurement." },
+      ],
+      country: "Singapore (SG)", category: "Cloud & Infrastructure (CAT-03)"
+    }
+  },
+  {
+    id: "L1-03", level: "L1",
+    question: "Can I use my P-Card to buy office supplies in Thailand?",
+    answer: "Yes, P-Card is allowed for Office Supplies & Stationery (CAT-05) in Thailand. No PO is required. Use the Punch-out Catalog in Oracle for bulk orders via Staples (up to $500). For smaller items, 3M and local stationery shops can be paid directly on P-Card up to $200 and $100 respectively. Amazon Business is a last-resort option up to $150 — prefer the Punch-out Catalog where possible. Retain all receipts and submit an expense report within 5 business days.",
+    structured_answer: {
+      p_card_allowed: true, po_required: false,
+      suppliers: [
+        { name: "Staples / local equiv", tier: "Preferred", buying_channel: "Punch-out Catalog", po_required: "No", p_card_eligible: "Yes", approval_threshold_usd: 500, notes: "Standard stationery. Under $500 use P-Card." },
+        { name: "3M", tier: "Approved", buying_channel: "P-Card", po_required: "No", p_card_eligible: "Yes", approval_threshold_usd: 200, notes: "Whiteboards, stickies, cleaning. P-Card only." },
+        { name: "Amazon Business", tier: "Other", buying_channel: "P-Card", po_required: "No", p_card_eligible: "Yes", approval_threshold_usd: 150, notes: "Last resort only. Prefer punch-out." },
+        { name: "Local stationery", tier: "Other", buying_channel: "P-Card", po_required: "No", p_card_eligible: "Yes", approval_threshold_usd: 100, notes: "Petty cash items only. Retain receipt." },
+      ],
+      country: "Thailand (TH)", category: "Office Supplies & Stationery (CAT-05)"
+    }
+  },
+  {
+    id: "L1-04", level: "L1",
+    question: "Which suppliers are approved for HR & Contingent Workforce in Philippines?",
+    answer: "There are four approved suppliers for HR & Contingent Workforce (CAT-07) in Philippines. Randstad (Preferred, BPA) and Adecco (Preferred, BPA) are the primary staffing agencies for contingent workforce, both via PO in Oracle with thresholds of $10,000 and $8,000 respectively. Michael Page (Approved, BPA) handles permanent search for mid-to-senior roles and requires HR VP approval above $15,000. LinkedIn Jobs (Approved, BPA) is used for job postings via the Self-service Recruitment Portal above $2,000. All engagements require a PO in Oracle before work begins.",
+    structured_answer: {
+      suppliers: [
+        { name: "Randstad", tier: "Preferred", buying_channel: "PO via Oracle ERP", po_required: "Yes", p_card_eligible: "No", approval_threshold_usd: 10000, notes: "Contingent workforce. VMS integrated." },
+        { name: "Adecco", tier: "Preferred", buying_channel: "PO via Oracle ERP", po_required: "Yes", p_card_eligible: "No", approval_threshold_usd: 8000, notes: "Admin and ops temp staffing." },
+        { name: "Michael Page", tier: "Approved", buying_channel: "PO via Oracle ERP", po_required: "Yes", p_card_eligible: "No", approval_threshold_usd: 15000, notes: "Permanent search for mid-senior roles. HR VP approval required." },
+        { name: "LinkedIn Jobs", tier: "Approved", buying_channel: "Self-service Recruitment Portal", po_required: "Yes", p_card_eligible: "No", approval_threshold_usd: 2000, notes: "Job postings. TA team manages portal." },
+      ],
+      country: "Philippines (PH)", category: "HR & Contingent Workforce (CAT-07)"
+    }
+  },
+  {
+    id: "L1-05", level: "L1",
+    question: "Who handles Professional & Legal Services procurement in Indonesia?",
+    answer: "Professional & Legal Services (CAT-08) in Indonesia is managed by Hendra Wijaya (h.wijaya@grab.com / @h_wijaya). Contact them before engaging any external consultant or law firm. All Professional Services engagements require a PO in Oracle — no work should commence without an active PO.",
+    structured_answer: {
+      procurement_owners: [{ name: "Hendra Wijaya", email: "h.wijaya@grab.com", slack: "@h_wijaya", seniority: "Mid" }],
+      country: "Indonesia (ID)", category: "Professional & Legal Services (CAT-08)"
+    }
+  },
+  {
+    id: "L2-01", level: "L2",
+    question: "I'm in Singapore and need to onboard a new FM vendor for an office expansion. The quoted cost is $12,000. What is the process, who do I contact, and do I need Finance approval?",
+    answer: "At $12,000, you must use a Preferred supplier and raise a PO via Oracle ERP — direct payment is not permitted. Your procurement owners for Facilities & Building Mgmt (CAT-06) in Singapore are Marcus Ong (m.ong@grab.com / @m_ong) and Faizal Bin Ahmad (f.ahmad@grab.com / @f_ahmad). The preferred suppliers are CBRE (BPA, threshold $10,000) and JLL (CPA, threshold $8,000). If you must use a new vendor, raise a Direct PO in Oracle with 2 competitor quotes and Finance approval (required above $3,000 for spot vendors).",
+    structured_answer: {
+      procurement_owners: [
+        { name: "Marcus Ong", email: "m.ong@grab.com", slack: "@m_ong", seniority: "Mid" },
+        { name: "Faizal Bin Ahmad", email: "f.ahmad@grab.com", slack: "@f_ahmad", seniority: "Junior" },
+      ],
+      preferred_suppliers: [
+        { name: "CBRE", tier: "Preferred", contract_type: "BPA", buying_channel: "PO via Oracle ERP", po_required: "Yes", p_card_eligible: "No", approval_threshold_usd: 10000, notes: "FM services. SLA in contract annex C." },
+        { name: "JLL", tier: "Preferred", contract_type: "CPA", buying_channel: "PO via Oracle ERP", po_required: "Yes", p_card_eligible: "No", approval_threshold_usd: 8000, notes: "Real estate advisory. All lease renewals require Legal + Proc." },
+      ],
+      spot_suppliers: [
+        { name: "Local FM vendor", tier: "Other", contract_type: "Spot", buying_channel: "Direct PO", po_required: "Yes", p_card_eligible: "No", approval_threshold_usd: 3000, notes: "Emergency works only. 2 quotes required. Finance approval needed." },
+      ],
+      approval_chain: ["Manager", "Finance (mandatory above $3,000 for Direct PO)", "Procurement"],
+      finance_approval_required: true, po_required: true, amount_usd: 12000,
+      compliance_note: "Do not pay vendor directly. No PO = policy violation. Retroactive POs require VP Finance approval.",
+      steps: [
+        "Contact Marcus Ong (m.ong@grab.com) or Faizal Bin Ahmad (f.ahmad@grab.com) to flag requirement",
+        "Check if CBRE or JLL can cover the scope within SLA",
+        "Raise PR in Oracle referencing CBRE or JLL contract ID",
+        "PR approval chain: Manager → Finance → Procurement",
+        "PO issued → works completed → invoice matched in Oracle → payment released",
+      ]
+    }
+  },
+  {
+    id: "L2-02", level: "L2",
+    question: "Our Vietnam team needs to run a 3-month LinkedIn and Google Ads campaign with a total budget of $22,000. How do we split the buying channel and who approves it?",
+    answer: "At $22,000, both Meta and Google Ads exceed the $5,000 self-serve threshold, so a PO via Oracle ERP is required for each platform. Your procurement owners for Marketing & Advertising (CAT-04) in Vietnam are Le Hoang Nam (lh.nam@grab.com / @lh_nam) and Vu Thanh Hung (vt.hung@grab.com / @vt_hung). For direct ad platform spend above $5,000, raise a PR in Oracle referencing the Meta BPA and Google Ads BPA contract IDs. For test or exploratory budgets under $5,000 per platform, the Self-service Ad Portal with manager P-Card is acceptable.",
+    structured_answer: {
+      procurement_owners: [
+        { name: "Le Hoang Nam", email: "lh.nam@grab.com", slack: "@lh_nam", seniority: "Senior" },
+        { name: "Vu Thanh Hung", email: "vt.hung@grab.com", slack: "@vt_hung", seniority: "Mid" },
+      ],
+      suppliers: [
+        { name: "Meta (Facebook Ads)", tier: "Preferred", contract_type: "BPA", buying_channel: "Self-service Ad Portal", po_required: "Yes", p_card_eligible: "No", approval_threshold_usd: 5000, notes: "Paid social. Raise PO > $5k. Manager card for test budgets." },
+        { name: "Google Ads", tier: "Preferred", contract_type: "BPA", buying_channel: "Self-service Ad Portal", po_required: "Yes", p_card_eligible: "No", approval_threshold_usd: 5000, notes: "Search and display. Self-serve under $5k." },
+        { name: "Dentsu", tier: "Preferred", contract_type: "CPA", buying_channel: "PO via Oracle ERP", po_required: "Yes", p_card_eligible: "No", approval_threshold_usd: 25000, notes: "Regional AOR. All brand campaigns routed here." },
+        { name: "Publicis", tier: "Preferred", contract_type: "BPA", buying_channel: "PO via Oracle ERP", po_required: "Yes", p_card_eligible: "No", approval_threshold_usd: 15000, notes: "Digital and performance media." },
+      ],
+      approval_chain: ["Manager", "VP Marketing", "Procurement"],
+      po_required: true, budget_usd: 22000,
+      compliance_note: "Raise separate PRs in Oracle for Meta and Google. Share PO numbers with account managers before campaigns go live.",
+      steps: [
+        "Get VP Marketing sign-off on $22,000 total budget",
+        "Contact Le Hoang Nam or Vu Thanh Hung to confirm BPA contract IDs",
+        "Raise separate PRs in Oracle for Meta and Google Ads",
+        "PR approval: Manager → VP Marketing → Procurement",
+        "Share PO numbers with Meta and Google account managers before campaigns go live",
+        "Invoices matched to POs in Oracle → payment released",
+      ]
+    }
+  },
+  {
+    id: "L2-03", level: "L2",
+    question: "Our Thailand team wants to subscribe to a new project management SaaS tool not on the approved list. The cost is $8,000 per year. What is the process?",
+    answer: "New SaaS tools not on the approved vendor list require an IT Security review before any purchase can be made. Your procurement owners for Software Licenses (CAT-02) in Thailand are Nattaya Srisuk (n.srisuk@grab.com / @n_srisuk) and Vorasak Lertsiri (v.lertsiri@grab.com / @v_lertsiri). At $8,000 per year, this is above the $2,000 IT Procurement approval threshold, so IT Procurement sign-off is mandatory after security clearance. Do not subscribe using a P-Card or corporate card before the tool is approved — this is a shadow IT violation.",
+    structured_answer: {
+      procurement_owners: [
+        { name: "Nattaya Srisuk", email: "n.srisuk@grab.com", slack: "@n_srisuk", seniority: "Mid" },
+        { name: "Vorasak Lertsiri", email: "v.lertsiri@grab.com", slack: "@v_lertsiri", seniority: "Lead" },
+      ],
+      existing_approved_suppliers: [
+        { name: "Microsoft", tier: "Preferred", contract_type: "CPA", buying_channel: "Self-service Software Portal", po_required: "Yes", p_card_eligible: "No", approval_threshold_usd: 1000, notes: "M365, Teams, Azure AD. Raise PR for new seats." },
+        { name: "Salesforce", tier: "Preferred", contract_type: "BPA", buying_channel: "PO via Oracle ERP", po_required: "Yes", p_card_eligible: "No", approval_threshold_usd: 10000, notes: "CRM seats. All additions require IT Procurement approval." },
+        { name: "Atlassian", tier: "Approved", contract_type: "BPA", buying_channel: "PO via Oracle ERP", po_required: "Yes", p_card_eligible: "No", approval_threshold_usd: 2000, notes: "Jira, Confluence. Route through IT Procurement." },
+        { name: "Zoom", tier: "Preferred", contract_type: "BPA", buying_channel: "Self-service Software Portal", po_required: "Yes", p_card_eligible: "No", approval_threshold_usd: 200, notes: "Video conferencing. Self-serve for standard add-ons." },
+      ],
+      approval_chain: ["Manager", "IT Security (5-day review)", "IT Procurement (mandatory above $2,000)"],
+      p_card_allowed: false, po_required: true, budget_usd: 8000,
+      compliance_note: "Do not subscribe before IT Security clears the tool. P-Card use for unapproved SaaS is a shadow IT violation flagged in quarterly audits.",
+      steps: [
+        "Submit new vendor request at portal.grab.com/new-vendor",
+        "IT Security review: SOC2, SSO/SAML, GDPR/PDPA compliance — 5 business days",
+        "Contact Nattaya Srisuk or Vorasak Lertsiri to add vendor to approved list",
+        "Raise PR in Oracle for $8,000/year",
+        "PR routes: Manager → IT Procurement approval",
+        "PO issued → subscription activated",
+      ]
+    }
+  },
+  {
+    id: "L2-04", level: "L2",
+    question: "Our Philippines entity needs to hire a Big 4 firm for a 6-week internal audit. Estimated cost is $60,000. What is the full procurement process and who needs to sign off?",
+    answer: "At $60,000, CFO approval is mandatory — this exceeds the $50,000 threshold for Professional & Legal Services. Your procurement owners for CAT-08 in Philippines are Edgardo Torres (e.torres@grab.com / @e_torres) and Filipina Bautista (f.bautista@grab.com / @f_bautista). Preferred suppliers are Deloitte (CPA, $50,000 threshold), KPMG (CPA, $30,000 threshold), and Rajah & Tann (CPA, $15,000 threshold). All three require PO via Oracle ERP. Approval chain: GC (mandatory first step) → CFO (mandatory for all amounts) → Procurement.",
+    structured_answer: {
+      procurement_owners: [
+        { name: "Edgardo Torres", email: "e.torres@grab.com", slack: "@e_torres", seniority: "Mid" },
+        { name: "Filipina Bautista", email: "f.bautista@grab.com", slack: "@f_bautista", seniority: "Lead" },
+      ],
+      preferred_suppliers: [
+        { name: "Deloitte", tier: "Preferred", contract_type: "CPA", buying_channel: "PO via Oracle ERP", po_required: "Yes", p_card_eligible: "No", approval_threshold_usd: 50000, notes: "Strategy and finance advisory. CFO approval for engagements." },
+        { name: "KPMG", tier: "Preferred", contract_type: "CPA", buying_channel: "PO via Oracle ERP", po_required: "Yes", p_card_eligible: "No", approval_threshold_usd: 30000, notes: "Audit and tax advisory." },
+        { name: "Rajah & Tann", tier: "Preferred", contract_type: "CPA", buying_channel: "PO via Oracle ERP", po_required: "Yes", p_card_eligible: "No", approval_threshold_usd: 15000, notes: "Primary SEA external counsel. GC approval for all matters." },
+      ],
+      approval_chain: ["GC (mandatory — first step)", "CFO (mandatory — all amounts)", "Procurement"],
+      cfo_approval_required: true, po_required: true, budget_usd: 60000,
+      compliance_note: "Never instruct Big 4 or any external firm without GC approval and an active PO. Retroactive POs require VP Finance approval.",
+      steps: [
+        "Raise a Legal Matter Request with in-house Legal (legal@grab.com)",
+        "GC approves engagement and selects preferred firm (Deloitte, KPMG, or Rajah & Tann)",
+        "Contact Edgardo Torres or Filipina Bautista to initiate PO",
+        "Raise PR in Oracle referencing CPA contract ID",
+        "PR approval: GC + CFO → Procurement issues PO",
+        "No work commences until PO is active",
+        "Milestone invoices submitted → matched to PO in Oracle → payment released",
+      ]
+    }
+  },
+  {
+    id: "L2-05", level: "L2",
+    question: "I'm based in Malaysia and my team of 40 is travelling to Indonesia for an annual offsite. How should we book flights and hotels, what is the P-Card limit, and what happens if total spend goes above $3,000?",
+    answer: "Book all flights and hotels via Concur at travel.grab.com using your corporate P-Card. Agoda Business is the preferred hotel supplier with negotiated rates — search within Concur. For ground transport in Indonesia, use the corporate GrabBusiness App (auto-reconciled monthly, limit $200 per transaction). Your procurement owner for Travel & Accommodation (CAT-09) in Malaysia is Tan Wei Jie (t.weijie@grab.com / @t_weijie). P-Card limit: below $3,000 total trip spend, no PO is needed. Above $3,000: raise a PR in Oracle before travel — for a team of 40 this will almost certainly apply.",
+    structured_answer: {
+      procurement_owners: [
+        { name: "Tan Wei Jie", email: "t.weijie@grab.com", slack: "@t_weijie", seniority: "Junior" },
+      ],
+      preferred_suppliers: [
+        { name: "Concur / SAP Travel", tier: "Preferred", buying_channel: "Self-service Travel Portal", po_required: "No", p_card_eligible: "Yes", approval_threshold_usd: 3000, notes: "Book all air, hotel, rail via Concur. P-Card for incidentals." },
+        { name: "Agoda Business", tier: "Preferred", buying_channel: "Self-service Travel Portal", po_required: "No", p_card_eligible: "Yes", approval_threshold_usd: 1000, notes: "Hotel only. Preferred rates negotiated. Book in portal." },
+        { name: "GrabBusiness App", tier: "Preferred", buying_channel: "GrabBusiness App", po_required: "No", p_card_eligible: "Yes", approval_threshold_usd: 200, notes: "Ground transport. Use corporate GrabBusiness account." },
+      ],
+      approval_chain: ["Manager (travel approval in Workday)", "Procurement (mandatory above $3,000)"],
+      p_card_limit_usd: 3000, po_required_above_usd: 3000,
+      compliance_note: "Economy class for flights under 4 hours. Book at least 7 days in advance. Hotel cap $250/night in Indonesia. Submit expense report within 5 business days of return.",
+      steps: [
+        "Get manager travel approval in Workday",
+        "Estimate total trip cost — if above $3,000 raise PR in Oracle before booking",
+        "Book flights and hotel via Concur at travel.grab.com on corporate P-Card",
+        "Use GrabBusiness App for all ground transport in Indonesia",
+        "Submit expense report within 5 business days of return with all receipts",
+      ]
+    }
+  },
+]
+
+// ──────────────────────────────── S2P answer formatter ───────────────────────
+
+function formatS2PAnswer(q: S2PQuestion): string {
+  const sa = q.structured_answer
+  let html = ""
+
+  // Main answer — split on ". " for paragraph feel
+  const sentences = q.answer.split(/(?<=\.)\s+/)
+  html += `<div style="line-height:1.75;color:#1e293b;font-size:14px;margin-bottom:16px">`
+  sentences.forEach(s => { if (s.trim()) html += `<p style="margin:0 0 6px">${esc(s)}</p>` })
+  html += `</div>`
+
+  // Procurement owners
+  const owners = (sa.procurement_owners as S2POwner[] | undefined) || []
+  if (owners.length) {
+    html += `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#64748b;margin:14px 0 8px">Procurement Owners</div>`
+    html += `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">`
+    owners.forEach(o => {
+      html += `<div style="padding:12px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;min-width:190px">
+        <div style="font-weight:600;color:#0f172a;font-size:13px;margin-bottom:3px">${esc(o.name)}</div>
+        <div style="color:#274B95;font-size:12px;margin-bottom:2px">✉ ${esc(o.email)}</div>
+        <div style="color:#64748b;font-size:12px">${esc(o.slack)} · ${esc(o.seniority)}</div>
+      </div>`
+    })
+    html += `</div>`
+  }
+
+  // Suppliers table — merge all supplier arrays
+  const allSuppliers: S2PSupplier[] = [
+    ...((sa.suppliers as S2PSupplier[]) || []),
+    ...((sa.preferred_suppliers as S2PSupplier[]) || []),
+    ...((sa.existing_approved_suppliers as S2PSupplier[]) || []),
+    ...((sa.spot_suppliers as S2PSupplier[]) || []),
+  ]
+  if (allSuppliers.length) {
+    html += `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#64748b;margin:14px 0 8px">Approved Suppliers</div>`
+    html += `<div class="anf-tw" style="margin-bottom:16px"><table>
+      <tr><th>Supplier</th><th>Tier</th><th>Buying Channel</th><th>Threshold</th><th>P-Card</th></tr>`
+    allSuppliers.forEach(s => {
+      const tc = s.tier === "Preferred" ? "#16a34a" : s.tier === "Approved" ? "#0284c7" : "#64748b"
+      const thresh = s.approval_threshold_usd ? `$${Number(s.approval_threshold_usd).toLocaleString()}` : "—"
+      html += `<tr>
+        <td><strong>${esc(s.name)}</strong>${s.notes ? `<br><span style="font-size:11px;color:#64748b">${esc(s.notes)}</span>` : ""}</td>
+        <td><span style="padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;background:${tc}18;color:${tc}">${esc(s.tier)}</span></td>
+        <td style="font-size:12px">${esc(s.buying_channel)}</td>
+        <td style="font-size:12px;font-weight:600">${thresh}</td>
+        <td style="font-size:12px;text-align:center;color:${s.p_card_eligible === "Yes" ? "#16a34a" : "#dc2626"}">${s.p_card_eligible === "Yes" ? "✓" : "✗"}</td>
+      </tr>`
+    })
+    html += `</table></div>`
+  }
+
+  // Approval chain
+  const chain = (sa.approval_chain as string[] | undefined) || []
+  if (chain.length) {
+    html += `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#64748b;margin:14px 0 8px">Approval Chain</div>`
+    html += `<div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:16px;padding:12px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px">`
+    chain.forEach((step, i) => {
+      html += `<span style="padding:5px 14px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:20px;font-size:12px;color:#274B95;font-weight:500">${esc(step)}</span>`
+      if (i < chain.length - 1) html += `<span style="color:#94a3b8;font-size:15px;font-weight:300">→</span>`
+    })
+    html += `</div>`
+  }
+
+  // Process steps
+  const steps = (sa.steps as string[] | undefined) || []
+  if (steps.length) {
+    html += `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#64748b;margin:14px 0 8px">Process Steps</div>`
+    html += `<div style="margin-bottom:16px">`
+    steps.forEach((step, i) => {
+      html += `<div style="display:flex;gap:12px;padding:8px 0;${i < steps.length - 1 ? "border-bottom:1px solid #f1f5f9" : ""}">
+        <span style="flex-shrink:0;width:22px;height:22px;background:#274B95;color:#fff;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;margin-top:1px">${i + 1}</span>
+        <span style="font-size:13px;color:#1e293b;line-height:1.55">${esc(step)}</span>
+      </div>`
+    })
+    html += `</div>`
+  }
+
+  // Compliance note
+  const note = sa.compliance_note as string | undefined
+  if (note) {
+    html += `<div style="margin-top:14px;padding:10px 14px;background:#fff7ed;border:1px solid #fed7aa;border-left:3px solid #f97316;border-radius:0 8px 8px 0;font-size:12px;color:#9a3412;line-height:1.55">
+      <strong>⚠ Compliance Note:</strong> ${esc(note)}
+    </div>`
+  }
+
+  return html
+}
+
 // ──────────────────────────────────────── component ──────────────────────────
 
 function AskNeoFloPage() {
+  // ── Active chat ID (drives per-chat storage) ───────────────────────────────
+  const [activeChatId, setActiveChatId] = useState<string>(() => {
+    return localStorage.getItem(ACTIVE_CHAT_KEY)
+      || localStorage.getItem(SID_KEY)
+      || crypto.randomUUID()
+  })
+
   const [msgs,          setMsgs]          = useState<Msg[]>(() => {
-    try { return JSON.parse(localStorage.getItem(MSGS_KEY) || "[]") } catch { return [] }
+    try {
+      const aid = localStorage.getItem(ACTIVE_CHAT_KEY) || localStorage.getItem(SID_KEY)
+      const perChat = aid ? localStorage.getItem(chatKey(aid)) : null
+      return JSON.parse(perChat || localStorage.getItem(MSGS_KEY) || "[]")
+    } catch { return [] }
   })
   const [input,         setInput]         = useState("")
   const [busy,          setBusy]          = useState(false)
@@ -250,6 +583,11 @@ function AskNeoFloPage() {
   const [testQsOpen,    setTestQsOpen]    = useState(false)
   const [testQs,        setTestQs]        = useState<{template:string; question:string}[]>([])
   const [expanded,      setExpanded]      = useState<Set<number>>(new Set())
+  const [faqTab,        setFaqTab]        = useState<"invoice" | "s2p">("invoice")
+  const [pdfError,      setPdfError]      = useState<string | null>(null)
+  const [prOpen,        setPrOpen]        = useState(false)
+  const [prSubmitted,   setPrSubmitted]   = useState(false)
+  const [prForm,        setPrForm]        = useState<PRFormData | null>(null)
 
   const msgsRef       = useRef<HTMLDivElement>(null)
   const inputRef      = useRef<HTMLTextAreaElement>(null)
@@ -258,20 +596,23 @@ function AskNeoFloPage() {
   const timerRef      = useRef<ReturnType<typeof setInterval> | null>(null)
   const stageIdxRef   = useRef(0)
 
-  // ── Init session from localStorage ───────────────────────────────────────
+  // ── Init session ref from activeChatId ───────────────────────────────────
   useEffect(() => {
-    const s = localStorage.getItem(SID_KEY)
-    if (s) sidRef.current = s
-  }, [])
+    sidRef.current = activeChatId
+    localStorage.setItem(SID_KEY, activeChatId)
+    localStorage.setItem(ACTIVE_CHAT_KEY, activeChatId)
+  }, [activeChatId])
 
-  // ── Persist messages to localStorage ─────────────────────────────────────
+  // ── Persist messages per-chat ─────────────────────────────────────────────
   useEffect(() => {
-    // Don't save while a message is still streaming (has __TYPING__ placeholder)
     const hasTyping = msgs.some(m => m.text === "__TYPING__")
     if (!hasTyping) {
-      try { localStorage.setItem(MSGS_KEY, JSON.stringify(msgs)) } catch { /* quota */ }
+      try {
+        localStorage.setItem(chatKey(activeChatId), JSON.stringify(msgs))
+        localStorage.setItem(MSGS_KEY, JSON.stringify(msgs)) // compat fallback
+      } catch { /* quota */ }
     }
-  }, [msgs])
+  }, [msgs, activeChatId])
 
   // ── Persist side chats list ───────────────────────────────────────────────
   useEffect(() => {
@@ -320,12 +661,13 @@ function AskNeoFloPage() {
     setTraceSteps([])
     setTraceCount(0)
 
-    // Register in sidebar on first message
-    setSideChats(prev =>
-      prev.length === 0
-        ? [{ id: sidRef.current || typingId, title: msg.length > 36 ? msg.slice(0,36)+"…" : msg }]
-        : prev
-    )
+    // Register in sidebar if this chat hasn't been added yet
+    setSideChats(prev => {
+      const exists = prev.some(c => c.id === activeChatId)
+      if (exists) return prev
+      const title = msg.length > 36 ? msg.slice(0, 36) + "…" : msg
+      return [{ id: activeChatId, title }, ...prev]
+    })
 
     const ctrl = new AbortController()
     abortRef.current = ctrl
@@ -440,7 +782,7 @@ function AskNeoFloPage() {
       abortRef.current = null
       inputRef.current?.focus()
     }
-  }, [input, busy])
+  }, [input, busy, activeChatId])
 
   function stopStream() {
     abortRef.current?.abort()
@@ -454,19 +796,51 @@ function AskNeoFloPage() {
     })
   }
 
+  function resetChatState() {
+    setMsgs([]); setTraceSteps([]); setTraceCount(0)
+    setActiveCtx({}); setTraceHist([]); setActiveTrace(-1)
+    setTraceLabel("PEV Trace")
+  }
+
   async function newChat() {
+    // Save current chat messages before switching away
+    if (msgs.length > 0) {
+      try { localStorage.setItem(chatKey(activeChatId), JSON.stringify(msgs)) } catch { /* quota */ }
+    }
+
+    // Reset backend session
     if (sidRef.current) {
       fetch(API("reset"), {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ session_id: sidRef.current }),
       }).catch(() => {})
     }
-    sidRef.current = crypto.randomUUID()
-    localStorage.setItem(SID_KEY, sidRef.current)
-    localStorage.removeItem(MSGS_KEY)
-    setMsgs([]); setTraceSteps([]); setTraceCount(0)
-    setActiveCtx({}); setTraceHist([]); setActiveTrace(-1)
-    setTraceLabel("PEV Trace")
+
+    // Generate new chat ID and activate it
+    const newId = crypto.randomUUID()
+    setActiveChatId(newId)
+    resetChatState()
+  }
+
+  function switchToChat(chatId: string) {
+    if (chatId === activeChatId) return
+
+    // Persist current chat before switching
+    if (msgs.length > 0) {
+      try { localStorage.setItem(chatKey(activeChatId), JSON.stringify(msgs)) } catch { /* quota */ }
+    }
+
+    // Load saved messages for the target chat
+    let restored: Msg[] = []
+    try {
+      const saved = localStorage.getItem(chatKey(chatId))
+      if (saved) restored = JSON.parse(saved)
+    } catch { /* ignore */ }
+
+    setActiveChatId(chatId)
+    setMsgs(restored)
+    setTraceSteps([]); setTraceCount(0); setActiveTrace(-1)
+    setTraceLabel("PEV Trace"); setActiveCtx({})
   }
 
   const FAQ_QUESTIONS = [
@@ -506,30 +880,98 @@ function AskNeoFloPage() {
     }
   }
 
-  async function openPdf(apiUrl: string, errorMsg: string, el: HTMLElement) {
+  async function openPdf(apiUrl: string, label: string, el: HTMLElement) {
     el.style.opacity = "0.6"
     const win = window.open("", "_blank")
-    if (win) win.document.write("<html><body style='font-family:sans-serif;padding:2em'>Loading PDF…</body></html>")
+    if (win) win.document.write("<html><body style='font-family:sans-serif;padding:2em;color:#374151'>Loading document…</body></html>")
     try {
-      const d = await (await fetch(apiUrl)).json()
-      if (d.url) { if (win) win.location.href = d.url; else window.open(d.url, "_blank") }
-      else { if (win) win.close(); alert(errorMsg) }
-    } catch (e) {
+      const res = await fetch(apiUrl)
+      const ct  = res.headers.get("content-type") || ""
+      if (!res.ok || !ct.includes("application/json")) {
+        if (win) win.close()
+        setPdfError(`Document not available: ${label}`)
+        setTimeout(() => setPdfError(null), 4000)
+        return
+      }
+      const d = await res.json()
+      if (d.url) {
+        if (win) win.location.href = d.url
+        else window.open(d.url, "_blank")
+      } else {
+        if (win) win.close()
+        setPdfError(d.error === "backend_unavailable"
+          ? "Document server is offline — start the backend to view PDFs."
+          : `Document not found: ${label}`)
+        setTimeout(() => setPdfError(null), 4000)
+      }
+    } catch {
       if (win) win.close()
-      alert("Could not fetch PDF: " + (e as Error).message)
+      setPdfError("Could not reach the document server. Is the backend running?")
+      setTimeout(() => setPdfError(null), 4000)
     } finally { el.style.opacity = "1" }
+  }
+
+  async function sendS2P(q: S2PQuestion) {
+    setTestQsOpen(false)
+    if (busy) return
+    setBusy(true)
+
+    const typingId = crypto.randomUUID()
+    const userMsg  = q.question
+
+    setMsgs(prev => [
+      ...prev,
+      { id: crypto.randomUUID(), role: "user", text: userMsg },
+      { id: typingId, role: "bot",  text: "__TYPING__" },
+    ])
+    setStageLabel("Thinking…")
+    setTraceSteps([])
+    setTraceCount(0)
+
+    setSideChats(prev => {
+      const exists = prev.some(c => c.id === activeChatId)
+      if (exists) return prev
+      const title = userMsg.length > 36 ? userMsg.slice(0, 36) + "…" : userMsg
+      return [{ id: activeChatId, title }, ...prev]
+    })
+
+    // L1 = random 4–8 s · L2 = random 8–13 s
+    const delay = q.level === "L2"
+      ? (8000 + Math.floor(Math.random() * 5001))
+      : (4000 + Math.floor(Math.random() * 4001))
+    startPipeline()
+    await new Promise<void>(resolve => setTimeout(resolve, delay))
+    clearTimer()
+
+    setMsgs(prev => prev.map(m =>
+      m.id === typingId
+        ? { id: typingId, role: "bot" as const, text: formatS2PAnswer(q), ms: delay, isHtml: true, question: userMsg }
+        : m
+    ))
+    setBusy(false)
+    inputRef.current?.focus()
   }
 
   function handleBubbleClick(e: React.MouseEvent) {
     const t = e.target as HTMLElement
+
+    // Source chips & inline invoice numbers → copy reference to clipboard
     if (t.dataset.inv) {
       e.preventDefault()
-      openPdf(API(`invoice-pdf?invoice_number=${encodeURIComponent(t.dataset.inv)}`),
-        "PDF not available for " + t.dataset.inv, t)
-    } else if (t.dataset.vendor) {
+      const ref = t.dataset.inv
+      navigator.clipboard.writeText(ref).catch(() => {})
+      setPdfError(`📋 Copied invoice reference: ${ref}`)
+      setTimeout(() => setPdfError(null), 3000)
+      return
+    }
+
+    // Vendor links → copy vendor name
+    if (t.dataset.vendor) {
       e.preventDefault()
-      openPdf(API(`vendor-pdf?vendor_name=${encodeURIComponent(t.dataset.vendor)}`),
-        "No PDF available for " + t.dataset.vendor, t)
+      const vendor = t.dataset.vendor
+      navigator.clipboard.writeText(vendor).catch(() => {})
+      setPdfError(`📋 Copied vendor name: ${vendor}`)
+      setTimeout(() => setPdfError(null), 3000)
     }
   }
 
@@ -549,6 +991,119 @@ function AskNeoFloPage() {
       const n = new Set(prev); n.has(i) ? n.delete(i) : n.add(i); return n
     })
   }
+
+  // ── PR generation ────────────────────────────────────────────────────────
+  function glAccount(cat: string) {
+    const m: Record<string,string> = {
+      travel:"6200-001", cloud:"6300-002", office:"6100-003", hr:"6400-004",
+      professional:"6500-005", facilities:"6600-006", marketing:"6700-007", software:"6800-008",
+    }
+    const k = Object.keys(m).find(k => cat.toLowerCase().includes(k))
+    return k ? m[k] : "7100-000"
+  }
+
+  function generatePR(): PRFormData {
+    // Find most recent S2P bot answer and match to S2P_QUESTIONS
+    const s2pMsg = [...msgs].reverse().find(m => m.isHtml && m.question)
+    const s2pQ   = s2pMsg?.question ? S2P_QUESTIONS.find(q => q.question === s2pMsg.question) : null
+    const sa     = s2pQ?.structured_answer as Record<string,unknown> | undefined
+    const lastQ  = [...msgs].reverse().find(m => m.role === "user")
+
+    const suppliers: S2PSupplier[] = [
+      ...((sa?.suppliers         as S2PSupplier[]) || []),
+      ...((sa?.preferred_suppliers as S2PSupplier[]) || []),
+      ...((sa?.existing_approved_suppliers as S2PSupplier[]) || []),
+    ]
+    const topSupplier = suppliers.find(s => s.tier === "Preferred") || suppliers[0]
+
+    const amountMatch = (s2pQ?.question || lastQ?.text || "").match(/\$[\d,]+/)
+    const rawAmt = amountMatch ? amountMatch[0].replace(/[$,]/g, "") : ""
+
+    const category = ((sa?.category as string) || "General Procurement").split("(")[0].trim()
+    const country  = ((sa?.country  as string) || "Corporate").split("(")[0].trim()
+    const chain    = (sa?.approval_chain as string[]) || ["Manager", "Finance", "Procurement"]
+
+    const lineItems: PRLineItem[] = suppliers.filter(s => s.tier !== "Other").slice(0, 3).length
+      ? suppliers.filter(s => s.tier !== "Other").slice(0, 3).map((s, i) => ({
+          id: String(i + 1),
+          description: category,
+          category,
+          supplier: s.name,
+          qty: "1",
+          unit: "EA",
+          unitCost: rawAmt || String(s.approval_threshold_usd || ""),
+          glAccount: glAccount(category),
+          buyingChannel: s.buying_channel,
+        }))
+      : [{
+          id: "1",
+          description: (lastQ?.text || "Purchase Request").slice(0, 80),
+          category: "General",
+          supplier: topSupplier?.name || "",
+          qty: "1",
+          unit: "EA",
+          unitCost: rawAmt,
+          glAccount: "7100-000",
+          buyingChannel: "PO via Oracle ERP",
+        }]
+
+    const today    = new Date()
+    const pad      = (n: number) => String(n).padStart(2,"0")
+    const fmtDate  = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`
+    const needBy   = new Date(today.getTime() + 30 * 864e5)
+    const prNum    = `PR-${fmtDate(today).replace(/-/g,"")}-${String(Math.floor(Math.random()*90000)+10000)}`
+
+    return {
+      prNumber: prNum,
+      prDate: fmtDate(today),
+      requestor: "Naman Sharma",
+      department: category,
+      businessUnit: country,
+      costCenter: `CC-${String(Math.floor(Math.random()*9000)+1000)}`,
+      currency: "USD",
+      needByDate: fmtDate(needBy),
+      deliverToLocation: country + " Office",
+      description: (s2pQ?.question || lastQ?.text || "Purchase Requisition").slice(0, 140),
+      justification: s2pQ?.answer?.slice(0, 400) || "Business requirement identified via Ask Neo procurement query.",
+      lineItems,
+      approvalChain: chain,
+      notes: "",
+    }
+  }
+
+  function openCreatePR() {
+    const data = generatePR()
+    setPrForm(data)
+    setPrSubmitted(false)
+    setPrOpen(true)
+  }
+
+  function updateLineItem(idx: number, field: keyof PRLineItem, val: string) {
+    if (!prForm) return
+    const items = prForm.lineItems.map((item, i) => i === idx ? { ...item, [field]: val } : item)
+    setPrForm({ ...prForm, lineItems: items })
+  }
+
+  function addLineItem() {
+    if (!prForm) return
+    const newItem: PRLineItem = {
+      id: String(prForm.lineItems.length + 1),
+      description: "", category: "", supplier: "",
+      qty: "1", unit: "EA", unitCost: "",
+      glAccount: "7100-000", buyingChannel: "PO via Oracle ERP",
+    }
+    setPrForm({ ...prForm, lineItems: [...prForm.lineItems, newItem] })
+  }
+
+  function removeLineItem(idx: number) {
+    if (!prForm || prForm.lineItems.length <= 1) return
+    setPrForm({ ...prForm, lineItems: prForm.lineItems.filter((_, i) => i !== idx) })
+  }
+
+  function submitPR() {
+    setPrSubmitted(true)
+  }
+
 
   const ctxParts = Object.entries(activeCtx).filter(([, v]) => v)
 
@@ -587,11 +1142,19 @@ function AskNeoFloPage() {
           {lsideOpen && (
             <div className="anf-chat-list">
               <div className="anf-list-lbl">Your chats</div>
-              <div className="anf-list-lbl anf-list-lbl-muted">Today</div>
               {sideChats.length === 0
                 ? <div className="anf-chat-empty">No chats yet</div>
                 : sideChats.map(c => (
-                    <div key={c.id} className="anf-chat-item anf-chat-item-active" title={c.title}>
+                    <div
+                      key={c.id}
+                      className={`anf-chat-item${c.id === activeChatId ? " anf-chat-item-active" : ""}`}
+                      title={c.title}
+                      onClick={() => switchToChat(c.id)}
+                    >
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5}
+                           width={13} height={13} style={{ flexShrink: 0, opacity: 0.5 }}>
+                        <path d="M14 10c0 .667-.667 2-2 2H4l-2 2V4c0-1.333.667-2 2-2h8c1.333 0 2 .667 2 2v6z" />
+                      </svg>
                       <span className="anf-chat-title">{c.title}</span>
                     </div>
                   ))
@@ -607,6 +1170,14 @@ function AskNeoFloPage() {
           <header className="anf-header">
             <div className="anf-brand">Ask <span>Neo</span></div>
             <div className="anf-header-r">
+              <button
+                className="anf-header-btn anf-header-btn-outline"
+                onClick={() => openCreatePR()}
+                title="Generate Oracle Purchase Requisition from chat"
+                disabled={msgs.length === 0}
+              >
+                + Create PR
+              </button>
               <button
                 className="anf-header-btn"
                 onClick={() => openTestQs()}
@@ -648,6 +1219,8 @@ function AskNeoFloPage() {
                             </div>
                             <span className="anf-stage">{stageLabel}</span>
                           </div>
+                        ) : msg.isHtml ? (
+                          <div dangerouslySetInnerHTML={{ __html: msg.text }} />
                         ) : (
                           <div dangerouslySetInnerHTML={{
                             __html: renderMarkdown(msg.text, msg.invNums ?? [], msg.vendorNames ?? [])
@@ -737,7 +1310,7 @@ function AskNeoFloPage() {
         </div>
       </div>
 
-      {/* ─── Test Questions modal ──────────────────────────────────────────── */}
+      {/* ─── FAQ modal ────────────────────────────────────────────────────── */}
       {testQsOpen && (
         <div className="anf-modal-overlay"
           onClick={e => { if (e.target === e.currentTarget) setTestQsOpen(false) }}>
@@ -746,23 +1319,280 @@ function AskNeoFloPage() {
               <h2>FAQ</h2>
               <button className="anf-modal-close" onClick={() => setTestQsOpen(false)}>×</button>
             </div>
+
+            {/* Tab bar */}
+            <div className="anf-faq-tabs">
+              <button
+                className={`anf-faq-tab${faqTab === "invoice" ? " anf-faq-tab-active" : ""}`}
+                onClick={() => setFaqTab("invoice")}
+              >
+                Invoice &amp; PO
+              </button>
+              <button
+                className={`anf-faq-tab${faqTab === "s2p" ? " anf-faq-tab-active" : ""}`}
+                onClick={() => setFaqTab("s2p")}
+              >
+                Source to Procure
+              </button>
+            </div>
+
             <div className="anf-modal-body">
-              {Object.entries(testQsGrouped).map(([tmpl, qs]) => (
-                <div key={tmpl} className="anf-tq-group">
-                  <div className="anf-tq-lbl">{tmpl}</div>
-                  {qs.map((q, i) => (
-                    <div key={i} className="anf-tq-card">
-                      <div className="anf-tq-q">{q.question}</div>
-                      <button className="anf-tq-try"
-                        onClick={() => { setTestQsOpen(false); sendMessage(q.question) }}>
-                        Try this →
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ))}
+              {faqTab === "invoice" ? (
+                /* ── Invoice & PO questions ─────────────────────────────── */
+                Object.entries(testQsGrouped).map(([tmpl, qs]) => (
+                  <div key={tmpl} className="anf-tq-group">
+                    <div className="anf-tq-lbl">{tmpl}</div>
+                    {qs.map((q, i) => (
+                      <div key={i} className="anf-tq-card">
+                        <div className="anf-tq-q">{q.question}</div>
+                        <button className="anf-tq-try"
+                          onClick={() => { setTestQsOpen(false); sendMessage(q.question) }}>
+                          Try this →
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ))
+              ) : (
+                /* ── Source to Procure questions ─────────────────────────── */
+                <>
+                  <div className="anf-tq-group">
+                    <div className="anf-tq-lbl" style={{ color: "#0284c7" }}>Direct Lookup (L1)</div>
+                    {S2P_QUESTIONS.filter(q => q.level === "L1").map((q, i) => (
+                      <div key={i} className="anf-tq-card anf-tq-card-s2p">
+                        <div className="anf-tq-q">{q.question}</div>
+                        <button className="anf-tq-try"
+                          onClick={() => sendS2P(q)}>
+                          Try this →
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="anf-tq-group">
+                    <div className="anf-tq-lbl" style={{ color: "#7c3aed" }}>Complex Process (L2)</div>
+                    {S2P_QUESTIONS.filter(q => q.level === "L2").map((q, i) => (
+                      <div key={i} className="anf-tq-card anf-tq-card-s2p">
+                        <div className="anf-tq-q">{q.question}</div>
+                        <button className="anf-tq-try"
+                          onClick={() => sendS2P(q)}>
+                          Try this →
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ─── Oracle PR modal ──────────────────────────────────────────────── */}
+      {prOpen && prForm && (
+        <div className="anf-modal-overlay" onClick={e => { if (!prSubmitted && e.target === e.currentTarget) setPrOpen(false) }}>
+          <div className="anf-pr-modal">
+
+            {/* Oracle header bar */}
+            <div className="anf-pr-oracle-bar">
+              {/* Left: Oracle logo */}
+              <div className="anf-pr-oracle-logo">
+                {/* Oracle "O" ellipse + wordmark — faithful to Oracle brand */}
+                <svg viewBox="0 0 170 32" width={170} height={32} fill="none" xmlns="http://www.w3.org/2000/svg">
+                  {/* Ellipse "O" mark */}
+                  <ellipse cx="16" cy="16" rx="14" ry="14" fill="#C74634"/>
+                  <ellipse cx="16" cy="16" rx="8"  ry="8"  fill="#3a3a3a"/>
+                  {/* Wordmark — letterSpacing keeps chars spaced, x/width give plenty of room */}
+                  <text x="36" y="22" fontFamily="'Arial Black','Arial','Helvetica',sans-serif" fontWeight="900"
+                    fontSize="17" letterSpacing="2" fill="#ffffff">ORACLE</text>
+                </svg>
+                <div className="anf-pr-oracle-divider"/>
+                <span className="anf-pr-oracle-app">Purchase Requisition</span>
+              </div>
+              {/* Right: status + close */}
+              <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                <span className="anf-pr-status-badge">DRAFT</span>
+                {!prSubmitted && (
+                  <button className="anf-modal-close"
+                    style={{ color:"rgba(255,255,255,.55)", fontSize:22, lineHeight:1, background:"none", border:"none", cursor:"pointer", padding:"0 2px" }}
+                    onClick={() => setPrOpen(false)}>×</button>
+                )}
+              </div>
+            </div>
+
+            {prSubmitted ? (
+              /* ── Success state ─────────────────────────────────────────── */
+              <div className="anf-pr-success">
+                <div className="anf-pr-success-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}
+                       strokeLinecap="round" strokeLinejoin="round" width={32} height={32}>
+                    <path d="M20 6L9 17l-5-5" />
+                  </svg>
+                </div>
+                <h3>PR Submitted Successfully</h3>
+                <p><strong>{prForm.prNumber}</strong> has been uploaded to Oracle Fusion.</p>
+                <p className="anf-pr-success-sub">Approval routing has been triggered. You will receive a notification once approved.</p>
+                <button className="anf-pr-done-btn" onClick={() => { setPrOpen(false); setPrSubmitted(false) }}>
+                  Done
+                </button>
+              </div>
+            ) : (
+              /* ── Editable form ─────────────────────────────────────────── */
+              <div className="anf-pr-body">
+
+                {/* PR number + date strip */}
+                <div className="anf-pr-meta-strip">
+                  <div className="anf-pr-meta-item">
+                    <span className="anf-pr-meta-lbl">Requisition #</span>
+                    <span className="anf-pr-meta-val">{prForm.prNumber}</span>
+                  </div>
+                  <div className="anf-pr-meta-item">
+                    <span className="anf-pr-meta-lbl">Date</span>
+                    <span className="anf-pr-meta-val">{prForm.prDate}</span>
+                  </div>
+                  <div className="anf-pr-meta-item">
+                    <span className="anf-pr-meta-lbl">Need-by Date</span>
+                    <input className="anf-pr-input" type="date" value={prForm.needByDate}
+                      onChange={e => setPrForm({ ...prForm, needByDate: e.target.value })} />
+                  </div>
+                  <div className="anf-pr-meta-item">
+                    <span className="anf-pr-meta-lbl">Currency</span>
+                    <select className="anf-pr-input" value={prForm.currency}
+                      onChange={e => setPrForm({ ...prForm, currency: e.target.value })}>
+                      <option>USD</option><option>SGD</option><option>IDR</option>
+                      <option>MYR</option><option>PHP</option><option>VND</option><option>THB</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Section: Requester Info */}
+                <div className="anf-pr-section">
+                  <div className="anf-pr-section-title">Request Header</div>
+                  <div className="anf-pr-grid">
+                    {([
+                      ["Requester",       "requestor",       "text"],
+                      ["Department",      "department",      "text"],
+                      ["Business Unit",   "businessUnit",    "text"],
+                      ["Cost Center",     "costCenter",      "text"],
+                      ["Deliver-to",      "deliverToLocation","text"],
+                    ] as [string, keyof PRFormData, string][]).map(([lbl, key, type]) => (
+                      <div key={key} className="anf-pr-field">
+                        <label className="anf-pr-lbl">{lbl}</label>
+                        <input className="anf-pr-input" type={type}
+                          value={prForm[key] as string}
+                          onChange={e => setPrForm({ ...prForm, [key]: e.target.value })} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Section: Description */}
+                <div className="anf-pr-section">
+                  <div className="anf-pr-section-title">Request Description</div>
+                  <textarea className="anf-pr-textarea" rows={2}
+                    value={prForm.description}
+                    onChange={e => setPrForm({ ...prForm, description: e.target.value })} />
+                </div>
+
+                {/* Section: Justification */}
+                <div className="anf-pr-section">
+                  <div className="anf-pr-section-title">Business Justification</div>
+                  <textarea className="anf-pr-textarea" rows={3}
+                    value={prForm.justification}
+                    onChange={e => setPrForm({ ...prForm, justification: e.target.value })} />
+                </div>
+
+                {/* Section: Line Items */}
+                <div className="anf-pr-section">
+                  <div className="anf-pr-section-title" style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <span>Line Items</span>
+                    <button className="anf-pr-add-line" onClick={addLineItem}>+ Add Line</button>
+                  </div>
+                  <div className="anf-pr-table-wrap">
+                    <table className="anf-pr-table">
+                      <thead>
+                        <tr>
+                          <th>#</th><th>Description</th><th>Category</th><th>Supplier</th>
+                          <th>Qty</th><th>Unit</th><th>Est. Cost</th><th>Buying Channel</th>
+                          <th>GL Account</th><th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {prForm.lineItems.map((item, idx) => (
+                          <tr key={item.id}>
+                            <td style={{ textAlign:"center", color:"#64748b", fontSize:12 }}>{idx+1}</td>
+                            {(["description","category","supplier","qty","unit","unitCost","buyingChannel","glAccount"] as (keyof PRLineItem)[]).map(f => (
+                              <td key={f}>
+                                <input className="anf-pr-cell-input"
+                                  value={item[f] as string}
+                                  onChange={e => updateLineItem(idx, f, e.target.value)} />
+                              </td>
+                            ))}
+                            <td>
+                              <button className="anf-pr-rm-line" onClick={() => removeLineItem(idx)}
+                                title="Remove line">×</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Section: Approval Routing */}
+                <div className="anf-pr-section">
+                  <div className="anf-pr-section-title">Approval Routing</div>
+                  <div style={{ display:"flex", alignItems:"center", flexWrap:"wrap", gap:6, padding:"10px 0" }}>
+                    {prForm.approvalChain.map((step, i) => (
+                      <React.Fragment key={i}>
+                        <span className="anf-pr-approval-step">{step}</span>
+                        {i < prForm.approvalChain.length - 1 && (
+                          <svg viewBox="0 0 16 16" width={14} height={14} fill="none">
+                            <path d="M6 3l5 5-5 5" stroke="#94a3b8" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        )}
+                      </React.Fragment>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Section: Notes */}
+                <div className="anf-pr-section">
+                  <div className="anf-pr-section-title">Additional Notes</div>
+                  <textarea className="anf-pr-textarea" rows={2} placeholder="Add any additional notes or attachments references…"
+                    value={prForm.notes}
+                    onChange={e => setPrForm({ ...prForm, notes: e.target.value })} />
+                </div>
+
+                {/* Footer actions */}
+                <div className="anf-pr-footer">
+                  <button className="anf-pr-cancel" onClick={() => setPrOpen(false)}>Cancel</button>
+                  <button className="anf-pr-submit" onClick={submitPR}>
+                    <svg viewBox="0 0 20 20" fill="currentColor" width={14} height={14}>
+                      <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l.415-.133A15.99 15.99 0 0110 16c2.378 0 4.64.52 6.67 1.448l.416.133a1 1 0 001.168-1.409l-7-14z" />
+                    </svg>
+                    Submit to Oracle
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ─── PDF/source error toast ────────────────────────────────────────── */}
+      {pdfError && (
+        <div className={`anf-toast${pdfError.startsWith("📋") ? " anf-toast-ok" : ""}`}>
+          {pdfError.startsWith("📋") ? (
+            <svg viewBox="0 0 20 20" fill="currentColor" width={16} height={16} style={{ flexShrink: 0, marginTop: 1, color: "#22c55e" }}>
+              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 20 20" fill="currentColor" width={16} height={16} style={{ flexShrink: 0, marginTop: 1 }}>
+              <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+            </svg>
+          )}
+          <span>{pdfError}</span>
+          <button className="anf-toast-close" onClick={() => setPdfError(null)}>×</button>
         </div>
       )}
     </>
@@ -853,6 +1683,11 @@ const CSS = `
   transition:all 0.15s; letter-spacing:0.3px;
 }
 .anf-header-btn:hover { background:#041C4C; border-color:#041C4C; }
+.anf-header-btn-outline {
+  background:transparent; color:#274B95; border-color:#274B95;
+}
+.anf-header-btn-outline:hover { background:#274B95; color:#fff; }
+.anf-header-btn:disabled { opacity:.4; cursor:not-allowed; pointer-events:none; }
 .anf-hdr-btn {
   padding:5px 12px; border-radius:7px; border:1px solid rgba(255,255,255,0.15);
   font-size:12px; cursor:pointer; background:rgba(255,255,255,0.06); color:rgba(255,255,255,0.7);
@@ -1080,4 +1915,198 @@ const CSS = `
 .anf-messages::-webkit-scrollbar-thumb,
 .anf-chat-list::-webkit-scrollbar-thumb,
 .anf-modal-body::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:4px; }
+
+/* ── FAQ tab bar ──────────────────────────────────────────────────────────── */
+.anf-faq-tabs {
+  display:flex; gap:0; border-bottom:1px solid #e2e8f0;
+  background:#f8fafc; padding:0 22px; flex-shrink:0;
+}
+.anf-faq-tab {
+  padding:11px 18px; font-size:13px; font-weight:500; cursor:pointer;
+  background:none; border:none; border-bottom:2px solid transparent;
+  color:#64748b; font-family:inherit; transition:all .15s;
+  margin-bottom:-1px;
+}
+.anf-faq-tab:hover { color:#0f172a; }
+.anf-faq-tab-active {
+  color:#274B95; border-bottom-color:#274B95; font-weight:600;
+}
+
+/* ── S2P card variants ────────────────────────────────────────────────────── */
+.anf-tq-card-s2p {
+  border-left:3px solid #e2e8f0; transition:border-color .15s;
+}
+.anf-tq-card-s2p:hover { border-left-color:#274B95; }
+.anf-tq-try-s2p {
+  background:#f5f3ff; border-color:#ddd6fe; color:#7c3aed;
+}
+.anf-tq-try-s2p:hover { background:#7c3aed; color:#fff; border-color:#7c3aed; }
+
+/* ── Error / info toast ───────────────────────────────────────────────────── */
+.anf-toast {
+  position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+  display:flex; align-items:flex-start; gap:10px; z-index:200;
+  background:#fff; border:1px solid #fcd34d; border-left:3px solid #f59e0b;
+  border-radius:10px; padding:12px 16px; max-width:460px; width:90vw;
+  box-shadow:0 8px 24px rgba(0,0,0,.12); font-size:13px; color:#92400e;
+  animation:anf-slide-up .25s ease;
+}
+.anf-toast.anf-toast-ok {
+  border-color:#bbf7d0; border-left-color:#22c55e; color:#166534;
+}
+@keyframes anf-slide-up {
+  from { opacity:0; transform:translateX(-50%) translateY(12px); }
+  to   { opacity:1; transform:translateX(-50%) translateY(0); }
+}
+.anf-toast-close {
+  margin-left:auto; background:none; border:none; color:#9ca3af;
+  font-size:18px; cursor:pointer; line-height:1; padding:0; flex-shrink:0;
+}
+.anf-toast-close:hover { color:#0f172a; }
+
+/* ── Oracle PR Modal ─────────────────────────────────────────────────────── */
+.anf-pr-modal {
+  background:#fff; border-radius:14px; width:min(920px,96vw);
+  max-height:92vh; display:flex; flex-direction:column;
+  overflow:hidden; box-shadow:0 24px 80px rgba(0,0,0,.22);
+  animation:anf-modal-pop .18s ease;
+}
+@keyframes anf-modal-pop {
+  from { opacity:0; transform:scale(.97) translateY(8px); }
+  to   { opacity:1; transform:scale(1)   translateY(0); }
+}
+/* Oracle brand bar — dark charcoal matching Oracle Fusion UI */
+.anf-pr-oracle-bar {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:0 20px; height:48px;
+  background:#3a3a3a;
+  flex-shrink:0;
+  border-bottom:3px solid #C74634;
+}
+.anf-pr-oracle-logo {
+  display:flex; align-items:center; gap:14px;
+}
+.anf-pr-oracle-divider {
+  width:1px; height:22px; background:rgba(255,255,255,.2);
+}
+.anf-pr-oracle-app {
+  color:rgba(255,255,255,.85); font-size:13px; font-weight:400;
+  letter-spacing:.1px;
+}
+.anf-pr-status-badge {
+  font-size:10px; font-weight:700; letter-spacing:1.2px;
+  background:#C74634; color:#fff;
+  border-radius:3px; padding:3px 9px;
+}
+/* scrollable body */
+.anf-pr-body {
+  overflow-y:auto; padding:22px 28px; display:flex; flex-direction:column; gap:18px;
+}
+/* top meta strip */
+.anf-pr-meta-strip {
+  display:flex; gap:16px; flex-wrap:wrap;
+  background:#f8fafc; border:1px solid #e2e8f0; border-radius:9px;
+  padding:14px 18px;
+}
+.anf-pr-meta-item { display:flex; flex-direction:column; gap:4px; flex:1; min-width:140px; }
+.anf-pr-meta-lbl { font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.6px; color:#64748b; }
+.anf-pr-meta-val { font-size:13px; font-weight:600; color:#0f172a; }
+/* sections */
+.anf-pr-section { display:flex; flex-direction:column; gap:8px; }
+.anf-pr-section-title {
+  font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.7px;
+  color:#475569; border-bottom:1px solid #e2e8f0; padding-bottom:6px;
+}
+/* grid for header fields */
+.anf-pr-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:12px; }
+.anf-pr-field { display:flex; flex-direction:column; gap:4px; }
+.anf-pr-lbl { font-size:11px; font-weight:500; color:#64748b; }
+.anf-pr-input {
+  padding:7px 10px; border:1px solid #e2e8f0; border-radius:6px;
+  font-size:13px; color:#0f172a; font-family:inherit;
+  background:#fff; outline:none; width:100%; box-sizing:border-box;
+  transition:border-color .15s;
+}
+.anf-pr-input:focus { border-color:#274B95; box-shadow:0 0 0 2px rgba(39,75,149,.1); }
+.anf-pr-textarea {
+  padding:9px 12px; border:1px solid #e2e8f0; border-radius:8px;
+  font-size:13px; color:#0f172a; font-family:inherit; resize:vertical;
+  outline:none; transition:border-color .15s; width:100%; box-sizing:border-box;
+}
+.anf-pr-textarea:focus { border-color:#274B95; box-shadow:0 0 0 2px rgba(39,75,149,.1); }
+/* line items table */
+.anf-pr-table-wrap { overflow-x:auto; border-radius:8px; border:1px solid #e2e8f0; }
+.anf-pr-table { width:100%; border-collapse:collapse; font-size:12px; }
+.anf-pr-table thead { background:#f1f5f9; }
+.anf-pr-table th {
+  padding:8px 10px; text-align:left; font-size:10px; font-weight:700;
+  text-transform:uppercase; letter-spacing:.5px; color:#475569;
+  border-bottom:1px solid #e2e8f0; white-space:nowrap;
+}
+.anf-pr-table td { padding:5px 6px; border-bottom:1px solid #f1f5f9; }
+.anf-pr-table tbody tr:last-child td { border-bottom:none; }
+.anf-pr-table tbody tr:hover { background:#fafafa; }
+.anf-pr-cell-input {
+  width:100%; padding:5px 8px; border:1px solid transparent; border-radius:5px;
+  font-size:12px; font-family:inherit; color:#0f172a; background:transparent;
+  outline:none; min-width:80px; box-sizing:border-box;
+}
+.anf-pr-cell-input:focus { border-color:#274B95; background:#fff; box-shadow:0 0 0 2px rgba(39,75,149,.1); }
+.anf-pr-add-line {
+  font-size:12px; font-weight:600; color:#274B95; background:none; border:1px dashed #93c5fd;
+  border-radius:6px; padding:4px 12px; cursor:pointer; transition:all .15s;
+}
+.anf-pr-add-line:hover { background:#eff6ff; border-color:#274B95; }
+.anf-pr-rm-line {
+  background:none; border:none; color:#cbd5e1; font-size:16px; cursor:pointer;
+  padding:0 4px; line-height:1; transition:color .15s;
+}
+.anf-pr-rm-line:hover { color:#ef4444; }
+/* approval chain */
+.anf-pr-approval-step {
+  background:#f0f4ff; color:#274B95; border:1px solid #c7d7f7;
+  border-radius:20px; padding:4px 12px; font-size:12px; font-weight:600;
+  white-space:nowrap;
+}
+/* footer */
+.anf-pr-footer {
+  display:flex; justify-content:flex-end; gap:10px; padding:16px 28px;
+  border-top:1px solid #f1f5f9; flex-shrink:0; background:#fafafa;
+}
+.anf-pr-cancel {
+  padding:9px 20px; border-radius:8px; border:1px solid #e2e8f0;
+  background:#fff; color:#475569; font-size:13px; font-weight:600;
+  cursor:pointer; font-family:inherit; transition:all .15s;
+}
+.anf-pr-cancel:hover { background:#f1f5f9; border-color:#cbd5e1; }
+.anf-pr-submit {
+  padding:9px 22px; border-radius:6px; border:none;
+  background:#C74634;
+  color:#fff; font-size:13px; font-weight:700;
+  cursor:pointer; font-family:inherit; transition:all .15s;
+  display:flex; align-items:center; gap:7px;
+  box-shadow:0 2px 6px rgba(199,70,52,.35);
+}
+.anf-pr-submit:hover { background:#a8382a; box-shadow:0 4px 12px rgba(199,70,52,.45); }
+/* success state */
+.anf-pr-success {
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  padding:60px 40px; gap:14px; text-align:center;
+}
+.anf-pr-success-icon {
+  width:64px; height:64px; border-radius:50%;
+  background:#dcfce7; color:#16a34a;
+  display:flex; align-items:center; justify-content:center;
+  margin-bottom:8px;
+}
+.anf-pr-success h3 { font-size:20px; font-weight:700; color:#0f172a; margin:0; }
+.anf-pr-success p  { font-size:14px; color:#475569; margin:0; }
+.anf-pr-success-sub { font-size:13px; color:#94a3b8; max-width:400px; }
+.anf-pr-success-dismiss { font-size:12px; color:#cbd5e1; margin-top:4px; }
+.anf-pr-done-btn {
+  margin-top:6px; padding:9px 28px; border-radius:7px; border:1px solid #e2e8f0;
+  background:#fff; color:#475569; font-size:13px; font-weight:600;
+  cursor:pointer; font-family:inherit; transition:all .15s;
+}
+.anf-pr-done-btn:hover { background:#f1f5f9; border-color:#cbd5e1; }
 `
