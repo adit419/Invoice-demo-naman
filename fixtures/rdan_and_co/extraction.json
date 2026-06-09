@@ -16,13 +16,13 @@
       {
         "row_id": "y4ogaqcr",
         "field": "invoice_date",
-        "value": "2026-03-25",
+        "value": "2026-06-08",
         "is_required": true
       },
       {
         "row_id": "bumvwtzf",
         "field": "payment_terms",
-        "value": "3rd PMS; 15 Days",
+        "value": "60",
         "is_required": false
       },
       {

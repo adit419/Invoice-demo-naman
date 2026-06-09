@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/router";
 import {
   CalendarOutlined,
@@ -6,7 +7,13 @@ import {
   TagOutlined,
   UserOutlined,
 } from "@ant-design/icons";
-import { Button as AntButton, Space, Tabs } from "antd";
+import { Button as AntButton, Modal, Space, Tabs } from "antd";
+import { SourceViewerToolbar, ZOOM_MIN, ZOOM_MAX, ZOOM_STEP } from "@/components/SourceViewerToolbar";
+
+const PdfViewer = dynamic(
+  () => import("@/components/PdfViewer").then(m => m.PdfViewer),
+  { ssr: false, loading: () => <div className="flex h-full items-center justify-center text-gray-400">Loading…</div> }
+);
 import { withAuthGuard } from "@/components/AuthGuard";
 import { RejectModal } from "@/components/RejectModal";
 import { StageTransitionOverlay } from "@/components/StageTransitionOverlay";
@@ -23,7 +30,7 @@ import { useStagesStatus } from "@/hooks/useStagesStatus";
 import { Loader } from "@/components/ui";
 import { useAuth } from "@/hooks/useAuth";
 import { usePipelineCompleted } from "@/hooks/usePipelineCompleted";
-import { ApiError, settingsService, stagesService } from "@/services";
+import { ApiError, invoicesService, settingsService, stagesService } from "@/services";
 import { useToast } from "@/components/ui";
 import { formatDate } from "@/utils/format";
 
@@ -58,6 +65,7 @@ function MatchingPage() {
     if (typeof window === "undefined" || !tabStorageKey) return;
     window.sessionStorage.setItem(tabStorageKey, activeTab);
   }, [activeTab, tabStorageKey]);
+  useEffect(() => { setPdfToken(localStorage.getItem("access_token")); }, []);
   const [metaData, setMetaData] = useState<MetadataValidationData | null>(null);
   const [liData, setLiData] = useState<LineItemMatchingData | null>(null);
   // Line-items variance gate — set by <LineItemsTab onVarianceChange>. The
@@ -68,6 +76,12 @@ function MatchingPage() {
   const [lineOk, setLineOk] = useState(false);
   const [lineStatus, setLineStatus] = useState<string>("balanced");
   const [loading, setLoading] = useState(true);
+  const [pdfOpen, setPdfOpen] = useState(false);
+  const [pdfPage, setPdfPage] = useState(1);
+  const [numPages, setNumPages] = useState(1);
+  const [pdfToken, setPdfToken] = useState<string | null>(null);
+  const [pdfScale, setPdfScale] = useState(0.8);
+  const [pdfRotate, setPdfRotate] = useState(0);
   const [confirming, setConfirming] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
@@ -340,7 +354,7 @@ function MatchingPage() {
         onBack={() => router.push(`/invoice/${id}/review`)}
         metaItems={[
           { icon: <TagOutlined />, text: "Manual Upload" },
-          headerNumber ? { icon: <FileTextOutlined />, text: headerNumber } : null,
+          headerNumber ? { icon: <FileTextOutlined />, text: headerNumber, onClick: () => { setPdfPage(1); setPdfOpen(true); } } : null,
           headerVendor ? { icon: <UserOutlined />, text: headerVendor } : null,
           headerDate ? { icon: <CalendarOutlined />, text: formatDate(headerDate) } : null,
         ].filter(Boolean) as { icon: React.ReactNode; text: string }[]}
@@ -453,6 +467,46 @@ function MatchingPage() {
         onConfirm={handleReject}
         stage={activeStage}
       />
+
+      <Modal
+        open={pdfOpen}
+        onCancel={() => setPdfOpen(false)}
+        title={headerNumber ? `Invoice ${headerNumber}` : "Invoice Preview"}
+        width="80vw"
+        style={{ top: 24 }}
+        styles={{ body: { display: "flex", flexDirection: "column", height: "82vh", padding: 0, overflow: "hidden" } }}
+        footer={null}
+        destroyOnHidden
+      >
+        {pdfOpen && id && (
+          <>
+            <div className="flex-1 overflow-auto py-4 px-5" style={{ background: "#f8fafc" }}>
+              <PdfViewer
+                pdfUrl={invoicesService.fileUrl(id)}
+                authToken={pdfToken}
+                page={pdfPage}
+                scale={pdfScale}
+                rotate={pdfRotate}
+                onNumPages={setNumPages}
+                activeBbox={null}
+              />
+            </div>
+            <SourceViewerToolbar
+              scale={pdfScale}
+              onZoomOut={() => setPdfScale(s => Math.max(ZOOM_MIN, parseFloat((s - ZOOM_STEP).toFixed(1))))}
+              onZoomIn={() => setPdfScale(s => Math.min(ZOOM_MAX, parseFloat((s + ZOOM_STEP).toFixed(1))))}
+              rotate={pdfRotate}
+              onRotateLeft={() => setPdfRotate(r => (r - 90 + 360) % 360)}
+              onRotateRight={() => setPdfRotate(r => (r + 90) % 360)}
+              currentPage={pdfPage}
+              totalPages={numPages}
+              onPrev={() => setPdfPage(p => Math.max(1, p - 1))}
+              onNext={() => setPdfPage(p => Math.min(numPages, p + 1))}
+              label={headerNumber ?? "Invoice Preview"}
+            />
+          </>
+        )}
+      </Modal>
     </div>
   );
 }

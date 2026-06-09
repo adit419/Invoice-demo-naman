@@ -14,7 +14,7 @@ export function ComponentHeaderAntd({
 }: {
   title: string;
   onBack?: () => void;
-  metaItems: { icon: React.ReactNode; text: string }[];
+  metaItems: { icon: React.ReactNode; text: string; onClick?: () => void }[];
   right?: React.ReactNode;
 }) {
   return (
@@ -34,10 +34,22 @@ export function ComponentHeaderAntd({
               {metaItems.map((item, index) => (
                 <Fragment key={index}>
                   {index > 0 && <span className="text-gray-300 select-none">|</span>}
-                  <span className="flex items-center gap-1 text-gray-500 text-sm">
-                    {item.icon}
-                    <span>{item.text}</span>
-                  </span>
+                  {item.onClick ? (
+                    <button
+                      type="button"
+                      onClick={item.onClick}
+                      className="flex items-center gap-1 text-gray-500 text-sm hover:text-blue-600 transition-colors cursor-pointer"
+                      title="Preview invoice"
+                    >
+                      {item.icon}
+                      <span className="underline underline-offset-2">{item.text}</span>
+                    </button>
+                  ) : (
+                    <span className="flex items-center gap-1 text-gray-500 text-sm">
+                      {item.icon}
+                      <span>{item.text}</span>
+                    </span>
+                  )}
                 </Fragment>
               ))}
             </div>

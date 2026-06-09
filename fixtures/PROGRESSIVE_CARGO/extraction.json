@@ -16,13 +16,13 @@
       {
         "row_id": "c48zh4iq",
         "field": "invoice_date",
-        "value": "2025-10-31",
+        "value": "2026-06-08",
         "is_required": true
       },
       {
         "row_id": "2x7ot76m",
         "field": "payment_terms",
-        "value": "Net 45",
+        "value": "Net 60",
         "is_required": false
       },
       {
