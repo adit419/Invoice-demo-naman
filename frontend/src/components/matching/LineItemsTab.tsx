@@ -199,7 +199,7 @@ function LeftPanel({
   ];
 
   return (
-    <div className="flex flex-col" style={{ width: "40%", minWidth: 0, borderRight: "1px solid #E5E7EB", height: "100%" }}>
+    <div className="flex flex-col" style={{ flex: 1, minWidth: 0, borderRight: "1px solid #E5E7EB", height: "100%" }}>
       {/* Filter tabs */}
       <div style={{ display: "flex", borderBottom: "1px solid #E5E7EB", background: "#fff", flexShrink: 0 }}>
         {filterLabels.map(({ key, label }) => (
@@ -223,10 +223,10 @@ function LeftPanel({
       {/* Table: header + rows + total — fills remaining height, rows scroll */}
       <div style={{ margin: "12px", border: "1px solid #E5E7EB", borderRadius: 8, overflow: "hidden", flex: 1, display: "flex", flexDirection: "column" }}>
         <div style={{ flex: 1, overflowX: "auto", display: "flex", flexDirection: "column" }}>
-        <div style={{ flex: 1, overflowY: "auto", minWidth: 420 }}>
+        <div style={{ flex: 1, overflowY: "auto", minWidth: 450 }}>
           {/* Sticky column header */}
           <div style={{
-            display: "grid", gridTemplateColumns: "3px 28px 32px minmax(80px, 1fr) 60px 100px 110px",
+            display: "grid", gridTemplateColumns: "3px 28px 32px minmax(90px, 1fr) 60px 120px 120px",
             alignItems: "stretch", fontSize: 11, fontWeight: 600, color: "#6B7280",
             background: "#F9FAFB", borderBottom: "1px solid #E5E7EB",
             position: "sticky", top: 0, zIndex: 1,
@@ -251,7 +251,7 @@ function LeftPanel({
                 key={item.id}
                 onClick={() => onSelectItem(realIdx)}
                 style={{
-                  display: "grid", gridTemplateColumns: "3px 28px 32px minmax(80px, 1fr) 60px 100px 110px",
+                  display: "grid", gridTemplateColumns: "3px 28px 32px minmax(90px, 1fr) 60px 120px 120px",
                   alignItems: "stretch",
                   borderBottom: "1px solid #F0F0F0",
                   background: isActive ? "#F0F6FF" : "#fff",
@@ -273,7 +273,7 @@ function LeftPanel({
                 {/* Description */}
                 <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", padding: "10px 12px", borderRight: "1px solid #E5E7EB", minWidth: 0 }}>
                   <div style={{ fontSize: 12, fontWeight: 600, color: "#6B7280" }}>{item.id}</div>
-                  <div style={{ fontSize: 13, color: "#101828", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={item.description}>
+                  <div style={{ fontSize: 13, color: "#101828" }}>
                     {item.description || item.item_code || "—"}
                   </div>
                 </div>
@@ -295,7 +295,7 @@ function LeftPanel({
 
           {/* Sticky total row */}
           <div style={{
-            display: "grid", gridTemplateColumns: "3px 28px 32px minmax(80px, 1fr) 60px 100px 110px",
+            display: "grid", gridTemplateColumns: "3px 28px 32px minmax(90px, 1fr) 60px 120px 120px",
             alignItems: "stretch",
             borderTop: "1px solid #E5E7EB", background: "#F9FAFB",
             position: "sticky", bottom: 0,
@@ -387,11 +387,11 @@ function RightPanel({
 
   // Grid template
   const cols = showPoCol
-    ? "44px 100px 100px minmax(80px, 1fr) 80px 110px 110px 110px"
-    : "44px 100px minmax(80px, 1fr) 80px 110px 110px 110px";
+    ? "44px 100px 100px minmax(160px, 1fr) 80px 110px 110px 110px"
+    : "44px 100px minmax(160px, 1fr) 80px 110px 110px 110px";
 
   return (
-    <div className="flex-1 flex flex-col" style={{ minWidth: 0 }}>
+    <div className="flex flex-col" style={{ flex: 1, minWidth: 0 }}>
       {/* Header */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -439,7 +439,7 @@ function RightPanel({
           </div>
         ) : (
           <div style={{ flex: 1, overflowX: "auto", display: "flex", flexDirection: "column" }}>
-          <div style={{ flex: 1, overflowY: "auto", minWidth: 600 }}>
+          <div style={{ flex: 1, overflowY: "auto", minWidth: showPoCol ? 820 : 720 }}>
             {/* Sticky column header */}
             <div style={{
               display: "grid", gridTemplateColumns: cols, alignItems: "stretch",
@@ -494,7 +494,7 @@ function RightPanel({
                   <div style={{ display: "flex", alignItems: "center", padding: "10px 10px", borderRight: "1px solid #E5E7EB", color: "#414651", fontWeight: 500 }}>
                     {g.grn_number || "—"}
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", padding: "10px 10px", borderRight: "1px solid #E5E7EB", color: "#414651", wordBreak: "break-word" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", padding: "10px 10px", borderRight: "1px solid #E5E7EB", color: "#414651", minWidth: 0 }}>
                     {g.description || "—"}
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", justifyContent: "center", padding: "10px 10px", borderRight: "1px solid #E5E7EB", fontVariantNumeric: "tabular-nums" }}>
