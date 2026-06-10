@@ -161,13 +161,13 @@
           "invoice": [
             {
               "document_id": "ADTO0145",
-              "value": 280371.54
+              "value": 302801.26
             }
           ],
           "po": [
             {
               "document_id": "PO-00068",
-              "value": 280371.54
+              "value": 302801.26
             }
           ],
           "grn": [
@@ -191,13 +191,13 @@
           "invoice": [
             {
               "document_id": "ADTO0145",
-              "value": "22429.72"
+              "value": 0
             }
           ],
           "po": [
             {
               "document_id": "PO-00068",
-              "value": 22429.72
+              "value": 0
             }
           ],
           "grn": [

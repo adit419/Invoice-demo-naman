@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Neoflo · Cash Application - B2B</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/design_tokens.css?v=15" />
+  <link rel="stylesheet" href="assets/css/strategy-surface.tokens.css?v=15" />
+  <link rel="stylesheet" href="assets/css/app.css?v=15" />
+  <style>
+    .sidebar, .mobile-nav-btn { display: none !important; }
+  </style>
+</head>
+<body>
+  <button class="mobile-nav-btn" id="mobile-nav-btn" aria-label="Open menu">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+  </button>
+  <div id="app">
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar__top">
+        <img class="sidebar__logoimg" src="assets/img/neoflo_logo.png?v=15" alt="Neoflo" />
+        <div class="sidebar__logo" aria-hidden="true"></div>
+        <button class="sidebar__toggle" id="sidebar-toggle" title="Collapse menu" aria-label="Collapse menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 17l-5-5 5-5M19 17l-5-5 5-5"/></svg>
+        </button>
+      </div>
+      <nav class="sidebar__nav" id="sidebar-nav"><!-- nav injected by app.js --></nav>
+      <div class="sidebar__foot">
+        <div class="sidebar__control">
+          <span class="sidebar__entity-label">Entity</span>
+          <span class="sidebar__entity-value" id="sb-entity">Grab Ads SG</span>
+        </div>
+        <div class="sidebar__user">
+          <div class="avatar">SS</div>
+          <div class="sidebar__user-meta">
+            <div class="sidebar__user-name">Shubham S.</div>
+            <div class="sidebar__user-role">Cash-app analyst</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <div class="main">
+      <header class="topbar" id="topbar"><!-- topbar injected per view --></header>
+      <main class="content" id="content"><!-- view rendered here --></main>
+    </div>
+  </div>
+
+  <script src="assets/js/data.js?v=15"></script>
+  <script src="assets/js/app.js?v=15"></script>
+</body>
+</html>

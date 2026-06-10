@@ -7,25 +7,26 @@
     "due_date": "2026-08-07",
     "reference": "PO-00068",
     "currency": "MYR",
-    "subtotal": 280371.54,
-    "tax_amount": 22429.72,
+    "subtotal": 302801.26,
+    "tax_amount": 0,
     "total": 302801.26,
     "wht": null,
-    "net_amount_after_wht": 302801.26
+    "net_amount_after_wht": 302801.26,
+    "required_vat_code": "ZS"
   },
   "line_items": [
     {
       "id": "bl_1",
-      "invoice_line_id": "e7kxp7op",
+      "invoice_line_id": "rpatuw7p",
       "description": "SUBCONTRACT WORK",
       "account_code": "5010",
       "account_name": "Subcontract Costs",
       "quantity": 1,
-      "unit_price": 280371.54,
-      "tax_type": "SST 8%",
-      "vat_tax_code": "TX",
+      "unit_price": 302801.26,
+      "tax_type": "SST 0%",
+      "vat_tax_code": "ZS",
       "wht_tax_code": null,
-      "total": 280371.54
+      "total": 302801.26
     }
   ]
 }

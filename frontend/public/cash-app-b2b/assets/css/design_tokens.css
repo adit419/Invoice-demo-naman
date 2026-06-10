@@ -1,0 +1,649 @@
+/* Figma Design System — design tokens
+ * Source: fileKey=QyjAgIX6ilFiAry4stGLUR
+ * Extracted 2026-04-24, refreshed 2026-05-01
+ * Scope: primitive palette, semantic aliases, scale, radii, typography (Product/Sans + Marketing/Sans + Marketing/Serif), shadows
+ * Note: Product/Serif (Instrument Serif under Product namespace) was NOT found in any sampled frame of this file. Either it does not exist as a variable or it is defined only on a page/frame not reached.
+ * 2026-05-01 changes: grey-200 retoned; primary 500–800 re-mapped to softer blue; purple 300–800 retoned. Knock-on changes applied to surface/border/text/icon semantic aliases for primary, information, disabled, and pagecard borders. Pink palette not present in the playground frame and left as-is. Scale, radii, shadows, fonts, and typography tokens unchanged.
+ * 2026-06-09 additions (hand-authored, not from Figma export): added a `brand` semantic family (orange) across surface/border/text/icon to mirror the existing primary/information/success/warning/error pattern; added scale-325 (18px) and scale-350 (20px) to fill the 16↔24 gap; added --radius-full. These back the strategy-surface component layer so it no longer references raw orange primitives or off-scale literals.
+ */
+
+:root {
+  /* ─── Color primitives ─── */
+  /* grey (16) */
+  --grey-25: #fefefd;
+  --grey-50: #fdfdfc;
+  --grey-75: #fafaf9;
+  --grey-100: #f5f5f3;
+  --grey-200: #dfdedb;
+  --grey-300: #cccac6;
+  --grey-400: #bcb8b0;
+  --grey-500: #938e83;
+  --grey-600: #848076;
+  --grey-700: #67635c;
+  --grey-800: #4a4742;
+  --grey-900: #2c2b27;
+  --grey-1000: #161614;
+  --grey-1050: #0f0f0e;
+  --grey-1100: #0b0b0a;
+  --grey-1200: #030303;
+
+  /* primary (10) */
+  --primary-100: #d6e4ff;
+  --primary-200: #adc9ff;
+  --primary-300: #85adff;
+  --primary-400: #5c92ff;
+  --primary-500: #477dea;
+  --primary-600: #1f5bd5;
+  --primary-700: #184cb1;
+  --primary-800: #0d388d;
+  --primary-900: #001e5a;
+  --primary-1000: #000f2d;
+
+  /* orange (14) */
+  --orange-25: #fffdfa;
+  --orange-50: #fffaf5;
+  --orange-75: #fff5eb;
+  --orange-100: #ffebd6;
+  --orange-200: #ffd6ae;
+  --orange-300: #ffc285;
+  --orange-400: #fead5c;
+  --orange-500: #fe9934;
+  --orange-600: #e58a2f;
+  --orange-700: #b26b24;
+  --orange-800: #7f4d1a;
+  --orange-900: #4c2e10;
+  --orange-1000: #190f05;
+  --orange-1100: #0d0803;
+
+  /* purple (14) */
+  --purple-25: #fbfbff;
+  --purple-50: #f7f7ff;
+  --purple-75: #f0efff;
+  --purple-100: #e1dfff;
+  --purple-200: #c3bfff;
+  --purple-300: #b69eff;
+  --purple-400: #937eff;
+  --purple-500: #815eff;
+  --purple-600: #6f55e5;
+  --purple-700: #5142b2;
+  --purple-800: #3c2e87;
+  --purple-900: #201c4d;
+  --purple-1000: #0b091a;
+  --purple-1100: #06050d;
+
+  /* green (14) */
+  --green-25: #fafdfb;
+  --green-50: #f5fcf7;
+  --green-75: #ebf9ef;
+  --green-100: #d6f4de;
+  --green-200: #aee9bd;
+  --green-300: #85dd9b;
+  --green-400: #5dd27a;
+  --green-500: #34c759;
+  --green-600: #2fb350;
+  --green-700: #2a9f47;
+  --green-800: #1f7735;
+  --green-900: #155024;
+  --green-1000: #0a2812;
+  --green-1100: #051409;
+
+  /* red (14) */
+  --red-25: #fffafa;
+  --red-50: #fff5f5;
+  --red-75: #ffebeb;
+  --red-100: #ffd7d8;
+  --red-200: #ffafb1;
+  --red-300: #ff888a;
+  --red-400: #ff6063;
+  --red-500: #ff383c;
+  --red-600: #e53236;
+  --red-700: #b2272a;
+  --red-800: #801c1e;
+  --red-900: #4d1112;
+  --red-1000: #1a0606;
+  --red-1100: #0d0303;
+
+  /* yellow (14) */
+  --yellow-25: #fffdfa;
+  --yellow-50: #fffcf5;
+  --yellow-75: #fff9eb;
+  --yellow-100: #fff3d6;
+  --yellow-200: #ffe6ae;
+  --yellow-300: #ffda85;
+  --yellow-400: #fece5c;
+  --yellow-500: #fec134;
+  --yellow-600: #e5ae2f;
+  --yellow-700: #b28724;
+  --yellow-800: #7f611a;
+  --yellow-900: #4c3a10;
+  --yellow-1000: #191305;
+  --yellow-1100: #0d0a03;
+
+  /* pink (4) */
+  --pink-25: #fffafd;
+  --pink-50: #fef5fb;
+  --pink-75: #fdeaf6;
+  --pink-100: #fbd5ed;
+
+  /* ─── Semantic color aliases ─── */
+  /* surface (41) */
+  --surface-pagecard-page: #f5f5f3;
+  --surface-pagecard-card-1: #fefefd;
+  --surface-pagecard-card-2: #fafaf9;
+  --surface-pagecard-card-3: #f5f5f3;
+  --surface-call-out-card-1: #161614;
+  --surface-call-out-card-2: #2c2b27;
+  --surface-call-out-card-3: #4a4742;
+  --surface-primary-default: #477dea;
+  --surface-primary-default-hover: #1f5bd5;
+  --surface-primary-default-pressed: #184cb1;
+  --surface-primary-subtle: #ebf1ff;
+  --surface-primary-subtle-hover: #d6e4ff;
+  --surface-primary-subtle-pressed: #adc9ff;
+  --surface-primary-background: #ebf1ff;
+  --surface-information-default: #815eff;
+  --surface-information-default-hover: #6f55e5;
+  --surface-information-default-pressed: #5142b2;
+  --surface-information-subtle: #f0efff;
+  --surface-information-subtle-hover: #e1dfff;
+  --surface-information-subtle-pressed: #c3bfff;
+  --surface-success-default: #2fb350;
+  --surface-success-default-hover: #2a9f47;
+  --surface-success-default-pressed: #1f7735;
+  --surface-success-subtle: #f5fcf7;
+  --surface-success-subtle-hover: #d6f4de;
+  --surface-success-subtle-pressed: #aee9bd;
+  --surface-error-default: #ff383c;
+  --surface-error-default-hover: #e53236;
+  --surface-error-default-pressed: #b2272a;
+  --surface-error-subtle: #fff5f5;
+  --surface-error-subtle-hover: #ffd7d8;
+  --surface-error-subtle-pressed: #ffafb1;
+  --surface-warning-default: #fec134;
+  --surface-warning-default-hover: #e5ae2f;
+  --surface-warning-default-pressed: #b28724;
+  --surface-warning-subtle: #fffcf5;
+  --surface-warning-subtle-hover: #fff3d6;
+  --surface-warning-subtle-pressed: #ffe6ae;
+  --surface-disabled-default: #dfdedb;
+  --surface-disabled-default-hover: #cccac6;
+  --surface-disabled-default-pressed: #bcb8b0;
+
+  /* border (27) */
+  --border-pagecard-page: #dfdedb;
+  --border-pagecard-card-1: #dfdedb;
+  --border-pagecard-card-2: #cccac6;
+  --border-pagecard-card-3: #bcb8b0;
+  --border-call-out-card-1: #4a4742;
+  --border-call-out-card-2: #67635c;
+  --border-call-out-card-3: #848076;
+  --border-primary-default: #1f5bd5;
+  --border-primary-default-hover: #184cb1;
+  --border-primary-focus: #0d388d;
+  --border-information-default: #6f55e5;
+  --border-information-default-hover: #5142b2;
+  --border-information-focus: #3c2e87;
+  --border-success-default: #2a9f47;
+  --border-success-default-hover: #1f7735;
+  --border-success-focus: #155024;
+  --border-error-default: #e53236;
+  --border-error-default-hover: #b2272a;
+  --border-error-focus: #801c1e;
+  --border-warning-default: #e5ae2f;
+  --border-warning-default-hover: #b28724;
+  --border-warning-focus: #7f611a;
+  --border-disabled-default: #cccac6;
+  --border-disabled-default-hover: #938e83;
+  --border-disabled-focus: #848076;
+  --border-default-default: #dfdedb;
+  --border-default-default-hover: #cccac6;
+
+  /* text (30) */
+  --text-default-heading: #030303;
+  --text-default-body: #2c2b27;
+  --text-default-caption: #67635c;
+  --text-default-placeholder: #848076;
+  --text-on-colour-heading: #fefefd;
+  --text-on-colour-body: #f5f5f3;
+  --text-on-colour-caption: #cccac6;
+  --text-on-colour-placeholder: #938e83;
+  --text-primary-default: #477dea;
+  --text-primary-hover: #1f5bd5;
+  --text-primary-on-color: #1f5bd5;
+  --text-primary-on-color-hover: #184cb1;
+  --text-information-default: #815eff;
+  --text-information-hover: #6f55e5;
+  --text-information-on-color: #6f55e5;
+  --text-information-on-color-hover: #5142b2;
+  --text-success-default: #34c759;
+  --text-success-hover: #2fb350;
+  --text-success-on-color: #2fb350;
+  --text-success-on-color-hover: #2a9f47;
+  --text-error-default: #ff383c;
+  --text-error-hover: #e53236;
+  --text-error-on-color: #e53236;
+  --text-error-on-color-hover: #b2272a;
+  --text-warning-default: #fec134;
+  --text-warning-hover: #e5ae2f;
+  --text-warning-on-color: #e5ae2f;
+  --text-warning-on-color-hover: #b28724;
+  --text-disabled-default: #cccac6;
+  --text-disabled-on-color: #bcb8b0;
+
+  /* icon (11) */
+  --icon-default-body: #2c2b27;
+  --icon-default-placeholder: #848076;
+  --icon-primary-default: #477dea;
+  --icon-disabled-default: #cccac6;
+  --icon-success-default: #34c759;
+  --icon-warning-default: #fec134;
+  --icon-error-default: #ff383c;
+  --icon-information-default: #815eff;
+  --icon-on-colour-heading: #fefefd;
+  --icon-on-colour-body: #f5f5f3;
+  --icon-on-colour-placeholder: #938e83;
+
+  /* text-color (1) */
+  --text-color-primary-black: #131927;
+
+  /* ─── brand (orange) semantic family — added 2026-06-09 ───
+   * Mirrors the surface/border/text/icon shape of primary, warning, etc.
+   * so brand orange is no longer reachable only via raw --orange-* primitives.
+   * Note: text-brand uses orange-700/800 (not -500) for legible contrast on
+   * light surfaces — a deliberate divergence from the warning family, whose
+   * yellow-500 text token is borderline. */
+  --surface-brand-default: #fe9934;          /* orange-500 */
+  --surface-brand-default-hover: #e58a2f;    /* orange-600 */
+  --surface-brand-default-pressed: #b26b24;  /* orange-700 */
+  --surface-brand-subtle: #fff5eb;           /* orange-75  */
+  --surface-brand-subtle-hover: #ffebd6;     /* orange-100 */
+  --surface-brand-subtle-pressed: #ffd6ae;   /* orange-200 */
+  --border-brand-default: #e58a2f;           /* orange-600 */
+  --border-brand-default-hover: #b26b24;     /* orange-700 */
+  --border-brand-focus: #7f4d1a;             /* orange-800 */
+  --text-brand-default: #b26b24;             /* orange-700 — legible on light */
+  --text-brand-hover: #7f4d1a;               /* orange-800 */
+  --text-brand-on-color: #e58a2f;            /* orange-600 */
+  --text-brand-on-color-hover: #b26b24;      /* orange-700 */
+  --icon-brand-default: #e58a2f;             /* orange-600 */
+
+  /* ─── Scale (px) ─── */
+  --scale-0: 0px;
+  --scale-25: 1px;
+  --scale-50: 2px;
+  --scale-100: 4px;
+  --scale-200: 8px;
+  --scale-250: 12px;
+  --scale-275: 14px;
+  --scale-300: 16px;
+  --scale-325: 18px;
+  --scale-350: 20px;
+  --scale-400: 24px;
+  --scale-500: 32px;
+  --scale-550: 36px;
+  --scale-600: 40px;
+  --scale-800: 56px;
+  --scale-1025: 80px;
+  --scale-1125: 100px;
+  --scale-1175: 120px;
+  --scale-1200: 128px;
+
+  /* ─── Radii (px) — 8 / 16 / 24 + full pill ─── */
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-xl: 24px;
+  --radius-full: 999px;
+
+  /* ─── Font families ─── */
+  --font-family-plus-jakarta-sans: "Plus Jakarta Sans", sans-serif;
+  --font-family-clash-grotesk: "Clash Grotesk", sans-serif;
+  --font-family-instrument-serif: "Instrument Serif", serif;
+  --font-family-inter: "Inter", sans-serif;
+
+  /* ─── Font weights ─── */
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-italic: 400;
+
+  /* ─── Typography ─── */
+
+  /* product.sans */
+  --type-product-sans-d1-bold-family: var(--font-family-plus-jakarta-sans);
+  --type-product-sans-d1-bold-weight: var(--font-weight-bold);
+  --type-product-sans-d1-bold-size: 120px;
+  --type-product-sans-d1-bold-line-height: 128px;
+  --type-product-sans-d1-bold-letter-spacing: -4px;
+  --type-product-sans-d1-medium-family: var(--font-family-plus-jakarta-sans);
+  --type-product-sans-d1-medium-weight: var(--font-weight-medium);
+  --type-product-sans-d1-medium-size: 120px;
+  --type-product-sans-d1-medium-line-height: 128px;
+  --type-product-sans-d1-medium-letter-spacing: -4px;
+  --type-product-sans-d1-regular-family: var(--font-family-plus-jakarta-sans);
+  --type-product-sans-d1-regular-weight: var(--font-weight-medium);
+  --type-product-sans-d1-regular-size: 120px;
+  --type-product-sans-d1-regular-line-height: 128px;
+  --type-product-sans-d1-regular-letter-spacing: -4px;
+  --type-product-sans-h1-bold-family: var(--font-family-plus-jakarta-sans);
+  --type-product-sans-h1-bold-weight: var(--font-weight-bold);
+  --type-product-sans-h1-bold-size: 80px;
+  --type-product-sans-h1-bold-line-height: 80px;
+  --type-product-sans-h1-bold-letter-spacing: -3px;
+  --type-product-sans-h1-medium-family: var(--font-family-plus-jakarta-sans);
+  --type-product-sans-h1-medium-weight: var(--font-weight-medium);
+  --type-product-sans-h1-medium-size: 80px;
+  --type-product-sans-h1-medium-line-height: 80px;
+  --type-product-sans-h1-medium-letter-spacing: -3px;
+  --type-product-sans-h1-regular-family: var(--font-family-plus-jakarta-sans);
+  --type-product-sans-h1-regular-weight: var(--font-weight-medium);
+  --type-product-sans-h1-regular-size: 80px;
+  --type-product-sans-h1-regular-line-height: 80px;
+  --type-product-sans-h1-regular-letter-spacing: -3px;
+  --type-product-sans-h2-bold-family: var(--font-family-plus-jakarta-sans);
+  --type-product-sans-h2-bold-weight: var(--font-weight-bold);
+  --type-product-sans-h2-bold-size: 56px;
+  --type-product-sans-h2-bold-line-height: 64px;
+  --type-product-sans-h2-bold-letter-spacing: -2px;
+  --type-product-sans-h2-medium-family: var(--font-family-plus-jakarta-sans);
+  --type-product-sans-h2-medium-weight: var(--font-weight-medium);
+  --type-product-sans-h2-medium-size: 56px;
+  --type-product-sans-h2-medium-line-height: 64px;
+  --type-product-sans-h2-medium-letter-spacing: -2px;
+  --type-product-sans-h2-regular-family: var(--font-family-plus-jakarta-sans);
+  --type-product-sans-h2-regular-weight: var(--font-weight-medium);
+  --type-product-sans-h2-regular-size: 56px;
+  --type-product-sans-h2-regular-line-height: 64px;
+  --type-product-sans-h2-regular-letter-spacing: -2px;
+  --type-product-sans-h3-bold-family: var(--font-family-plus-jakarta-sans);
+  --type-product-sans-h3-bold-weight: var(--font-weight-bold);
+  --type-product-sans-h3-bold-size: 36px;
+  --type-product-sans-h3-bold-line-height: 48px;
+  --type-product-sans-h3-bold-letter-spacing: -1px;
+  --type-product-sans-h3-medium-family: var(--font-family-plus-jakarta-sans);
+  --type-product-sans-h3-medium-weight: var(--font-weight-medium);
+  --type-product-sans-h3-medium-size: 36px;
+  --type-product-sans-h3-medium-line-height: 48px;
+  --type-product-sans-h3-medium-letter-spacing: -1px;
+  --type-product-sans-h3-regular-family: var(--font-family-plus-jakarta-sans);
+  --type-product-sans-h3-regular-weight: var(--font-weight-medium);
+  --type-product-sans-h3-regular-size: 36px;
+  --type-product-sans-h3-regular-line-height: 48px;
+  --type-product-sans-h3-regular-letter-spacing: -1px;
+  --type-product-sans-h4-bold-family: var(--font-family-plus-jakarta-sans);
+  --type-product-sans-h4-bold-weight: var(--font-weight-bold);
+  --type-product-sans-h4-bold-size: 24px;
+  --type-product-sans-h4-bold-line-height: 32px;
+  --type-product-sans-h4-bold-letter-spacing: -1px;
+  --type-product-sans-h4-medium-family: var(--font-family-plus-jakarta-sans);
+  --type-product-sans-h4-medium-weight: var(--font-weight-medium);
+  --type-product-sans-h4-medium-size: 24px;
+  --type-product-sans-h4-medium-line-height: 32px;
+  --type-product-sans-h4-medium-letter-spacing: -1px;
+  --type-product-sans-h4-regular-family: var(--font-family-plus-jakarta-sans);
+  --type-product-sans-h4-regular-weight: var(--font-weight-medium);
+  --type-product-sans-h4-regular-size: 24px;
+  --type-product-sans-h4-regular-line-height: 32px;
+  --type-product-sans-h4-regular-letter-spacing: -1px;
+  --type-product-sans-b1-bold-family: var(--font-family-plus-jakarta-sans);
+  --type-product-sans-b1-bold-weight: var(--font-weight-bold);
+  --type-product-sans-b1-bold-size: 16px;
+  --type-product-sans-b1-bold-line-height: 24px;
+  --type-product-sans-b1-bold-letter-spacing: 0;
+  --type-product-sans-b1-medium-family: var(--font-family-plus-jakarta-sans);
+  --type-product-sans-b1-medium-weight: var(--font-weight-medium);
+  --type-product-sans-b1-medium-size: 16px;
+  --type-product-sans-b1-medium-line-height: 24px;
+  --type-product-sans-b1-medium-letter-spacing: 0;
+  --type-product-sans-b1-regular-family: var(--font-family-plus-jakarta-sans);
+  --type-product-sans-b1-regular-weight: var(--font-weight-medium);
+  --type-product-sans-b1-regular-size: 16px;
+  --type-product-sans-b1-regular-line-height: 24px;
+  --type-product-sans-b1-regular-letter-spacing: 0;
+  --type-product-sans-b2-bold-family: var(--font-family-plus-jakarta-sans);
+  --type-product-sans-b2-bold-weight: var(--font-weight-bold);
+  --type-product-sans-b2-bold-size: 14px;
+  --type-product-sans-b2-bold-line-height: 24px;
+  --type-product-sans-b2-bold-letter-spacing: 0;
+  --type-product-sans-b2-medium-family: var(--font-family-plus-jakarta-sans);
+  --type-product-sans-b2-medium-weight: var(--font-weight-medium);
+  --type-product-sans-b2-medium-size: 14px;
+  --type-product-sans-b2-medium-line-height: 24px;
+  --type-product-sans-b2-medium-letter-spacing: 0;
+  --type-product-sans-b2-regular-family: var(--font-family-plus-jakarta-sans);
+  --type-product-sans-b2-regular-weight: var(--font-weight-medium);
+  --type-product-sans-b2-regular-size: 14px;
+  --type-product-sans-b2-regular-line-height: 24px;
+  --type-product-sans-b2-regular-letter-spacing: 0;
+  --type-product-sans-caption-bold-family: var(--font-family-plus-jakarta-sans);
+  --type-product-sans-caption-bold-weight: var(--font-weight-bold);
+  --type-product-sans-caption-bold-size: 12px;
+  --type-product-sans-caption-bold-line-height: 16px;
+  --type-product-sans-caption-bold-letter-spacing: 0;
+  --type-product-sans-caption-medium-family: var(--font-family-plus-jakarta-sans);
+  --type-product-sans-caption-medium-weight: var(--font-weight-medium);
+  --type-product-sans-caption-medium-size: 12px;
+  --type-product-sans-caption-medium-line-height: 16px;
+  --type-product-sans-caption-medium-letter-spacing: -1px;
+  --type-product-sans-caption-regular-family: var(--font-family-plus-jakarta-sans);
+  --type-product-sans-caption-regular-weight: var(--font-weight-regular);
+  --type-product-sans-caption-regular-size: 12px;
+  --type-product-sans-caption-regular-line-height: 16px;
+  --type-product-sans-caption-regular-letter-spacing: -1px;
+
+  /* marketing.sans */
+  --type-marketing-sans-d1-bold-family: var(--font-family-clash-grotesk);
+  --type-marketing-sans-d1-bold-weight: var(--font-weight-semibold);
+  --type-marketing-sans-d1-bold-size: 120px;
+  --type-marketing-sans-d1-bold-line-height: 128px;
+  --type-marketing-sans-d1-bold-letter-spacing: -4px;
+  --type-marketing-sans-d1-medium-family: var(--font-family-clash-grotesk);
+  --type-marketing-sans-d1-medium-weight: var(--font-weight-medium);
+  --type-marketing-sans-d1-medium-size: 120px;
+  --type-marketing-sans-d1-medium-line-height: 128px;
+  --type-marketing-sans-d1-medium-letter-spacing: -4px;
+  --type-marketing-sans-d1-regular-family: var(--font-family-clash-grotesk);
+  --type-marketing-sans-d1-regular-weight: var(--font-weight-regular);
+  --type-marketing-sans-d1-regular-size: 120px;
+  --type-marketing-sans-d1-regular-line-height: 128px;
+  --type-marketing-sans-d1-regular-letter-spacing: -4px;
+  --type-marketing-sans-h1-bold-family: var(--font-family-clash-grotesk);
+  --type-marketing-sans-h1-bold-weight: var(--font-weight-semibold);
+  --type-marketing-sans-h1-bold-size: 80px;
+  --type-marketing-sans-h1-bold-line-height: 80px;
+  --type-marketing-sans-h1-bold-letter-spacing: -3px;
+  --type-marketing-sans-h1-medium-family: var(--font-family-clash-grotesk);
+  --type-marketing-sans-h1-medium-weight: var(--font-weight-medium);
+  --type-marketing-sans-h1-medium-size: 80px;
+  --type-marketing-sans-h1-medium-line-height: 80px;
+  --type-marketing-sans-h1-medium-letter-spacing: -3px;
+  --type-marketing-sans-h1-regular-family: var(--font-family-clash-grotesk);
+  --type-marketing-sans-h1-regular-weight: var(--font-weight-regular);
+  --type-marketing-sans-h1-regular-size: 80px;
+  --type-marketing-sans-h1-regular-line-height: 80px;
+  --type-marketing-sans-h1-regular-letter-spacing: -3px;
+  --type-marketing-sans-h2-bold-family: var(--font-family-clash-grotesk);
+  --type-marketing-sans-h2-bold-weight: var(--font-weight-semibold);
+  --type-marketing-sans-h2-bold-size: 56px;
+  --type-marketing-sans-h2-bold-line-height: 64px;
+  --type-marketing-sans-h2-bold-letter-spacing: -2px;
+  --type-marketing-sans-h2-medium-family: var(--font-family-clash-grotesk);
+  --type-marketing-sans-h2-medium-weight: var(--font-weight-medium);
+  --type-marketing-sans-h2-medium-size: 56px;
+  --type-marketing-sans-h2-medium-line-height: 64px;
+  --type-marketing-sans-h2-medium-letter-spacing: -2px;
+  --type-marketing-sans-h2-regular-family: var(--font-family-clash-grotesk);
+  --type-marketing-sans-h2-regular-weight: var(--font-weight-regular);
+  --type-marketing-sans-h2-regular-size: 56px;
+  --type-marketing-sans-h2-regular-line-height: 64px;
+  --type-marketing-sans-h2-regular-letter-spacing: -2px;
+  --type-marketing-sans-h3-bold-family: var(--font-family-clash-grotesk);
+  --type-marketing-sans-h3-bold-weight: var(--font-weight-semibold);
+  --type-marketing-sans-h3-bold-size: 36px;
+  --type-marketing-sans-h3-bold-line-height: 48px;
+  --type-marketing-sans-h3-bold-letter-spacing: -1px;
+  --type-marketing-sans-h3-medium-family: var(--font-family-clash-grotesk);
+  --type-marketing-sans-h3-medium-weight: var(--font-weight-medium);
+  --type-marketing-sans-h3-medium-size: 36px;
+  --type-marketing-sans-h3-medium-line-height: 48px;
+  --type-marketing-sans-h3-medium-letter-spacing: -1px;
+  --type-marketing-sans-h3-regular-family: var(--font-family-clash-grotesk);
+  --type-marketing-sans-h3-regular-weight: var(--font-weight-regular);
+  --type-marketing-sans-h3-regular-size: 36px;
+  --type-marketing-sans-h3-regular-line-height: 48px;
+  --type-marketing-sans-h3-regular-letter-spacing: -1px;
+  --type-marketing-sans-h4-bold-family: var(--font-family-clash-grotesk);
+  --type-marketing-sans-h4-bold-weight: var(--font-weight-semibold);
+  --type-marketing-sans-h4-bold-size: 24px;
+  --type-marketing-sans-h4-bold-line-height: 32px;
+  --type-marketing-sans-h4-bold-letter-spacing: -1px;
+  --type-marketing-sans-h4-medium-family: var(--font-family-clash-grotesk);
+  --type-marketing-sans-h4-medium-weight: var(--font-weight-medium);
+  --type-marketing-sans-h4-medium-size: 24px;
+  --type-marketing-sans-h4-medium-line-height: 32px;
+  --type-marketing-sans-h4-medium-letter-spacing: -1px;
+  --type-marketing-sans-h4-regular-family: var(--font-family-clash-grotesk);
+  --type-marketing-sans-h4-regular-weight: var(--font-weight-regular);
+  --type-marketing-sans-h4-regular-size: 24px;
+  --type-marketing-sans-h4-regular-line-height: 32px;
+  --type-marketing-sans-h4-regular-letter-spacing: -1px;
+  --type-marketing-sans-b1-bold-family: var(--font-family-clash-grotesk);
+  --type-marketing-sans-b1-bold-weight: var(--font-weight-semibold);
+  --type-marketing-sans-b1-bold-size: 16px;
+  --type-marketing-sans-b1-bold-line-height: 24px;
+  --type-marketing-sans-b1-bold-letter-spacing: 0;
+  --type-marketing-sans-b1-medium-family: var(--font-family-clash-grotesk);
+  --type-marketing-sans-b1-medium-weight: var(--font-weight-medium);
+  --type-marketing-sans-b1-medium-size: 16px;
+  --type-marketing-sans-b1-medium-line-height: 24px;
+  --type-marketing-sans-b1-medium-letter-spacing: 0;
+  --type-marketing-sans-b1-regular-family: var(--font-family-clash-grotesk);
+  --type-marketing-sans-b1-regular-weight: var(--font-weight-regular);
+  --type-marketing-sans-b1-regular-size: 16px;
+  --type-marketing-sans-b1-regular-line-height: 24px;
+  --type-marketing-sans-b1-regular-letter-spacing: 0;
+  --type-marketing-sans-b2-bold-family: var(--font-family-clash-grotesk);
+  --type-marketing-sans-b2-bold-weight: var(--font-weight-semibold);
+  --type-marketing-sans-b2-bold-size: 14px;
+  --type-marketing-sans-b2-bold-line-height: 24px;
+  --type-marketing-sans-b2-bold-letter-spacing: 1px;
+  --type-marketing-sans-b2-medium-family: var(--font-family-clash-grotesk);
+  --type-marketing-sans-b2-medium-weight: var(--font-weight-medium);
+  --type-marketing-sans-b2-medium-size: 14px;
+  --type-marketing-sans-b2-medium-line-height: 24px;
+  --type-marketing-sans-b2-medium-letter-spacing: 1px;
+  --type-marketing-sans-b2-regular-family: var(--font-family-clash-grotesk);
+  --type-marketing-sans-b2-regular-weight: var(--font-weight-regular);
+  --type-marketing-sans-b2-regular-size: 14px;
+  --type-marketing-sans-b2-regular-line-height: 24px;
+  --type-marketing-sans-b2-regular-letter-spacing: 1px;
+  --type-marketing-sans-caption-bold-family: var(--font-family-clash-grotesk);
+  --type-marketing-sans-caption-bold-weight: var(--font-weight-semibold);
+  --type-marketing-sans-caption-bold-size: 12px;
+  --type-marketing-sans-caption-bold-line-height: 16px;
+  --type-marketing-sans-caption-bold-letter-spacing: 2px;
+  --type-marketing-sans-caption-medium-family: var(--font-family-clash-grotesk);
+  --type-marketing-sans-caption-medium-weight: var(--font-weight-medium);
+  --type-marketing-sans-caption-medium-size: 12px;
+  --type-marketing-sans-caption-medium-line-height: 16px;
+  --type-marketing-sans-caption-medium-letter-spacing: 2px;
+  --type-marketing-sans-caption-regular-family: var(--font-family-clash-grotesk);
+  --type-marketing-sans-caption-regular-weight: var(--font-weight-regular);
+  --type-marketing-sans-caption-regular-size: 12px;
+  --type-marketing-sans-caption-regular-line-height: 16px;
+  --type-marketing-sans-caption-regular-letter-spacing: 2px;
+
+  /* marketing.serif */
+  --type-marketing-serif-d1-regular-family: var(--font-family-instrument-serif);
+  --type-marketing-serif-d1-regular-weight: var(--font-weight-regular);
+  --type-marketing-serif-d1-regular-size: 120px;
+  --type-marketing-serif-d1-regular-line-height: 128px;
+  --type-marketing-serif-d1-regular-letter-spacing: -4px;
+  --type-marketing-serif-d1-italic-family: var(--font-family-instrument-serif);
+  --type-marketing-serif-d1-italic-weight: var(--font-weight-italic);
+  --type-marketing-serif-d1-italic-size: 120px;
+  --type-marketing-serif-d1-italic-line-height: 128px;
+  --type-marketing-serif-d1-italic-letter-spacing: -4px;
+  --type-marketing-serif-h1-regular-family: var(--font-family-instrument-serif);
+  --type-marketing-serif-h1-regular-weight: var(--font-weight-regular);
+  --type-marketing-serif-h1-regular-size: 80px;
+  --type-marketing-serif-h1-regular-line-height: 80px;
+  --type-marketing-serif-h1-regular-letter-spacing: -3px;
+  --type-marketing-serif-h1-italic-family: var(--font-family-instrument-serif);
+  --type-marketing-serif-h1-italic-weight: var(--font-weight-italic);
+  --type-marketing-serif-h1-italic-size: 80px;
+  --type-marketing-serif-h1-italic-line-height: 80px;
+  --type-marketing-serif-h1-italic-letter-spacing: -3px;
+  --type-marketing-serif-h2-regular-family: var(--font-family-instrument-serif);
+  --type-marketing-serif-h2-regular-weight: var(--font-weight-regular);
+  --type-marketing-serif-h2-regular-size: 56px;
+  --type-marketing-serif-h2-regular-line-height: 64px;
+  --type-marketing-serif-h2-regular-letter-spacing: -2px;
+  --type-marketing-serif-h2-italic-family: var(--font-family-instrument-serif);
+  --type-marketing-serif-h2-italic-weight: var(--font-weight-italic);
+  --type-marketing-serif-h2-italic-size: 56px;
+  --type-marketing-serif-h2-italic-line-height: 64px;
+  --type-marketing-serif-h2-italic-letter-spacing: -2px;
+  --type-marketing-serif-h3-regular-family: var(--font-family-instrument-serif);
+  --type-marketing-serif-h3-regular-weight: var(--font-weight-regular);
+  --type-marketing-serif-h3-regular-size: 36px;
+  --type-marketing-serif-h3-regular-line-height: 48px;
+  --type-marketing-serif-h3-regular-letter-spacing: -1px;
+  --type-marketing-serif-h3-italic-family: var(--font-family-instrument-serif);
+  --type-marketing-serif-h3-italic-weight: var(--font-weight-italic);
+  --type-marketing-serif-h3-italic-size: 36px;
+  --type-marketing-serif-h3-italic-line-height: 48px;
+  --type-marketing-serif-h3-italic-letter-spacing: -1px;
+  --type-marketing-serif-h4-regular-family: var(--font-family-instrument-serif);
+  --type-marketing-serif-h4-regular-weight: var(--font-weight-regular);
+  --type-marketing-serif-h4-regular-size: 24px;
+  --type-marketing-serif-h4-regular-line-height: 32px;
+  --type-marketing-serif-h4-regular-letter-spacing: -1px;
+  --type-marketing-serif-h4-italic-family: var(--font-family-instrument-serif);
+  --type-marketing-serif-h4-italic-weight: var(--font-weight-italic);
+  --type-marketing-serif-h4-italic-size: 24px;
+  --type-marketing-serif-h4-italic-line-height: 32px;
+  --type-marketing-serif-h4-italic-letter-spacing: -1px;
+  --type-marketing-serif-b1-regular-family: var(--font-family-instrument-serif);
+  --type-marketing-serif-b1-regular-weight: var(--font-weight-regular);
+  --type-marketing-serif-b1-regular-size: 16px;
+  --type-marketing-serif-b1-regular-line-height: 24px;
+  --type-marketing-serif-b1-regular-letter-spacing: 0;
+  --type-marketing-serif-b1-italic-family: var(--font-family-instrument-serif);
+  --type-marketing-serif-b1-italic-weight: var(--font-weight-italic);
+  --type-marketing-serif-b1-italic-size: 16px;
+  --type-marketing-serif-b1-italic-line-height: 24px;
+  --type-marketing-serif-b1-italic-letter-spacing: 0;
+  --type-marketing-serif-b2-regular-family: var(--font-family-instrument-serif);
+  --type-marketing-serif-b2-regular-weight: var(--font-weight-regular);
+  --type-marketing-serif-b2-regular-size: 14px;
+  --type-marketing-serif-b2-regular-line-height: 24px;
+  --type-marketing-serif-b2-regular-letter-spacing: 1px;
+  --type-marketing-serif-b2-italic-family: var(--font-family-instrument-serif);
+  --type-marketing-serif-b2-italic-weight: var(--font-weight-italic);
+  --type-marketing-serif-b2-italic-size: 14px;
+  --type-marketing-serif-b2-italic-line-height: 24px;
+  --type-marketing-serif-b2-italic-letter-spacing: 1px;
+  --type-marketing-serif-caption-regular-family: var(--font-family-instrument-serif);
+  --type-marketing-serif-caption-regular-weight: var(--font-weight-regular);
+  --type-marketing-serif-caption-regular-size: 12px;
+  --type-marketing-serif-caption-regular-line-height: 16px;
+  --type-marketing-serif-caption-regular-letter-spacing: 2px;
+  --type-marketing-serif-caption-italic-family: var(--font-family-instrument-serif);
+  --type-marketing-serif-caption-italic-weight: var(--font-weight-italic);
+  --type-marketing-serif-caption-italic-size: 12px;
+  --type-marketing-serif-caption-italic-line-height: 16px;
+  --type-marketing-serif-caption-italic-letter-spacing: 2px;
+
+  /* body.b1 */
+  --type-body-b1-family: var(--font-family-inter);
+  --type-body-b1-weight: var(--font-weight-regular);
+  --type-body-b1-size: 16px;
+  --type-body-b1-line-height: 24px;
+  --type-body-b1-letter-spacing: 0;
+
+  /* ─── Shadows (dual-layer drop) ─── */
+  --shadow-small: 0px 1px 2px 0px #16161414, 0px 2px 4px 0px #1616140A;
+  --shadow-medium: 0px 2px 4px 0px #1616141F, 0px 4px 8px 0px #16161414;
+  --shadow-large: 0px 4px 8px 0px #16161429, 0px 8px 16px 0px #16161414;
+}

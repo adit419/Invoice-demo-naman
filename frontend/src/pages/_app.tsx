@@ -29,6 +29,11 @@ function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <>
+      <style jsx global>{`
+        :root {
+          --sidebar-width: ${sidebarW}px;
+        }
+      `}</style>
       <NavSidebar collapsed={collapsed} onCollapse={setCollapsed} />
 
       {/* Preloaded KNO Store iframe — always mounted, shown only on /agentic-search */}

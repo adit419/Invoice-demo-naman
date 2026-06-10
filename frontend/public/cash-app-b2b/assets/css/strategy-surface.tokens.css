@@ -1,0 +1,248 @@
+/* Strategy Surface — component/intent token layer
+ * Depends on: design_tokens.css (must load AFTER it; every value here resolves
+ *             against the base primitive + semantic aliases on the same :root).
+ * Purpose:    Translate the UX/UI critique of the internal strategy page into
+ *             named tokens. No raw hex unless the base has no semantic alias to
+ *             reference (flagged inline). Each block maps to a critique lens.
+ * Scope:      Light surface only. Dark-mode parallel is NOT defined yet — see note
+ *             at end. The base ships dark call-out surfaces; this layer does not
+ *             yet mirror them.
+ */
+
+:root {
+  /* ─── Lens 1 + 2 · Three-level hierarchy (type) ───────────────────────────
+   * Base product/marketing scale jumps 16 → 24 → 36 → 56, too coarse for a doc.
+   * These doc roles fill the gap so chapter ≠ page ≠ detail at a glance.
+   * Heading line-heights stay in px (base convention); body leading is unitless
+   * for reading comfort — the single biggest fix for "wall of text".
+   */
+  --doc-leading-tight: 1.2;          /* headings */
+  --doc-leading-snug: 1.35;          /* lede / sub-heads */
+  --doc-leading-body: 1.6;           /* running prose — was 24px (~1.5) in base */
+
+  /* Level 1 — Chapter (Basics, Market, Competitive, …) */
+  --doc-chapter-family: var(--font-family-plus-jakarta-sans);
+  --doc-chapter-weight: var(--font-weight-bold);
+  --doc-chapter-size: var(--scale-500);        /* 32 */
+  --doc-chapter-line-height: var(--scale-600); /* 40 */
+  --doc-chapter-letter-spacing: -0.5px;
+
+  /* Level 2 — Page within a chapter (Competitive cohorts, Feature matrix, …) */
+  --doc-page-family: var(--font-family-plus-jakarta-sans);
+  --doc-page-weight: var(--font-weight-semibold);
+  --doc-page-size: var(--scale-400);           /* 24 */
+  --doc-page-line-height: var(--scale-500);    /* 32 */
+  --doc-page-letter-spacing: -0.3px;
+
+  /* Level 3 — Detail / pattern heading (What it is, Example, Where it breaks) */
+  --doc-section-family: var(--font-family-plus-jakarta-sans);
+  --doc-section-weight: var(--font-weight-semibold);
+  --doc-section-size: var(--scale-325);         /* 18 — now a base scale step */
+  --doc-section-line-height: 28px;
+  --doc-section-letter-spacing: 0;
+
+  /* Running body — Inter for reading, matches base body.b1 family */
+  --doc-body-family: var(--font-family-inter);
+  --doc-body-weight: var(--font-weight-regular);
+  --doc-body-size: var(--scale-300);            /* 16 */
+  --doc-body-line-height: var(--doc-leading-body);
+  --doc-body-letter-spacing: 0;
+
+  /* Lede — one-line plain-English outcome that opens each section (Lens 8) */
+  --doc-lede-family: var(--font-family-inter);
+  --doc-lede-weight: var(--font-weight-regular);
+  --doc-lede-size: var(--scale-325);            /* 18 */
+  --doc-lede-line-height: 30px;
+  --doc-lede-color: var(--text-default-body);
+
+  /* Eyebrow / overline — section kicker + "TOOL" label + persona tile kicker */
+  --doc-eyebrow-family: var(--font-family-plus-jakarta-sans);
+  --doc-eyebrow-weight: var(--font-weight-semibold);
+  --doc-eyebrow-size: 12px;
+  --doc-eyebrow-line-height: 16px;
+  --doc-eyebrow-letter-spacing: 1.5px;          /* base captions use 2px */
+  --doc-eyebrow-color: var(--text-default-caption);
+
+  /* ─── Lens 7 · Layout & reading measure ───────────────────────────────── */
+  --doc-content-max: 1080px;         /* outer column ceiling */
+  --doc-measure: 68ch;               /* optimal reading width (font-dependent) */
+  --doc-measure-px: 720px;           /* px fallback / when ch is unwanted */
+  --doc-aside-width: 300px;          /* narrow right column: metrics, roles, "why it matters" */
+  --doc-col-gap: var(--scale-600);   /* 40 — main↔aside gutter */
+  --doc-grid-main-aside: minmax(0, var(--doc-measure-px)) var(--doc-aside-width);
+  --doc-sticky-top: var(--scale-300);/* 16 — sticky offset for nav/pills */
+
+  /* Page edges — spacing from the page/viewport borders and the left nav.
+   * Defaults are desktop; overridden at the breakpoints at the bottom of this
+   * file so content never kisses the edge on phones or floats on wide screens. */
+  --doc-nav-width: 248px;                    /* left-hand chapter nav */
+  --doc-nav-gap: var(--scale-600);           /* 40 — nav ↔ content */
+  --doc-page-gutter: var(--scale-600);       /* 40 — content ↔ left/right page edge */
+  --doc-page-pad-top: var(--scale-800);      /* 56 — first chapter ↔ top edge */
+  --doc-page-pad-bottom: var(--scale-1025);  /* 80 — last block ↔ bottom edge */
+  --doc-page-pad-x: var(--doc-page-gutter);  /* back-compat alias → gutter */
+
+  /* ─── Lens 1 · Vertical rhythm (semantic spacing over the raw scale) ────── */
+  --doc-space-chapter: var(--scale-1025); /* 80 — between chapters */
+  --doc-space-page: var(--scale-800);     /* 56 — between sub-pages */
+  --doc-space-block: var(--scale-500);    /* 32 — between content blocks */
+  --doc-space-stack: var(--scale-300);    /* 16 — between paragraphs */
+  --doc-space-tight: var(--scale-200);    /* 8  — label↔value, chip gaps */
+
+  /* ─── Lens 2 · Dividers & level surfaces (tints that signal depth) ──────── */
+  --doc-divider: var(--scale-25) solid var(--border-default-default);  /* 1px */
+  --doc-divider-strong: var(--scale-50) solid var(--grey-300);          /* 2px chapter break */
+  --doc-chapter-band: var(--grey-50);            /* faint band behind chapter intro */
+  --doc-page-surface: var(--surface-pagecard-card-1);
+  --doc-detail-surface: var(--grey-75);          /* recessed detail/reference blocks */
+  --doc-aside-surface: var(--grey-50);
+  --doc-aside-border: var(--border-default-default);
+
+  /* ─── Lens 3 · Persona entry points (accent sets + tile) ────────────────── */
+  /* Sales → primary | Product → information | Finance → success | Design/CS → orange */
+  --persona-sales-surface: var(--surface-primary-subtle);
+  --persona-sales-border: var(--border-primary-default);
+  --persona-sales-text: var(--text-primary-default);
+  --persona-sales-icon: var(--icon-primary-default);
+
+  --persona-product-surface: var(--surface-information-subtle);
+  --persona-product-border: var(--border-information-default);
+  --persona-product-text: var(--text-information-default);
+  --persona-product-icon: var(--icon-information-default);
+
+  --persona-finance-surface: var(--surface-success-subtle);
+  --persona-finance-border: var(--border-success-default);
+  --persona-finance-text: var(--text-success-default);
+  --persona-finance-icon: var(--icon-success-default);
+
+  /* Design/CS uses brand orange — now via base brand semantic aliases */
+  --persona-design-surface: var(--surface-brand-subtle);
+  --persona-design-border: var(--border-brand-default);
+  --persona-design-text: var(--text-brand-default);
+  --persona-design-icon: var(--icon-brand-default);
+
+  /* Tile container (the 3–4 prominent "For sales / For finance …" links) */
+  --persona-tile-radius: var(--radius-md);       /* 16 */
+  --persona-tile-pad: var(--scale-400);          /* 24 */
+  --persona-tile-gap: var(--scale-250);          /* 12 */
+  --persona-tile-shadow: var(--shadow-small);
+  --persona-tile-shadow-hover: var(--shadow-medium);
+  --persona-tile-border-width: var(--scale-25);  /* 1 */
+
+  /* ─── Lens 5 · "Power tool" cards (checklist / questions / disqualifiers /
+   *             battlecard / P0 actions) — look like tools, not paragraphs ── */
+  --tool-radius: var(--radius-md);     /* 16 */
+  --tool-pad: var(--scale-400);        /* 24 */
+  --tool-gap: var(--scale-250);        /* 12 */
+  --tool-shadow: var(--shadow-small);
+  --tool-border-width: var(--scale-25);/* 1 */
+  --tool-accent-width: var(--scale-100); /* 4 — left accent bar */
+  --tool-surface: var(--surface-pagecard-card-1);
+  --tool-border: var(--border-default-default);
+  --tool-title-color: var(--text-default-heading);
+  /* "TOOL" label reuses eyebrow role: see --doc-eyebrow-* */
+  --tool-label-color: var(--text-default-caption);
+
+  /* P0 / action list → primary */
+  --tool-action-surface: var(--surface-primary-subtle);
+  --tool-action-border: var(--border-primary-default);
+  --tool-action-accent: var(--surface-primary-default);
+  --tool-action-icon: var(--icon-primary-default);
+
+  /* AP-replacement / "done" checklist → success */
+  --tool-checklist-surface: var(--surface-success-subtle);
+  --tool-checklist-border: var(--border-success-default);
+  --tool-checklist-accent: var(--surface-success-default);
+  --tool-checklist-icon: var(--icon-success-default);
+
+  /* Top client questions → information */
+  --tool-question-surface: var(--surface-information-subtle);
+  --tool-question-border: var(--border-information-default);
+  --tool-question-accent: var(--surface-information-default);
+  --tool-question-icon: var(--icon-information-default);
+
+  /* Disqualifiers / "where it breaks" → error (subtle, not alarming) */
+  --tool-disqualifier-surface: var(--surface-error-subtle);
+  --tool-disqualifier-border: var(--border-error-default);
+  --tool-disqualifier-accent: var(--surface-error-default);
+  --tool-disqualifier-icon: var(--icon-error-default);
+
+  /* Battlecard → neutral container with brand-orange accent */
+  --tool-battlecard-surface: var(--grey-75);
+  --tool-battlecard-border: var(--grey-300);
+  --tool-battlecard-accent: var(--surface-brand-default);
+  --tool-battlecard-icon: var(--grey-800);
+
+  /* ─── Lens 4 · Tables (for the ones that must stay) ─────────────────────── */
+  --table-cell-pad-y: var(--scale-250);          /* 12 */
+  --table-cell-pad-x: var(--scale-300);          /* 16 */
+  --table-leading: 1.5;
+  --table-radius: var(--radius-sm);              /* 8 */
+  --table-border: var(--border-default-default);
+  --table-header-surface: var(--grey-75);
+  --table-header-text: var(--text-default-caption);
+  --table-header-size: 12px;
+  --table-header-weight: var(--font-weight-semibold);
+  --table-header-tracking: 1px;
+  --table-row-stripe: var(--grey-50);
+  --table-row-hover: var(--surface-primary-subtle);
+  --table-min-width-comparison: 640px;           /* below this, scroll instead of crush */
+
+  /* ─── Lens 6 · Local micro-nav ──────────────────────────────────────────── */
+  /* Pill / segmented toggle for [P2P] [O2C] [R2R] */
+  --pill-gap: var(--scale-200);        /* 8 */
+  --pill-pad-y: var(--scale-200);      /* 8 */
+  --pill-pad-x: var(--scale-275);      /* 14 */
+  --pill-radius: var(--radius-full);   /* full pill — now in base radii */
+  --pill-size: 14px;
+  --pill-weight: var(--font-weight-semibold);
+  --pill-surface: transparent;
+  --pill-text: var(--text-default-caption);
+  --pill-surface-active: var(--surface-primary-subtle);
+  --pill-text-active: var(--text-primary-hover);
+  --pill-border-active: var(--border-primary-default);
+
+  /* In-section anchor rail (vendor onboarding, 3-way match, payments, …) */
+  --anchor-rail-width: 220px;
+  --anchor-gap: var(--scale-250);      /* 12 */
+  --anchor-size: 14px;
+  --anchor-text: var(--text-default-caption);
+  --anchor-text-active: var(--text-default-heading);
+  --anchor-indicator: var(--surface-primary-default);     /* 2px active marker */
+  --anchor-indicator-track: var(--border-default-default);
+}
+
+/* ─── Responsive page-edge spacing ─────────────────────────────────────────
+ * Custom properties can't live inside media-query conditions, so the
+ * breakpoints are literal here. Only the edge/gutter tokens retune; everything
+ * else (measure, rhythm, components) is already fluid via minmax/auto margins.
+ * Breakpoints: ≤640 phone · ≤1024 tablet/nav-collapsed · ≥1280 wide desktop. */
+@media (max-width: 640px) {
+  :root {
+    --doc-page-gutter: var(--scale-300);      /* 16 — never kiss the edge */
+    --doc-page-pad-top: var(--scale-500);     /* 32 */
+    --doc-page-pad-bottom: var(--scale-800);  /* 56 */
+    --doc-nav-gap: var(--scale-300);          /* 16 — nav typically a drawer here */
+    --doc-col-gap: var(--scale-400);          /* 24 — aside usually stacks under main */
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1024px) {
+  :root {
+    --doc-page-gutter: var(--scale-500);      /* 32 */
+    --doc-nav-gap: var(--scale-500);          /* 32 */
+  }
+}
+
+@media (min-width: 1280px) {
+  :root {
+    --doc-page-gutter: var(--scale-800);      /* 56 — more air on wide canvases */
+  }
+}
+
+/* ─── Dark-mode note ───────────────────────────────────────────────────────
+ * This layer is light-surface only. A parallel block keyed to the page's dark
+ * context (the base already ships --surface-call-out-card-* in greys 1000–800,
+ * --text-on-colour-*, --icon-on-colour-*) is still owed. Until then, do not
+ * render these tokens on a dark background — the subtle tints will not invert.
+ */

@@ -1,0 +1,18 @@
+{
+  "po_id": "PO-00068",
+  "po_number": "PO-00068",
+  "vendor_id": "vendor_progcargo_01",
+  "vendor_name": "PROGRESSIVE CARGO & SERVICES SDN BHD",
+  "order_date": "2026-05-01T00:00:00",
+  "status": "received",
+  "items": [
+    {
+      "item_id": "TA9UG",
+      "description": "SUBCONTRACT WORK",
+      "quantity": 1,
+      "discount": 0,
+      "unit_price": 302801.26,
+      "total_amount": 302801.26
+    }
+  ]
+}

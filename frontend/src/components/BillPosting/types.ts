@@ -69,3 +69,9 @@ export interface LineItemEdit {
   /** Selected WHT tax code (see WHT_OPTIONS in BillPostingTable). */
   wht_tax_code: string;
 }
+
+/** One entry from the /api/v1/vat-codes endpoint. */
+export interface VatCodeOption {
+  value: string;
+  label: string;
+}

@@ -90,6 +90,17 @@ function IconCash() {
   );
 }
 
+function IconCashB2B() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+      <rect x="1" y="4" width="16" height="10" rx="2" stroke="currentColor" strokeWidth="1.4" />
+      <circle cx="9" cy="9" r="2.5" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M4 9h.5M13.5 9h.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M6 2l2-1.5L10 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function IconSwitch() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -342,6 +353,7 @@ const NAV_CONFIG_KEY = 'nav_view_config';
 // Bump this whenever the default nav order changes so stale localStorage
 // configs get wiped and reset to the new default ordering.
 const NAV_CONFIG_VERSION = 12;
+
 const NAV_CONFIG_VERSION_KEY = 'nav_view_config_version';
 
 interface NavItemConfig { key: string; label: string; }
@@ -351,6 +363,7 @@ const DEFAULT_NAV_CONFIG: NavItemConfig[] = [
   { key: 'reporting',           label: 'AP Reporting'           },
   { key: 'arForecast',          label: 'AR Forecast'            },
   { key: 'cashApplication',     label: 'Cash Application'       },
+  { key: 'cashAppB2B',          label: 'Cash App B2B'           },
   { key: 'freight',             label: 'Freight'                },
   { key: 'askNeoflo',           label: 'Ask Neo'                },
   { key: 'vendorOnboarding',    label: 'Partner Onboarding' },
@@ -362,7 +375,8 @@ const NAV_HREF: Record<string, string> = {
   dashboard:         '/dashboard',
   reporting:         '/insights',
   arForecast:        '/forecasting',
-  cashApplication:   '/cash-application',
+  cashApplication:   '/cash-app-v2',
+  cashAppB2B:        '/cash-app-b2b',
   financeOS:         '/finance-os',
   askNeoflo:         '/ask-neoflo',
   vendorOnboarding:  '/vendor-onboarding',
@@ -375,6 +389,7 @@ const NAV_ICON: Record<string, React.ReactNode> = {
   reporting:         <IconInsights />,
   arForecast:        <IconForecast />,
   cashApplication:   <IconCash />,
+  cashAppB2B:        <IconCashB2B />,
   financeOS:         <IconFinanceOS />,
   askNeoflo:         <IconAskNeoflo />,
   vendorOnboarding:  <IconVendorOnboarding />,
@@ -400,6 +415,23 @@ const FREIGHT_CHILDREN = [
   { label: "Reconciliations", href: "/freight",            dot: "#3b82f6" },
   { label: "Dashboard",       href: "/freight/dashboard",  dot: "#10b981" },
   { label: "AP Queue",        href: "/freight/ap-queue",   dot: "#f59e0b" },
+];
+
+// Cash App B2B sub-sections
+const CASH_APP_B2B_CHILDREN = [
+  { label: "Dashboard",           href: "/cash-app-b2b#/dashboard",  dot: "#3b82f6" },
+  { label: "Apply Cash",          href: "/cash-app-b2b#/workspace",  dot: "#10b981" },
+  { label: "Posted Collections",  href: "/cash-app-b2b#/applied",    dot: "#f59e0b" },
+  { label: "Customer 360",        href: "/cash-app-b2b#/customers",  dot: "#8b5cf6" },
+];
+
+// Cash Application V2 sub-sections
+const CASH_APP_V2_CHILDREN = [
+  { label: "Dashboard",          href: "/cash-app-v2",                    dot: "#3b82f6" },
+  { label: "Exception Workspace", href: "/cash-app-v2/exceptions",        dot: "#ef4444" },
+  { label: "Settlement Explorer", href: "/cash-app-v2/settlements",       dot: "#10b981" },
+  { label: "Connector Studio",    href: "/cash-app-v2/connector-studio",  dot: "#06b6d4" },
+  { label: "Audit Trail",         href: "/cash-app-v2/audit",             dot: "#64748b" },
 ];
 
 // Finance OS sub-sections — shown as an expandable group under "Finance OS"
@@ -456,6 +488,15 @@ export function NavSidebar({ collapsed, onCollapse }: NavSidebarProps) {
   const isOnFreight = router.pathname.startsWith("/freight");
   const [freightOpen, setFreightOpen] = useState(false);
   useEffect(() => { if (isOnFreight) setFreightOpen(true); }, [isOnFreight]);
+
+  const isOnCashApp = router.pathname.startsWith("/cash-app-v2");
+  const [cashAppOpen, setCashAppOpen] = useState(false);
+  useEffect(() => { if (isOnCashApp) setCashAppOpen(true); }, [isOnCashApp]);
+
+  const isOnCashAppB2B = router.pathname.startsWith("/cash-app-b2b");
+  const [cashAppB2BOpen, setCashAppB2BOpen] = useState(false);
+  useEffect(() => { if (isOnCashAppB2B) setCashAppB2BOpen(true); }, [isOnCashAppB2B]);
+
   // Auto-expand when user navigates to any Vendor Onboarding route
   useEffect(() => { if (isOnVendorOnboarding) setVendorOnboardingOpen(true); }, [isOnVendorOnboarding]);
 
@@ -741,6 +782,130 @@ export function NavSidebar({ collapsed, onCollapse }: NavSidebarProps) {
                         const childActive = child.href === "/freight"
                           ? router.pathname === "/freight"
                           : router.pathname.startsWith(child.href);
+                        return (
+                          <Link key={child.href} href={child.href}
+                            style={{
+                              display: "flex", alignItems: "center", gap: 10,
+                              padding: "7px 12px 7px 36px", borderRadius: 7,
+                              color: childActive ? "#fff" : "rgba(255,255,255,0.6)",
+                              fontSize: 13, fontWeight: childActive ? 500 : 400,
+                              textDecoration: "none",
+                              background: childActive ? "rgba(255,255,255,0.1)" : "transparent",
+                              transition: "background 0.13s, color 0.13s",
+                            }}
+                            onMouseEnter={e => { if (!childActive) { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(255,255,255,0.06)"; (e.currentTarget as HTMLAnchorElement).style.color = "#fff"; } }}
+                            onMouseLeave={e => { if (!childActive) { (e.currentTarget as HTMLAnchorElement).style.background = "transparent"; (e.currentTarget as HTMLAnchorElement).style.color = "rgba(255,255,255,0.6)"; } }}
+                          >
+                            <span style={{ width: 6, height: 6, borderRadius: "50%", background: childActive ? child.dot : "rgba(255,255,255,0.25)", flexShrink: 0 }} />
+                            <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{child.label}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
+            if (item.pageKey === "cashApplication") {
+              const active = isOnCashApp;
+              return (
+                <div key="cashApplication">
+                  <button
+                    onClick={() => setCashAppOpen(o => !o)}
+                    title={collapsed ? "Cash Application" : undefined}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 12,
+                      width: collapsed ? 40 : "calc(100% - 16px)",
+                      height: collapsed ? 40 : "auto",
+                      margin: collapsed ? "2px auto" : "2px 8px",
+                      padding: collapsed ? 0 : "10px 12px",
+                      justifyContent: collapsed ? "center" : "flex-start",
+                      background: active ? ACTIVE_BG : "transparent",
+                      borderRadius: 8, color: "#fff", fontSize: 14, fontWeight: 400,
+                      border: "none", cursor: "pointer", transition: "background 0.15s", textAlign: "left",
+                    }}
+                    onMouseEnter={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.08)"; }}
+                    onMouseLeave={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
+                  >
+                    <span style={{ flexShrink: 0 }}>{item.icon}</span>
+                    {!collapsed && (
+                      <>
+                        <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.label}</span>
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"
+                          style={{ flexShrink: 0, transition: "transform 0.18s", transform: cashAppOpen ? "rotate(180deg)" : "rotate(0deg)" }}>
+                          <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </>
+                    )}
+                  </button>
+                  {cashAppOpen && !collapsed && (
+                    <div style={{ marginLeft: 8, marginRight: 8, marginBottom: 4 }}>
+                      {CASH_APP_V2_CHILDREN.map(child => {
+                        const childActive = child.href === "/cash-app-v2"
+                          ? router.pathname === "/cash-app-v2"
+                          : router.pathname.startsWith(child.href);
+                        return (
+                          <Link key={child.href} href={child.href}
+                            style={{
+                              display: "flex", alignItems: "center", gap: 10,
+                              padding: "7px 12px 7px 36px", borderRadius: 7,
+                              color: childActive ? "#fff" : "rgba(255,255,255,0.6)",
+                              fontSize: 13, fontWeight: childActive ? 500 : 400,
+                              textDecoration: "none",
+                              background: childActive ? "rgba(255,255,255,0.1)" : "transparent",
+                              transition: "background 0.13s, color 0.13s",
+                            }}
+                            onMouseEnter={e => { if (!childActive) { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(255,255,255,0.06)"; (e.currentTarget as HTMLAnchorElement).style.color = "#fff"; } }}
+                            onMouseLeave={e => { if (!childActive) { (e.currentTarget as HTMLAnchorElement).style.background = "transparent"; (e.currentTarget as HTMLAnchorElement).style.color = "rgba(255,255,255,0.6)"; } }}
+                          >
+                            <span style={{ width: 6, height: 6, borderRadius: "50%", background: childActive ? child.dot : "rgba(255,255,255,0.25)", flexShrink: 0 }} />
+                            <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{child.label}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
+            if (item.pageKey === "cashAppB2B") {
+              const active = isOnCashAppB2B;
+              return (
+                <div key="cashAppB2B">
+                  <button
+                    onClick={() => setCashAppB2BOpen(o => !o)}
+                    title={collapsed ? "Cash App B2B" : undefined}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 12,
+                      width: collapsed ? 40 : "calc(100% - 16px)",
+                      height: collapsed ? 40 : "auto",
+                      margin: collapsed ? "2px auto" : "2px 8px",
+                      padding: collapsed ? 0 : "10px 12px",
+                      justifyContent: collapsed ? "center" : "flex-start",
+                      background: active ? ACTIVE_BG : "transparent",
+                      borderRadius: 8, color: "#fff", fontSize: 14, fontWeight: 400,
+                      border: "none", cursor: "pointer", transition: "background 0.15s", textAlign: "left",
+                    }}
+                    onMouseEnter={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.08)"; }}
+                    onMouseLeave={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
+                  >
+                    <span style={{ flexShrink: 0 }}>{item.icon}</span>
+                    {!collapsed && (
+                      <>
+                        <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.label}</span>
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"
+                          style={{ flexShrink: 0, transition: "transform 0.18s", transform: cashAppB2BOpen ? "rotate(180deg)" : "rotate(0deg)" }}>
+                          <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </>
+                    )}
+                  </button>
+                  {cashAppB2BOpen && !collapsed && (
+                    <div style={{ marginLeft: 8, marginRight: 8, marginBottom: 4 }}>
+                      {CASH_APP_B2B_CHILDREN.map(child => {
+                        const childActive = router.asPath === child.href;
                         return (
                           <Link key={child.href} href={child.href}
                             style={{

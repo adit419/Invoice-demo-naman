@@ -11,6 +11,7 @@ const ALL_PAGES = [
   { key: "reporting",        label: "Reporting",             description: "AR insights and analytics" },
   { key: "arForecast",       label: "AR Forecast",           description: "Accounts receivable forecasting" },
   { key: "cashApplication",  label: "Cash Application",      description: "Cash application module" },
+  { key: "cashAppB2B",       label: "Cash App B2B",          description: "B2B cash application module" },
   { key: "financeOS",        label: "Finance OS",            description: "Neoflo Finance OS workspace demo" },
   { key: "askNeoflo",        label: "Ask Neo",               description: "AI-powered invoice knowledge graph chat" },
   { key: "vendorOnboarding", label: "Vendor Onboarding", description: "Vendor onboarding portal" },

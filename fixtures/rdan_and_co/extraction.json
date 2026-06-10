@@ -94,7 +94,7 @@
       {
         "row_id": "5340xn8h",
         "field": "total_amount",
-        "value": 37650.45,
+        "value": 38335,
         "is_required": true
       },
       {
@@ -106,7 +106,7 @@
       {
         "row_id": "g2lqhei8",
         "field": "net_amount_after_wht",
-        "value": 33543.13,
+        "value": 37650.45,
         "is_required": false
       },
       {

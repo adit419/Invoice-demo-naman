@@ -4,7 +4,7 @@
  */
 import { BillPostingMetadataGrid } from "./BillPostingMetadataGrid";
 import { BillPostingTable } from "./BillPostingTable";
-import type { BillPostingData, LineItemEdit } from "./types";
+import type { BillPostingData, LineItemEdit, VatCodeOption } from "./types";
 
 interface BillPostingScreenProps {
   data: BillPostingData;
@@ -12,6 +12,7 @@ interface BillPostingScreenProps {
   metaEdits: Record<string, string>;
   onMetaEdit: (key: string, value: string) => void;
   lineEdits: Map<string, LineItemEdit>;
+  vatOptions?: VatCodeOption[];
   onVatChange: (itemId: string, vatCode: string) => void;
   onWhtChange: (itemId: string, whtCode: string) => void;
   /** True when the vendor is subject to WHT deduction — shows WHT Tax Code column. */
@@ -40,6 +41,7 @@ export function BillPostingScreen({
   metaEdits,
   onMetaEdit,
   lineEdits,
+  vatOptions,
   onVatChange,
   onWhtChange,
   isVendorSubjectToWht,
@@ -74,6 +76,7 @@ export function BillPostingScreen({
             isVendorSubjectToWht={isVendorSubjectToWht}
             allowedErpFields={allowedErpFields}
             currency={data.bill_header?.currency ?? ""}
+            vatOptions={vatOptions}
             onVatChange={onVatChange}
             onWhtChange={onWhtChange}
             onRequestEditMode={onRequestEditMode}

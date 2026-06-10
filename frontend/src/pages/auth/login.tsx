@@ -13,6 +13,7 @@ const ALL_MODULES = [
   { key: "reporting",        label: "Reporting" },
   { key: "arForecast",       label: "AR Forecast" },
   { key: "cashApplication",  label: "Cash Application" },
+  { key: "cashAppB2B",       label: "Cash App B2B" },
   { key: "askNeoflo",        label: "Ask Neo" },
   { key: "vendorOnboarding", label: "Vendor Onboarding" },
   { key: "driverOnboarding", label: "Driver Onboarding" },

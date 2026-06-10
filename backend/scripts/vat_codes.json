@@ -1,0 +1,616 @@
+{
+  "SG": [
+    {
+      "COUNTRY": "SG",
+      "TAX_CODE": "BL",
+      "DESCRIPTION": "SG Import GST Disallowed Expenses 9%",
+      "PERCENTAGE": "9.00 "
+    },
+    {
+      "COUNTRY": "SG",
+      "TAX_CODE": "DS",
+      "DESCRIPTION": "SG Output GST 9% Deemed supply",
+      "PERCENTAGE": "9.00 "
+    },
+    {
+      "COUNTRY": "SG",
+      "TAX_CODE": "E1",
+      "DESCRIPTION": "SG output - Regulation 33 Exempt Suplly",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "SG",
+      "TAX_CODE": "E2",
+      "DESCRIPTION": "SG output - Non Regulation 33 Exempt supply",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "SG",
+      "TAX_CODE": "EP",
+      "DESCRIPTION": "Purchases specifically exempted from GST",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "SG",
+      "TAX_CODE": "I1",
+      "DESCRIPTION": "SG Import GST Deferment Scheme 9%",
+      "PERCENTAGE": "9.00 "
+    },
+    {
+      "COUNTRY": "SG",
+      "TAX_CODE": "IM",
+      "DESCRIPTION": "SG Import GST 9%",
+      "PERCENTAGE": "9.00 "
+    },
+    {
+      "COUNTRY": "SG",
+      "TAX_CODE": "NR",
+      "DESCRIPTION": "Purchases from non-GST registered suppliers",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "SG",
+      "TAX_CODE": "OP",
+      "DESCRIPTION": "Purchases outside the scope of GST",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "SG",
+      "TAX_CODE": "OS",
+      "DESCRIPTION": "SG Output - Out of Scope",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "SG",
+      "TAX_CODE": "SR",
+      "DESCRIPTION": "SG Output GST 9%",
+      "PERCENTAGE": "9.00 "
+    },
+    {
+      "COUNTRY": "SG",
+      "TAX_CODE": "T1",
+      "DESCRIPTION": "SG Input GST - Regulation 33 Exempt supply",
+      "PERCENTAGE": "9.00 "
+    },
+    {
+      "COUNTRY": "SG",
+      "TAX_CODE": "T2",
+      "DESCRIPTION": "SG Input GST - Non Regulation 33 Exempt supply",
+      "PERCENTAGE": "9.00 "
+    },
+    {
+      "COUNTRY": "SG",
+      "TAX_CODE": "T3",
+      "DESCRIPTION": "SG Input GST - Residual input tax",
+      "PERCENTAGE": "9.00 "
+    },
+    {
+      "COUNTRY": "SG",
+      "TAX_CODE": "TX",
+      "DESCRIPTION": "SG Input GST 9%",
+      "PERCENTAGE": "9.00 "
+    },
+    {
+      "COUNTRY": "SG",
+      "TAX_CODE": "ZP",
+      "DESCRIPTION": "SG Input GST 0%",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "SG",
+      "TAX_CODE": "ZR",
+      "DESCRIPTION": "SG Output GST 0%",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "SG",
+      "TAX_CODE": "TY",
+      "DESCRIPTION": "SG Input GST 10%",
+      "PERCENTAGE": "10.00 "
+    },
+    {
+      "COUNTRY": "SG",
+      "TAX_CODE": "DG",
+      "DESCRIPTION": "SG Input GST 9% - Non Recoverable",
+      "PERCENTAGE": "9.00 "
+    },
+    {
+      "COUNTRY": "SG",
+      "TAX_CODE": "RU",
+      "DESCRIPTION": "Foreign Output Tax 20%",
+      "PERCENTAGE": "20.00 "
+    },
+    {
+      "COUNTRY": "SG",
+      "TAX_CODE": "ZO",
+      "DESCRIPTION": "SG Output GST 8% ( Interim)",
+      "PERCENTAGE": "8.00 "
+    },
+    {
+      "COUNTRY": "SG",
+      "TAX_CODE": "ZI",
+      "DESCRIPTION": "SG Input GST 8%  ( Interim)",
+      "PERCENTAGE": "8.00 "
+    },
+    {
+      "COUNTRY": "SG",
+      "TAX_CODE": "SG",
+      "DESCRIPTION": "GST- LGV",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "SG",
+      "TAX_CODE": "LG",
+      "DESCRIPTION": "GST- LGV",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "SG",
+      "TAX_CODE": "YI",
+      "DESCRIPTION": "SG Input GST 7%  ( Interim)",
+      "PERCENTAGE": "7.00 "
+    },
+    {
+      "COUNTRY": "SG",
+      "TAX_CODE": "YO",
+      "DESCRIPTION": "SG Output GST 7% ( Interim)",
+      "PERCENTAGE": "7.00 "
+    },
+    {
+      "COUNTRY": "SG",
+      "TAX_CODE": "CL",
+      "DESCRIPTION": "SG Import GST Disallowed Expenses 8% ( Interim)",
+      "PERCENTAGE": "8.00 "
+    }
+  ],
+  "PH": [
+    {
+      "COUNTRY": "PH",
+      "TAX_CODE": "V0",
+      "DESCRIPTION": "PH Output VAT 0%",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "PH",
+      "TAX_CODE": "OS",
+      "DESCRIPTION": "PH Output VAT 0%",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "PH",
+      "TAX_CODE": "VB",
+      "DESCRIPTION": "PH OUTPUT VAT ON BUSINESS SERVICES -IN GENERAL",
+      "PERCENTAGE": "12.00 "
+    },
+    {
+      "COUNTRY": "PH",
+      "TAX_CODE": "VC",
+      "DESCRIPTION": "PH Input VAT on Capital Goods Exceeding 1 million",
+      "PERCENTAGE": "12.00 "
+    },
+    {
+      "COUNTRY": "PH",
+      "TAX_CODE": "VG",
+      "DESCRIPTION": "PH Input VAT on Domestic Purchase of Good",
+      "PERCENTAGE": "12.00 "
+    },
+    {
+      "COUNTRY": "PH",
+      "TAX_CODE": "VI",
+      "DESCRIPTION": "PH Input VAT on importation",
+      "PERCENTAGE": "12.00 "
+    },
+    {
+      "COUNTRY": "PH",
+      "TAX_CODE": "VN",
+      "DESCRIPTION": "PH Input VAT subject to 0% VAT (non-exempt)",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "PH",
+      "TAX_CODE": "VS",
+      "DESCRIPTION": "PH Input VAT on Domestic Purchase of Services",
+      "PERCENTAGE": "12.00 "
+    },
+    {
+      "COUNTRY": "PH",
+      "TAX_CODE": "VT",
+      "DESCRIPTION": "PH OUTPUT VAT ON WHOLESALE AND RETAIL TRADE",
+      "PERCENTAGE": "12.00 "
+    },
+    {
+      "COUNTRY": "PH",
+      "TAX_CODE": "VX",
+      "DESCRIPTION": "PH INPUT VAT-exempt transactions(Non-VAT purchase)",
+      "PERCENTAGE": "0.00 "
+    }
+  ],
+  "MY": [
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "A1",
+      "DESCRIPTION": "MY Output GST Adjustment to output",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "A2",
+      "DESCRIPTION": "MY Input GST Adjustment to input",
+      "PERCENTAGE": "6.00 "
+    },
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "BL",
+      "DESCRIPTION": "MY Input GST - Regulation 36 Disallowance",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "DS",
+      "DESCRIPTION": "MY Output GST 6% Deemed supply",
+      "PERCENTAGE": "6.00 "
+    },
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "E1",
+      "DESCRIPTION": "(ES) MY Output - Exempt supply",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "E2",
+      "DESCRIPTION": "(IES) MY Output - Incidental Exempt supplies",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "EP",
+      "DESCRIPTION": "Purchases specifically exempted from GST",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "GP",
+      "DESCRIPTION": "MY Input GST - Disregarded Purchase",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "GS",
+      "DESCRIPTION": "MY Output GST Disregarded supply",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "IM",
+      "DESCRIPTION": "MY Import GST 6%",
+      "PERCENTAGE": "6.00 "
+    },
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "IS",
+      "DESCRIPTION": "MY Import GST - Approved Trader Scheme",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "NR",
+      "DESCRIPTION": "Purchases from non-GST registered suppliers",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "OP",
+      "DESCRIPTION": "Purchases outside the scope of GST",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "OS",
+      "DESCRIPTION": "MY Output - Out of scope",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "RP",
+      "DESCRIPTION": "MY Input GST - Relief Purchase",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "RS",
+      "DESCRIPTION": "MY Output GST Relief supply",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "SR",
+      "DESCRIPTION": "MY Output GST 6%",
+      "PERCENTAGE": "6.00 "
+    },
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "T1",
+      "DESCRIPTION": "(TX) MY Input GST 6%",
+      "PERCENTAGE": "6.00 "
+    },
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "T2",
+      "DESCRIPTION": "(TX-CG) MY INPUTnput GST 6% on capital goods",
+      "PERCENTAGE": "6.00 "
+    },
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "T3",
+      "DESCRIPTION": "(TX-ES) MY Input GST 6%",
+      "PERCENTAGE": "6.00 "
+    },
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "T4",
+      "DESCRIPTION": "(TX-IES) MY Input GST 6%",
+      "PERCENTAGE": "6.00 "
+    },
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "T5",
+      "DESCRIPTION": "(TX-RE) MY Input GST 6%",
+      "PERCENTAGE": "6.00 "
+    },
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "Z1",
+      "DESCRIPTION": "(ZRE) MY Zero Rate supply 0%",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "Z2",
+      "DESCRIPTION": "MY Zero Rate Designated Area supply 0%",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "Z3",
+      "DESCRIPTION": "(ZRL) MY Zero Rate Local supply 0%",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "ZP",
+      "DESCRIPTION": "MY Input GST - Zero Rate Purchase",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "T7",
+      "DESCRIPTION": "(TX) MY Input GST 6% ( Non-Recoverable)",
+      "PERCENTAGE": "6.00 "
+    },
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "SR",
+      "DESCRIPTION": "MY Output GST 6%",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "SA",
+      "DESCRIPTION": "standard rate-adjustment @6%",
+      "PERCENTAGE": "6.00 "
+    },
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "T6",
+      "DESCRIPTION": "(TX) MY Input GST 10%",
+      "PERCENTAGE": "10.00 "
+    },
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "IT",
+      "DESCRIPTION": "SST : MY Import SST @ 10%",
+      "PERCENTAGE": "10.00 "
+    },
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "SS",
+      "DESCRIPTION": "SST : MY Output SST @ 8% W.e.f 01.03.2024",
+      "PERCENTAGE": "8.00 "
+    },
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "ZS",
+      "DESCRIPTION": "SST : MY Input SST @ 0%",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "SD",
+      "DESCRIPTION": "GST adjustment @10%(Dummy)",
+      "PERCENTAGE": "10.00 "
+    },
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "ZR",
+      "DESCRIPTION": "SST : MY Output SST @ 0%",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "TU",
+      "DESCRIPTION": "MY : Input Tax 10% VAT Unclaimable (MYID B2C)",
+      "PERCENTAGE": "11.00 "
+    },
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "V0",
+      "DESCRIPTION": "Input Tax - 0 %",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "L1",
+      "DESCRIPTION": "GST- LGV",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "SI",
+      "DESCRIPTION": "SST : MY Output SST @ 6% ( Till 29.02.2024)",
+      "PERCENTAGE": "6.00 "
+    },
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "SP",
+      "DESCRIPTION": "SST : MY Output SST @ 6% W.e.f 01.04.2024",
+      "PERCENTAGE": "6.00 "
+    },
+    {
+      "COUNTRY": "MY",
+      "TAX_CODE": "Z3",
+      "DESCRIPTION": "(ZRL) MY Zero Rate Local supply 0%",
+      "PERCENTAGE": "0.00 "
+    }
+  ],
+  "ID": [
+    {
+      "COUNTRY": "ID",
+      "TAX_CODE": "IO",
+      "DESCRIPTION": "INPUT-PURCHASES FROM NON-GST REGISTERED SUPPLIER",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "ID",
+      "TAX_CODE": "OF",
+      "DESCRIPTION": "OUTPUT TAX- Export Services 11%",
+      "PERCENTAGE": "11.00 "
+    },
+    {
+      "COUNTRY": "ID",
+      "TAX_CODE": "OS",
+      "DESCRIPTION": "OUTPUT TAX-NON TAXABLE OF GOODS AND SERVICES(MP)",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "ID",
+      "TAX_CODE": "IF",
+      "DESCRIPTION": "INPUT TAX-ID LOGISTIC&TRAVEL SERVICES (1.2%)",
+      "PERCENTAGE": "1.10 "
+    },
+    {
+      "COUNTRY": "ID",
+      "TAX_CODE": "OG",
+      "DESCRIPTION": "OUTPUT TAX-ID LOGISTIC & TRAVEL SERVICES (1.1%)",
+      "PERCENTAGE": "1.10 "
+    },
+    {
+      "COUNTRY": "ID",
+      "TAX_CODE": "IJ",
+      "DESCRIPTION": "INPUT TAX-ID LOGISTIC & TRAVEL SERVICES(1%)",
+      "PERCENTAGE": "1.00 "
+    },
+    {
+      "COUNTRY": "ID",
+      "TAX_CODE": "IK",
+      "DESCRIPTION": "INPUT TAX-ID LOGISTIC & TRAVEL SERVICES(1.1%)",
+      "PERCENTAGE": "1.10 "
+    },
+    {
+      "COUNTRY": "ID",
+      "TAX_CODE": "IZ",
+      "DESCRIPTION": "INPUT TAX - Temporary 1.1%",
+      "PERCENTAGE": "1.10 "
+    },
+    {
+      "COUNTRY": "ID",
+      "TAX_CODE": "OJ",
+      "DESCRIPTION": "OUTPUT TAX-ID LOGISTIC & TRAVEL SERVICES(1%)",
+      "PERCENTAGE": "1.00 "
+    },
+    {
+      "COUNTRY": "ID",
+      "TAX_CODE": "OZ",
+      "DESCRIPTION": "OUTPUT TAX - 10%",
+      "PERCENTAGE": "10.00 "
+    },
+    {
+      "COUNTRY": "ID",
+      "TAX_CODE": "IA",
+      "DESCRIPTION": "INPUT TAX-IMPORT OF TAXABLE GOODS (11%)",
+      "PERCENTAGE": "11.00 "
+    },
+    {
+      "COUNTRY": "ID",
+      "TAX_CODE": "IB",
+      "DESCRIPTION": "INPUT TAX-LOCAL DELIVERIES OF GOODS&SERVICES (11%)",
+      "PERCENTAGE": "11.00 "
+    },
+    {
+      "COUNTRY": "ID",
+      "TAX_CODE": "IC",
+      "DESCRIPTION": "INPUT TAX-SelfAssessed VAT OffShoreIntangble (11%)",
+      "PERCENTAGE": "11.00 "
+    },
+    {
+      "COUNTRY": "ID",
+      "TAX_CODE": "ID",
+      "DESCRIPTION": "INPUT TAX-ID VAT EXEMPTED(CERTAIN STRATEGIC GOODS)",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "ID",
+      "TAX_CODE": "IE",
+      "DESCRIPTION": "INPUT TAX-ID NONCOLLECTED VAT (DELIV TO&FROM FREE",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "ID",
+      "TAX_CODE": "OA",
+      "DESCRIPTION": "OUTPUT TAX-DELIVERIES OF GOODS AND SERVICES (11%)",
+      "PERCENTAGE": "11.00 "
+    },
+    {
+      "COUNTRY": "ID",
+      "TAX_CODE": "OB",
+      "DESCRIPTION": "OUTPUT-EXPORT GOODS&SERVICES(TOLL MANUFACTURE SERV",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "ID",
+      "TAX_CODE": "OD",
+      "DESCRIPTION": "OUTPUT TAX-ID VAT EXEMPTED(CERTAIN STRATEGICGOODS)",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "ID",
+      "TAX_CODE": "OE",
+      "DESCRIPTION": "OUTPUT TAX-ID NON-COLLECTED VAT(DELIV TO&FROM FREE",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "ID",
+      "TAX_CODE": "OX",
+      "DESCRIPTION": "OUTPUT TAX - ZALORA VIP",
+      "PERCENTAGE": "11.00 "
+    }
+  ],
+  "HK": [
+    {
+      "COUNTRY": "HK",
+      "TAX_CODE": "A0",
+      "DESCRIPTION": "Output -Zero rated",
+      "PERCENTAGE": "0.00 "
+    },
+    {
+      "COUNTRY": "HK",
+      "TAX_CODE": "I0",
+      "DESCRIPTION": "Input -Zero rated",
+      "PERCENTAGE": "0.00 "
+    }
+  ],
+  "GF": {
+    "error": "HTTP 500",
+    "raw": []
+  }
+}
