@@ -2076,6 +2076,676 @@ export const enhancedExceptions: ExceptionDetail[] = [
         description: 'DBS-SGD-****4521'
       }
     ]
+  },
+  // ============================================================================
+  // YESTERDAY'S SETTLEMENT RECON EXCEPTIONS (from Settlement Explorer)
+  // These 6 exceptions correspond to non-reconciled bank credits from yesterday's recon
+  // ============================================================================
+
+  // GP-001: Matched L1, but 3 L2 exceptions (unmatched orders + amount mismatch)
+  // Bank credit = PSP Net = 485,125 but 3 order lines have issues
+  {
+    id: 'SE-GP001-UO-001',
+    type: 'unmatched_order',
+    priority: 'high',
+    referenceId: 'ORD-2026-91204',
+    amount: -342.00,
+    currency: 'SGD',
+    psp: 'grabpay',
+    pspName: 'GrabPay',
+    createdAt: '2026-06-09T07:45:00Z',
+    slaDue: '2026-06-10T07:45:00Z',
+    owner: null,
+    aiConfidence: 72,
+    aiSuggestion: 'PSP refund line has no matching OMS order — possible cancelled order processed by PSP after cutoff',
+    status: 'open',
+    age: '1d 4h',
+    pastSLA: true,
+    transactionType: 'refund',
+    amountLabel: 'PSP Refund (No OMS Match)',
+    materiality: 'medium',
+    escalationLevel: 0,
+
+    diagnostic: {
+      outcome: 'order_not_found',
+      confidence: 72,
+      completedAt: '2026-06-09T07:46:00Z',
+      systemRecommendation: 'Investigate with PSP — refund line present in settlement file but no corresponding order in OMS',
+      autoAction: undefined,
+      findings: [
+        {
+          category: 'oms_lookup',
+          result: 'fail',
+          detail: 'Order ORD-2026-91204 not found in OMS. Searched by PSP transaction ID, order reference, and amount within ±5% tolerance.',
+        },
+        {
+          category: 'pattern_match',
+          result: 'partial',
+          detail: 'Amount SGD 342.00 matches a cancelled order (ORD-2026-91198) that was voided on Jun 8 at 23:47 SGT — PSP may have processed refund after OMS cancellation.',
+        },
+        {
+          category: 'window_search',
+          result: 'pass',
+          detail: 'Settlement file PY-GP-09JUN26-500K received on time. 1,997 of 2,000 order lines matched successfully (99.85%).',
+        }
+      ]
+    },
+
+    nba: {
+      action: 'investigate_psp',
+      priority: 'human_investigate',
+      description: 'PSP refund of SGD 342.00 found in GrabPay settlement file (PY-GP-09JUN26-500K) with no corresponding OMS order. A voided order ORD-2026-91198 with matching amount was found — PSP may have processed after OMS cutoff. Contact GrabPay ops to confirm refund origin.',
+      actionButtons: [
+        {
+          id: 'query_psp',
+          label: 'Query GrabPay',
+          action: 'query_psp',
+          variant: 'primary',
+        },
+        {
+          id: 'link_voided',
+          label: 'Link to Voided Order',
+          action: 'link_voided_order',
+          variant: 'secondary',
+        }
+      ]
+    },
+
+    financialBreakdown: {
+      gross: 342.00,
+      components: [
+        { name: 'Refund Amount', type: 'deduction', amount: 342.00, description: 'Full refund processed by PSP' }
+      ],
+      expectedNet: 0,
+      actualNet: -342.00,
+      variance: -342.00,
+      varianceExplained: 0,
+      varianceUnexplained: -342.00,
+      currency: 'SGD'
+    },
+
+    relatedRecords: [
+      {
+        type: 'settlement_line',
+        id: 'PY-GP-09JUN26-500K-L1842',
+        amount: -342.00,
+        currency: 'SGD',
+        date: '2026-06-09T06:00:00Z',
+        status: 'unmatched',
+        reference: 'GrabPay-Refund-Line',
+        description: 'Refund processed in morning settlement batch'
+      },
+      {
+        type: 'bank_credit',
+        id: 'BC-GP-09JUN26-001',
+        amount: 485125.00,
+        currency: 'SGD',
+        date: '2026-06-09T09:00:00Z',
+        status: 'matched_l1',
+        reference: 'DBS-SGD-****4521',
+        description: 'GrabPay daily settlement — L1 matched, 3 L2 exceptions'
+      }
+    ]
+  },
+
+  // GP-002: Matched L1, but 2 L2 amount mismatches at order level
+  // Bank credit = PSP Net = 504,530 but 2 order amounts differ between PSP and OMS
+  {
+    id: 'SE-GP002-AM-001',
+    type: 'amount_mismatch',
+    priority: 'medium',
+    referenceId: 'ORD-2026-91580',
+    amount: 18.75,
+    currency: 'SGD',
+    psp: 'grabpay',
+    pspName: 'GrabPay',
+    createdAt: '2026-06-09T08:10:00Z',
+    slaDue: '2026-06-12T08:10:00Z',
+    owner: 'analyst1',
+    ownerName: 'Analyst Kim',
+    aiConfidence: 91,
+    aiSuggestion: 'Promo discount applied in OMS but not reflected in PSP settlement — variance SGD 18.75 matches active campaign discount rate',
+    status: 'open',
+    age: '1d 3h',
+    pastSLA: false,
+    transactionType: 'payment',
+    amountLabel: 'Order-Level Variance',
+    materiality: 'low',
+    escalationLevel: 0,
+
+    diagnostic: {
+      outcome: 'variance_partially_explained',
+      confidence: 91,
+      completedAt: '2026-06-09T08:11:00Z',
+      systemRecommendation: 'Promo discount mismatch — PSP settled at full price while OMS has campaign discount applied',
+      autoAction: undefined,
+      findings: [
+        {
+          category: 'fee_decomposition',
+          result: 'pass',
+          detail: 'MDR, GST and FX fees match contract rates. Variance is not fee-related.',
+        },
+        {
+          category: 'promo_check',
+          result: 'partial',
+          detail: 'OMS shows promo code GRAB15 applied (15% off, max SGD 10). PSP settled full gross SGD 143.75. OMS net expected SGD 125.00. Variance: SGD 18.75.',
+        },
+        {
+          category: 'historical_pattern',
+          result: 'partial',
+          detail: '14 similar promo-related mismatches found in last 30 days for GrabPay orders with campaign discounts. Avg variance SGD 12.40.',
+        }
+      ]
+    },
+
+    nba: {
+      action: 'accept_variance',
+      priority: 'human_confirm',
+      description: 'Variance of SGD 18.75 across 2 orders traced to promotional discount mismatch. OMS applied GRAB15 campaign discount (15% off) but GrabPay settled at full gross amount. This is a known pattern with 14 similar cases in the last 30 days. Recommend accepting variance and posting adjustment entry.',
+      actionButtons: [
+        {
+          id: 'accept_promo_var',
+          label: 'Accept & Post Adjustment',
+          action: 'accept_variance',
+          variant: 'primary',
+        },
+        {
+          id: 'escalate_promo',
+          label: 'Escalate to Campaigns Team',
+          action: 'escalate',
+          variant: 'secondary',
+        }
+      ]
+    },
+
+    financialBreakdown: {
+      gross: 143.75,
+      components: [
+        { name: 'Promo Discount (GRAB15)', type: 'deduction', amount: 18.75, percentage: 15.0, description: '15% campaign discount — applied in OMS, not in PSP' }
+      ],
+      expectedNet: 125.00,
+      actualNet: 143.75,
+      variance: 18.75,
+      varianceExplained: 18.75,
+      varianceUnexplained: 0,
+      currency: 'SGD'
+    },
+
+    relatedRecords: [
+      {
+        type: 'order',
+        id: 'ORD-2026-91580',
+        amount: 125.00,
+        currency: 'SGD',
+        date: '2026-06-08T19:22:00Z',
+        status: 'completed',
+        reference: 'Grab-Food-Delivery',
+        description: 'Food delivery — promo GRAB15 applied (15% off max SGD 10)'
+      },
+      {
+        type: 'settlement_line',
+        id: 'PY-GP-09JUN26-520K-L1580',
+        amount: 143.75,
+        currency: 'SGD',
+        date: '2026-06-09T06:00:00Z',
+        status: 'mismatch',
+        reference: 'GrabPay-Settlement-Line',
+        description: 'PSP settled at full gross — no promo deduction'
+      },
+      {
+        type: 'bank_credit',
+        id: 'BC-GP-09JUN26-002',
+        amount: 504530.00,
+        currency: 'SGD',
+        date: '2026-06-09T09:00:00Z',
+        status: 'matched_l1',
+        reference: 'DBS-SGD-****4521',
+        description: 'GrabPay daily settlement — L1 matched, 2 L2 amount mismatches'
+      }
+    ]
+  },
+
+  // GP-003: L1 Variance — Bank credit SGD 467,880 vs PSP Net SGD 465,720 = SGD 2,160 variance
+  {
+    id: 'SE-GP003-VAR-001',
+    type: 'amount_mismatch',
+    priority: 'high',
+    referenceId: 'BC-GP-09JUN26-003',
+    amount: 2160.00,
+    currency: 'SGD',
+    psp: 'grabpay',
+    pspName: 'GrabPay',
+    createdAt: '2026-06-09T08:30:00Z',
+    slaDue: '2026-06-10T08:30:00Z',
+    owner: null,
+    aiConfidence: 68,
+    aiSuggestion: 'L1 variance SGD 2,160 (0.46%) — bank credit exceeds PSP net. Possible duplicate credit or timing difference on rolling reserve release.',
+    status: 'open',
+    age: '1d 3h',
+    pastSLA: true,
+    transactionType: 'settlement',
+    amountLabel: 'L1 Variance (Bank vs PSP)',
+    materiality: 'high',
+    escalationLevel: 0,
+
+    diagnostic: {
+      outcome: 'l1_variance_unexplained',
+      confidence: 68,
+      completedAt: '2026-06-09T08:32:00Z',
+      systemRecommendation: 'Investigate variance — bank credit exceeds PSP settlement net by SGD 2,160. Most likely cause: rolling reserve release credited to bank but not reflected in this settlement file.',
+      autoAction: undefined,
+      findings: [
+        {
+          category: 'l1_matching',
+          result: 'fail',
+          detail: 'Bank credit SGD 467,880.00 does not match PSP net SGD 465,720.00. Variance: SGD 2,160.00 (0.46%).',
+        },
+        {
+          category: 'reserve_check',
+          result: 'partial',
+          detail: 'GrabPay rolling reserve release of SGD 2,160.00 was scheduled for Jun 9. This amount matches the L1 variance exactly. Bank may have credited reserve release separately.',
+        },
+        {
+          category: 'duplicate_check',
+          result: 'pass',
+          detail: 'No duplicate bank credits found for this PSP on this date. Credit narration matches single settlement payout reference.',
+        }
+      ]
+    },
+
+    nba: {
+      action: 'investigate',
+      priority: 'human_investigate',
+      description: 'L1 variance of SGD 2,160 (0.46%) between bank credit and PSP net. A scheduled rolling reserve release of exactly SGD 2,160 was due on Jun 9 — likely the bank credited this as part of the main settlement. Verify with GrabPay reserve release statement and accept variance if confirmed.',
+      actionButtons: [
+        {
+          id: 'verify_reserve',
+          label: 'Verify Reserve Release',
+          action: 'verify_reserve',
+          variant: 'primary',
+        },
+        {
+          id: 'query_bank',
+          label: 'Query Bank Statement',
+          action: 'query_bank',
+          variant: 'secondary',
+        },
+        {
+          id: 'accept_l1_var',
+          label: 'Accept Variance',
+          action: 'accept_variance',
+          variant: 'secondary',
+        }
+      ]
+    },
+
+    financialBreakdown: {
+      gross: 480000.00,
+      components: [
+        { name: 'MDR Fee (2.5%)', type: 'deduction', amount: 12000.00, percentage: 2.5, description: 'Merchant Discount Rate per GrabPay contract' },
+        { name: 'GST on MDR (7%)', type: 'deduction', amount: 840.00, percentage: 7.0, description: '7% GST on MDR fee' },
+        { name: 'FX Margin (0.3%)', type: 'deduction', amount: 1440.00, percentage: 0.3, description: 'FX conversion margin' },
+        { name: 'Rolling Reserve Release', type: 'addition', amount: 2160.00, description: 'Q1 2026 rolling reserve release — possibly credited directly to bank' }
+      ],
+      expectedNet: 467880.00,
+      actualNet: 465720.00,
+      variance: 2160.00,
+      varianceExplained: 2160.00,
+      varianceUnexplained: 0,
+      currency: 'SGD'
+    },
+
+    relatedRecords: [
+      {
+        type: 'bank_credit',
+        id: 'BC-GP-09JUN26-003',
+        amount: 467880.00,
+        currency: 'SGD',
+        date: '2026-06-09T09:00:00Z',
+        status: 'unmatched_variance',
+        reference: 'DBS-SGD-****4521',
+        description: 'GrabPay settlement — L1 variance SGD 2,160'
+      },
+      {
+        type: 'settlement_line',
+        id: 'PY-GP-09JUN26-480K',
+        amount: 465720.00,
+        currency: 'SGD',
+        date: '2026-06-09T06:00:00Z',
+        status: 'variance',
+        reference: 'GrabPay-Settlement-Net',
+        description: 'PSP net payout — SGD 2,160 less than bank credit'
+      }
+    ]
+  },
+
+  // GP-006: No PSP File — Bank credit SGD 502,193.13 with no matching settlement file
+  {
+    id: 'SE-GP006-NF-001',
+    type: 'unmatched_credit',
+    priority: 'high',
+    referenceId: 'BC-GP-09JUN26-006',
+    amount: 502193.13,
+    currency: 'SGD',
+    psp: 'grabpay',
+    pspName: 'GrabPay',
+    createdAt: '2026-06-09T09:15:00Z',
+    slaDue: '2026-06-10T09:15:00Z',
+    owner: null,
+    aiConfidence: 82,
+    aiSuggestion: 'Settlement file not received — GrabPay typically delivers by 06:00 SGT. File may be delayed due to GrabPay scheduled maintenance window (Jun 9 02:00-05:00 SGT).',
+    status: 'open',
+    age: '1d 2h',
+    pastSLA: true,
+    transactionType: 'settlement',
+    amountLabel: 'Unmatched Bank Credit',
+    materiality: 'high',
+    escalationLevel: 0,
+
+    diagnostic: {
+      outcome: 'psp_file_missing',
+      confidence: 82,
+      completedAt: '2026-06-09T09:16:00Z',
+      systemRecommendation: 'GrabPay settlement file for this credit is missing. Bank credit matches expected daily volume. File delivery may be delayed due to maintenance. Auto-retry at T+24h, escalate if still missing.',
+      autoAction: 'auto_hold_48h',
+      findings: [
+        {
+          category: 'file_check',
+          result: 'fail',
+          detail: 'No settlement file received from GrabPay matching this bank credit. Expected file: GrabPay-SGD-Daily-20260609-006.csv. Last check: Jun 9, 18:00 SGT.',
+        },
+        {
+          category: 'maintenance_check',
+          result: 'partial',
+          detail: 'GrabPay notified of scheduled maintenance on Jun 9, 02:00-05:00 SGT. Previous maintenance windows have caused file delivery delays of 6-12 hours.',
+        },
+        {
+          category: 'amount_validation',
+          result: 'pass',
+          detail: 'Bank credit SGD 502,193.13 is within expected daily GrabPay settlement range (SGD 450K-550K). Narration references GrabPay Pte Ltd.',
+        },
+        {
+          category: 'historical_pattern',
+          result: 'pass',
+          detail: 'GrabPay has 99.2% file delivery rate over last 90 days. Last missed file: Apr 14, 2026 (resolved within 18h).',
+        }
+      ]
+    },
+
+    nba: {
+      action: 'hold_and_retry',
+      priority: 'auto',
+      description: 'Bank credit of SGD 502,193.13 from GrabPay with no matching settlement file. GrabPay had scheduled maintenance on Jun 9 which may have delayed file delivery. System will auto-retry matching at T+24h. If file not received by Jun 10 18:00 SGT, escalate to GrabPay operations.',
+      actionButtons: [
+        {
+          id: 'hold_retry',
+          label: 'Hold & Auto-Retry',
+          action: 'hold_retry',
+          variant: 'primary',
+        },
+        {
+          id: 'contact_grabpay',
+          label: 'Contact GrabPay Ops',
+          action: 'contact_psp',
+          variant: 'secondary',
+        },
+        {
+          id: 'raise_ticket_gp006',
+          label: 'Raise Support Ticket',
+          action: 'raise_ticket',
+          variant: 'secondary',
+        }
+      ]
+    },
+
+    relatedRecords: [
+      {
+        type: 'bank_credit',
+        id: 'BC-GP-09JUN26-006',
+        amount: 502193.13,
+        currency: 'SGD',
+        date: '2026-06-09T09:00:00Z',
+        status: 'unmatched',
+        reference: 'GRABPAY PTE LTD SETTLEMENT',
+        description: 'DBS-SGD-****4521 — No settlement file received'
+      }
+    ]
+  },
+
+  // STR-001: Matched L1, but 2 L2 unmatched orders
+  // Bank credit = PSP Net = 366,308.60 but 2 order lines not found in OMS
+  {
+    id: 'SE-STR001-UO-001',
+    type: 'unmatched_order',
+    priority: 'medium',
+    referenceId: 'ORD-2026-92107',
+    amount: -187.50,
+    currency: 'SGD',
+    psp: 'stripe',
+    pspName: 'Stripe',
+    createdAt: '2026-06-09T08:50:00Z',
+    slaDue: '2026-06-12T08:50:00Z',
+    owner: 'analyst1',
+    ownerName: 'Analyst Kim',
+    aiConfidence: 78,
+    aiSuggestion: '2 Stripe settlement lines (SGD 187.50 + SGD 94.00) have no OMS match — order IDs use legacy format suggesting migration-era transactions',
+    status: 'open',
+    age: '1d 3h',
+    pastSLA: false,
+    transactionType: 'payment',
+    amountLabel: 'Unmatched PSP Lines',
+    materiality: 'medium',
+    escalationLevel: 0,
+
+    diagnostic: {
+      outcome: 'orders_not_found_legacy_format',
+      confidence: 78,
+      completedAt: '2026-06-09T08:51:00Z',
+      systemRecommendation: 'Two order lines in Stripe settlement use legacy order ID format (ORD-2026-92107, ORD-2026-92108). These may be from a partner integration that uses a different ID scheme. Check partner order management system.',
+      autoAction: undefined,
+      findings: [
+        {
+          category: 'oms_lookup',
+          result: 'fail',
+          detail: 'Orders ORD-2026-92107 (SGD 187.50) and ORD-2026-92108 (SGD 94.00) not found in primary OMS. Searched by order ID, PSP transaction ID, and amount.',
+        },
+        {
+          category: 'id_format_check',
+          result: 'partial',
+          detail: 'Order IDs use a non-standard format with sequential numbering. This pattern matches partner-integration orders from Stripe Connect sub-merchants.',
+        },
+        {
+          category: 'partner_lookup',
+          result: 'partial',
+          detail: 'Possible match found in partner OMS (GrabMart integration) with IDs GM-92107 and GM-92108. Amounts match. Awaiting cross-reference confirmation.',
+        }
+      ]
+    },
+
+    nba: {
+      action: 'cross_reference',
+      priority: 'human_confirm',
+      description: '2 unmatched Stripe settlement lines (total SGD 281.50) use non-standard order IDs. Pattern matches GrabMart partner integration orders. Possible matches found in partner OMS: GM-92107 (SGD 187.50) and GM-92108 (SGD 94.00). Recommend cross-referencing with partner system to confirm.',
+      actionButtons: [
+        {
+          id: 'cross_ref_partner',
+          label: 'Cross-Reference Partner OMS',
+          action: 'cross_reference',
+          variant: 'primary',
+        },
+        {
+          id: 'query_stripe',
+          label: 'Query Stripe',
+          action: 'query_psp',
+          variant: 'secondary',
+        }
+      ]
+    },
+
+    financialBreakdown: {
+      gross: 281.50,
+      components: [
+        { name: 'Order 1 (ORD-2026-92107)', type: 'deduction', amount: 187.50, description: 'Ride payment — no OMS match' },
+        { name: 'Order 2 (ORD-2026-92108)', type: 'deduction', amount: 94.00, description: 'Food delivery — no OMS match' }
+      ],
+      expectedNet: 0,
+      actualNet: 281.50,
+      variance: 281.50,
+      varianceExplained: 0,
+      varianceUnexplained: 281.50,
+      currency: 'SGD'
+    },
+
+    relatedRecords: [
+      {
+        type: 'settlement_line',
+        id: 'PY-STR-09JUN26-380K-L107',
+        amount: 187.50,
+        currency: 'SGD',
+        date: '2026-06-09T06:00:00Z',
+        status: 'unmatched',
+        reference: 'Stripe-Settlement-Line-1',
+        description: 'Ride payment — legacy order format'
+      },
+      {
+        type: 'settlement_line',
+        id: 'PY-STR-09JUN26-380K-L108',
+        amount: 94.00,
+        currency: 'SGD',
+        date: '2026-06-09T06:00:00Z',
+        status: 'unmatched',
+        reference: 'Stripe-Settlement-Line-2',
+        description: 'Food delivery — legacy order format'
+      },
+      {
+        type: 'bank_credit',
+        id: 'BC-STR-09JUN26-001',
+        amount: 366308.60,
+        currency: 'SGD',
+        date: '2026-06-09T09:30:00Z',
+        status: 'matched_l1',
+        reference: 'OCBC-SGD-****7821',
+        description: 'Stripe daily settlement — L1 matched, 2 unmatched orders'
+      }
+    ]
+  },
+
+  // STR-002: Matched L1, but 2 L2 amount mismatches at order level
+  // Bank credit = PSP Net = 384,623.03 but 2 orders have FX conversion differences
+  {
+    id: 'SE-STR002-AM-001',
+    type: 'amount_mismatch',
+    priority: 'medium',
+    referenceId: 'ORD-2026-92340',
+    amount: 4.82,
+    currency: 'SGD',
+    psp: 'stripe',
+    pspName: 'Stripe',
+    createdAt: '2026-06-09T09:00:00Z',
+    slaDue: '2026-06-12T09:00:00Z',
+    owner: 'analyst1',
+    ownerName: 'Analyst Kim',
+    aiConfidence: 94,
+    aiSuggestion: 'FX conversion rate difference between Stripe and OMS — Stripe used mid-market rate while OMS used contracted rate. Net variance SGD 4.82 across 2 orders.',
+    status: 'open',
+    age: '1d 3h',
+    pastSLA: false,
+    transactionType: 'payment',
+    amountLabel: 'FX Rate Variance',
+    materiality: 'low',
+    escalationLevel: 0,
+
+    diagnostic: {
+      outcome: 'variance_fully_explained',
+      confidence: 94,
+      completedAt: '2026-06-09T09:01:00Z',
+      systemRecommendation: 'FX rate variance across 2 orders. Stripe settled using mid-market rate (1.3542) while OMS booked at contracted rate (1.3550). Variance is within acceptable FX tolerance (< 0.1%). Auto-clear recommended.',
+      autoAction: 'auto_clear_with_gl_posting',
+      findings: [
+        {
+          category: 'fx_rate_check',
+          result: 'partial',
+          detail: 'ORD-2026-92340: OMS amount SGD 268.50 (rate 1.3550), Stripe settled SGD 265.34 (rate 1.3542). Variance SGD 3.16. ORD-2026-92341: OMS SGD 142.00, Stripe SGD 140.34. Variance SGD 1.66.',
+        },
+        {
+          category: 'fee_decomposition',
+          result: 'pass',
+          detail: 'MDR (2.9%), GST (7%), and FX margin (0.5%) all match Stripe contract rates. Variance is solely from base FX rate difference.',
+        },
+        {
+          category: 'tolerance_check',
+          result: 'pass',
+          detail: 'Combined FX variance SGD 4.82 is 0.0013% of settlement total (SGD 384,623.03). Well within FX tolerance threshold of 0.1%.',
+        }
+      ]
+    },
+
+    nba: {
+      action: 'auto_clear',
+      priority: 'auto',
+      description: 'FX rate variance of SGD 4.82 across 2 Stripe orders. Stripe used mid-market rate (1.3542) vs OMS contracted rate (1.3550). Total variance is 0.0013% of settlement — well within 0.1% FX tolerance. Recommend auto-clear with GL posting to FX variance account.',
+      actionButtons: [
+        {
+          id: 'auto_clear_fx',
+          label: 'Auto-Clear to FX Variance',
+          action: 'auto_clear',
+          variant: 'primary',
+        },
+        {
+          id: 'review_fx_detail',
+          label: 'Review FX Detail',
+          action: 'review_breakdown',
+          variant: 'secondary',
+        }
+      ]
+    },
+
+    financialBreakdown: {
+      gross: 410.50,
+      components: [
+        { name: 'FX Rate Diff (ORD-92340)', type: 'deduction', amount: 3.16, description: 'OMS rate 1.3550 vs Stripe rate 1.3542 on SGD 268.50 order' },
+        { name: 'FX Rate Diff (ORD-92341)', type: 'deduction', amount: 1.66, description: 'OMS rate 1.3550 vs Stripe rate 1.3542 on SGD 142.00 order' }
+      ],
+      expectedNet: 410.50,
+      actualNet: 405.68,
+      variance: 4.82,
+      varianceExplained: 4.82,
+      varianceUnexplained: 0,
+      currency: 'SGD'
+    },
+
+    relatedRecords: [
+      {
+        type: 'order',
+        id: 'ORD-2026-92340',
+        amount: 268.50,
+        currency: 'SGD',
+        date: '2026-06-08T14:15:00Z',
+        status: 'completed',
+        reference: 'Grab-Ride-Premium',
+        description: 'Premium ride booking — FX converted from USD'
+      },
+      {
+        type: 'order',
+        id: 'ORD-2026-92341',
+        amount: 142.00,
+        currency: 'SGD',
+        date: '2026-06-08T16:42:00Z',
+        status: 'completed',
+        reference: 'Grab-Food-Delivery',
+        description: 'Food delivery — FX converted from USD'
+      },
+      {
+        type: 'bank_credit',
+        id: 'BC-STR-09JUN26-002',
+        amount: 384623.03,
+        currency: 'SGD',
+        date: '2026-06-09T09:30:00Z',
+        status: 'matched_l1',
+        reference: 'OCBC-SGD-****7821',
+        description: 'Stripe daily settlement — L1 matched, 2 FX rate mismatches'
+      }
+    ]
   }
 ]
 

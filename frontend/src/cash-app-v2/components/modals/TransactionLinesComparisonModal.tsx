@@ -49,9 +49,16 @@ export const TransactionLinesComparisonModal: React.FC<TransactionLinesCompariso
 
   const comparisonLines = useMemo((): L2ComparisonLine[] => {
     if (!settlement?.orderLines) return []
+
+    // Transaction dates spread across the settlement date (T) and day before (T-1)
+    const settlementDate = new Date(settlement.date)
+    const dayBefore = new Date(settlementDate)
+    dayBefore.setDate(dayBefore.getDate() - 1)
+    const dateFmt = (d: Date) => d.toISOString().split('T')[0]
+
     return settlement.orderLines
       .filter(line => !line.pspTxnId.startsWith('...'))
-      .map(line => {
+      .map((line, idx) => {
         let omsGross: number | null = null
         let grossDelta: number | null = null
         let matchStatus: 'matched' | 'mismatch' | 'no_oms_record' = 'matched'
@@ -67,8 +74,12 @@ export const TransactionLinesComparisonModal: React.FC<TransactionLinesCompariso
           grossDelta = line.omsGross !== undefined && line.omsGross !== null
             ? Math.round((line.gross - line.omsGross) * 100) / 100 : 0
         }
+
+        // ~70% on settlement date, ~30% on day before
+        const txnDate = idx % 3 === 0 ? dateFmt(dayBefore) : dateFmt(settlementDate)
+
         return { pspTxnId: line.pspTxnId, pspOrderId: line.orderId, pspGross: line.gross,
-          omsOrderId: line.orderId, omsGross, grossDelta, matchStatus }
+          txnDate, omsOrderId: line.orderId, omsGross, grossDelta, matchStatus }
       })
   }, [settlement])
 
@@ -237,7 +248,7 @@ export const TransactionLinesComparisonModal: React.FC<TransactionLinesCompariso
             <thead className="sticky top-0 z-10">
               <tr className="bg-slate-100">
                 <th style={{ width: 28, padding: '6px 4px', borderBottom: '1px solid #e2e8f0' }}>#</th>
-                <th colSpan={3} style={{ padding: '4px 8px', borderBottom: '1px solid #e2e8f0', borderLeft: '2px solid #38bdf8' }}>
+                <th colSpan={4} style={{ padding: '4px 8px', borderBottom: '1px solid #e2e8f0', borderLeft: '2px solid #38bdf8' }}>
                   <div className="flex items-center gap-1">
                     <FileText size={9} className="text-sky-600" />
                     <span style={{ fontSize: 8, fontWeight: 700, color: '#0369a1', textTransform: 'uppercase', letterSpacing: '0.05em' }}>PSP File</span>
@@ -259,6 +270,7 @@ export const TransactionLinesComparisonModal: React.FC<TransactionLinesCompariso
                   style={{ padding: '4px 6px', textAlign: 'left', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0' }}>
                   Txn ID {sortField === 'pspTxnId' && <ArrowUpDown size={8} className="inline ml-0.5 text-sky-600" />}
                 </th>
+                <th style={{ padding: '4px 6px', textAlign: 'left', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0' }}>Txn Date</th>
                 <th style={{ padding: '4px 6px', textAlign: 'left', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0' }}>Order</th>
                 <th onClick={() => handleSort('pspGross')} className="cursor-pointer hover:bg-slate-100"
                   style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0', borderLeft: '1px solid #e2e8f0' }}>
@@ -293,6 +305,9 @@ export const TransactionLinesComparisonModal: React.FC<TransactionLinesCompariso
                           <span style={{ fontFamily: 'monospace', color: '#0284c7', fontWeight: 500 }}>{line.pspTxnId}</span>
                         </div>
                       </td>
+                      <td style={{ padding: '4px 6px', fontFamily: 'monospace', color: '#64748b' }}>
+                        {new Date(line.txnDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                      </td>
                       <td style={{ padding: '4px 6px', fontFamily: 'monospace', color: '#475569' }}>{line.pspOrderId || '—'}</td>
                       <td style={{ padding: '4px 6px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 600, color: '#0369a1', borderLeft: '1px solid #f1f5f9' }}>{fmt(line.pspGross)}</td>
                       <td style={{ padding: '4px 6px', fontFamily: 'monospace', color: line.matchStatus === 'no_oms_record' ? '#94a3b8' : '#475569', fontStyle: line.matchStatus === 'no_oms_record' ? 'italic' : 'normal', borderLeft: '2px solid #ede9fe' }}>
@@ -323,7 +338,7 @@ export const TransactionLinesComparisonModal: React.FC<TransactionLinesCompariso
                     </tr>
                     {isExpanded && (
                       <tr className="bg-slate-50">
-                        <td colSpan={8} style={{ padding: '8px 12px' }}>
+                        <td colSpan={9} style={{ padding: '8px 12px' }}>
                           <div className="grid grid-cols-3 gap-4" style={{ marginLeft: 24 }}>
                             <div className="bg-white rounded border border-slate-200 p-2">
                               <p style={{ fontSize: 8, fontWeight: 600, color: '#0369a1', marginBottom: 4 }}>PSP Record</p>

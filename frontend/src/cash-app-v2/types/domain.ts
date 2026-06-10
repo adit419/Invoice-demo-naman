@@ -305,6 +305,7 @@ export interface L2ComparisonLine {
   pspTxnId: string
   pspOrderId: string | null
   pspGross: number
+  txnDate: string // Transaction date (e.g., "2026-06-09")
 
   // OMS data
   omsOrderId: string | null

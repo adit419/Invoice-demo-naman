@@ -121,7 +121,7 @@ const KPITile: React.FC<KPITileProps> = ({
 
       {/* Value with trend indicator */}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 2 }}>
-        <p style={{ fontSize: 18, fontWeight: 700, color: '#101828', margin: 0 }}>{value}</p>
+        <p style={{ fontSize: value.length > 14 ? 14 : 18, fontWeight: 700, color: '#101828', margin: 0, whiteSpace: 'nowrap' }}>{value}</p>
         {trend !== undefined && trend !== 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 10, fontWeight: 600, color: trend > 0 ? '#10b981' : '#ef4444' }}>
             {trend > 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
@@ -356,8 +356,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         />
         <KPITile
           title="Open AR"
-          value={formatCurrency(mockOpenARSummary.totalAmount, mockOpenARSummary.currency)}
-          subtitle={`${mockOpenARSummary.totalCount} open items · All time`}
+          value={`SGD ${mockOpenARSummary.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          subtitle={`${mockOpenARSummary.totalCount.toLocaleString()} open items · All time`}
           icon={<DollarSign size={32} />}
           colorClass="text-purple-600"
           onClick={() => setIsOpenARModalOpen(true)}

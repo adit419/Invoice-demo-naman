@@ -24,12 +24,7 @@ export const OpenARDetailModal: React.FC<OpenARDetailModalProps> = ({
   if (!isOpen) return null
 
   const formatCurrency = (amount: number): string => {
-    if (amount >= 1000000) {
-      return `${data.currency} ${(amount / 1000000).toFixed(2)}M`
-    } else if (amount >= 1000) {
-      return `${data.currency} ${(amount / 1000).toFixed(0)}K`
-    }
-    return `${data.currency} ${amount.toLocaleString()}`
+    return `${data.currency} ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
   }
 
   const getCategoryIcon = (category: string) => {
@@ -113,7 +108,7 @@ export const OpenARDetailModal: React.FC<OpenARDetailModalProps> = ({
                 Total Items
               </p>
               <p style={{ fontSize: 20, fontWeight: 700, color: '#0369a1' }}>
-                {data.totalCount}
+                {data.totalCount.toLocaleString()}
               </p>
             </div>
             <div style={{ flex: 1, backgroundColor: '#f8fafc', borderRadius: 6, padding: '10px 12px', border: '1px solid #e2e8f0' }}>
@@ -161,19 +156,19 @@ export const OpenARDetailModal: React.FC<OpenARDetailModalProps> = ({
                         </div>
                       </td>
                       <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                        <p style={{ fontSize: 10, fontWeight: 600, color: '#374151' }}>{category.age0to7Days.count}</p>
+                        <p style={{ fontSize: 10, fontWeight: 600, color: '#374151' }}>{category.age0to7Days.count.toLocaleString()}</p>
                         <p style={{ fontSize: 9, color: '#64748b', fontFamily: 'monospace' }}>{formatCurrency(category.age0to7Days.amount)}</p>
                       </td>
                       <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                        <p style={{ fontSize: 10, fontWeight: 600, color: '#374151' }}>{category.age8to30Days.count}</p>
+                        <p style={{ fontSize: 10, fontWeight: 600, color: '#374151' }}>{category.age8to30Days.count.toLocaleString()}</p>
                         <p style={{ fontSize: 9, color: '#64748b', fontFamily: 'monospace' }}>{formatCurrency(category.age8to30Days.amount)}</p>
                       </td>
                       <td style={{ padding: '8px 10px', textAlign: 'center', backgroundColor: '#fffbeb' }}>
-                        <p style={{ fontSize: 10, fontWeight: 600, color: '#92400e' }}>{category.age31PlusDays.count}</p>
+                        <p style={{ fontSize: 10, fontWeight: 600, color: '#92400e' }}>{category.age31PlusDays.count.toLocaleString()}</p>
                         <p style={{ fontSize: 9, color: '#92400e', fontFamily: 'monospace' }}>{formatCurrency(category.age31PlusDays.amount)}</p>
                       </td>
                       <td style={{ padding: '8px 10px', textAlign: 'right' }}>
-                        <p style={{ fontSize: 11, fontWeight: 700, color: '#0369a1' }}>{category.totalCount}</p>
+                        <p style={{ fontSize: 11, fontWeight: 700, color: '#0369a1' }}>{category.totalCount.toLocaleString()}</p>
                         <p style={{ fontSize: 10, color: '#0369a1', fontFamily: 'monospace', fontWeight: 600 }}>{formatCurrency(category.totalAmount)}</p>
                       </td>
                     </tr>
@@ -182,16 +177,16 @@ export const OpenARDetailModal: React.FC<OpenARDetailModalProps> = ({
                   <tr style={{ backgroundColor: '#f8fafc', borderTop: '1px solid #e2e8f0' }}>
                     <td style={{ padding: '8px 10px', fontWeight: 600, fontSize: 10, color: '#374151' }}>TOTAL</td>
                     <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                      <p style={{ fontSize: 10, fontWeight: 700, color: '#374151' }}>{data.breakdown.reduce((sum, cat) => sum + cat.age0to7Days.count, 0)}</p>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: '#374151' }}>{data.breakdown.reduce((sum, cat) => sum + cat.age0to7Days.count, 0).toLocaleString()}</p>
                     </td>
                     <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                      <p style={{ fontSize: 10, fontWeight: 700, color: '#374151' }}>{data.breakdown.reduce((sum, cat) => sum + cat.age8to30Days.count, 0)}</p>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: '#374151' }}>{data.breakdown.reduce((sum, cat) => sum + cat.age8to30Days.count, 0).toLocaleString()}</p>
                     </td>
                     <td style={{ padding: '8px 10px', textAlign: 'center', backgroundColor: '#fffbeb' }}>
-                      <p style={{ fontSize: 10, fontWeight: 700, color: '#92400e' }}>{data.breakdown.reduce((sum, cat) => sum + cat.age31PlusDays.count, 0)}</p>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: '#92400e' }}>{data.breakdown.reduce((sum, cat) => sum + cat.age31PlusDays.count, 0).toLocaleString()}</p>
                     </td>
                     <td style={{ padding: '8px 10px', textAlign: 'right' }}>
-                      <p style={{ fontSize: 11, fontWeight: 700, color: '#0369a1' }}>{data.totalCount}</p>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: '#0369a1' }}>{data.totalCount.toLocaleString()}</p>
                       <p style={{ fontSize: 10, color: '#0369a1', fontFamily: 'monospace', fontWeight: 700 }}>{formatCurrency(data.totalAmount)}</p>
                     </td>
                   </tr>

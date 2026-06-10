@@ -181,9 +181,9 @@ export const mockCurrentUser = mockUsers[0] // KaustavRay as controller
 export const mockDashboardKPIs: DashboardKPIs = {
   coveragePct: 98.4,
   touchlessRate: 91.2,
-  openExceptions: 13,            // Enhanced exceptions with NBA defined (all time, SGD only)
-  pastSLAExceptions: 2,
-  exceptionAmountSGD: 668977,    // 669K SGD - Total of 13 SGD exceptions with NBA (matches dynamic calc)
+  openExceptions: 19,            // Enhanced exceptions with NBA defined (all time, SGD only) — 13 original + 6 from yesterday's settlement recon
+  pastSLAExceptions: 2,          // Dynamically overridden by dashboard service
+  exceptionAmountSGD: 1173883,   // 1.17M SGD - Total of 19 SGD exceptions with NBA
   exceptionAmountIDR: 0,         // No IDR exceptions (Singapore entity = SGD only)
   inTransitSGD: 2274000,         // Fixed: 1,962,000 (GrabPay) + 312,000 (Stripe) = 2,274,000
   inTransitIDR: 0,               // No IDR PSPs - SGD only
@@ -293,53 +293,53 @@ export const mockBankCreditHistory = generateHistoricalBankCredits()
  *   - 31+ days: 3 items × 25K = 75K ✓
  *   Total: 12 items, 300K ✓
  *
- * GRAND TOTAL: 85 items, SGD 2,000,000 ✓
+ * GRAND TOTAL: 150,247 items, SGD 2,184,739.42 ✓
  *
  * RELATIONSHIP:
- * - Recent items (0-30 days): 61 items, SGD 1,533K ≈ Open Exceptions (60 items, SGD 1.5M) ✓
- * - Older items (31+ days): 24 items, SGD 467K (aging items not in active exceptions)
- * - Total Open AR (SGD 2.0M) > Open Exceptions (SGD 1.5M) ✓ Correct!
+ * - Recent items (0-30 days): ~108K items, SGD 1,571K ≈ Open Exceptions
+ * - Older items (31+ days): ~42K items, SGD 613K (aging items not in active exceptions)
+ * - Total Open AR (SGD 2.18M) > Open Exceptions (SGD 1.5M) ✓ Correct!
  */
 export const mockOpenARSummary: OpenARSummary = {
-  totalCount: 85,
-  totalAmount: 2000000, // SGD 2.0M
+  totalCount: 150247,
+  totalAmount: 2184739.42,
   currency: 'SGD',
   breakdown: [
     {
-      category: 'no_psp_file',
-      categoryLabel: 'No PSP File',
-      totalCount: 25,
-      totalAmount: 650000,
-      age0to7Days: { count: 8, amount: 200000 },
-      age8to30Days: { count: 10, amount: 260000 },
-      age31PlusDays: { count: 7, amount: 190000 },
+      category: 'amount_mismatch',
+      categoryLabel: 'No Settlement Found',
+      totalCount: 87614,
+      totalAmount: 1218943.68,
+      age0to7Days: { count: 26107, amount: 362714.92 },
+      age8to30Days: { count: 35281, amount: 491326.45 },
+      age31PlusDays: { count: 26226, amount: 364902.31 },
     },
     {
-      category: 'amount_mismatch',
+      category: 'no_psp_file',
       categoryLabel: 'Amount Mismatch',
-      totalCount: 48,
-      totalAmount: 1050000,
-      age0to7Days: { count: 14, amount: 308000 },
-      age8to30Days: { count: 20, amount: 440000 },
-      age31PlusDays: { count: 14, amount: 302000 },
+      totalCount: 42318,
+      totalAmount: 631482.17,
+      age0to7Days: { count: 13420, amount: 198341.50 },
+      age8to30Days: { count: 17263, amount: 264817.23 },
+      age31PlusDays: { count: 11635, amount: 168323.44 },
     },
     {
       category: 'not_in_oms',
       categoryLabel: 'Not in OMS',
-      totalCount: 12,
-      totalAmount: 300000,
-      age0to7Days: { count: 4, amount: 100000 },
-      age8to30Days: { count: 5, amount: 125000 },
-      age31PlusDays: { count: 3, amount: 75000 },
+      totalCount: 20315,
+      totalAmount: 334313.57,
+      age0to7Days: { count: 6823, amount: 112174.80 },
+      age8to30Days: { count: 8141, amount: 141826.52 },
+      age31PlusDays: { count: 5351, amount: 80312.25 },
     },
   ],
 }
 
 export const mockExceptionSummary: ExceptionSummary[] = [
-  { type: 'unmatched_credit', count: 5, color: '#475569' },      // slate-600
-  { type: 'unmatched_order', count: 4, color: '#64748b' },       // slate-500
-  { type: 'amount_mismatch', count: 4, color: '#0369a1' },       // sky-700
-  // Total: 5 + 4 + 4 = 13 (matches openExceptions KPI - all SGD, all with NBA)
+  { type: 'unmatched_credit', count: 6, color: '#475569' },      // slate-600 (5 + 1 GP-006)
+  { type: 'unmatched_order', count: 6, color: '#64748b' },       // slate-500 (4 + GP-001 + STR-001)
+  { type: 'amount_mismatch', count: 7, color: '#0369a1' },       // sky-700 (4 + GP-002 + GP-003 + STR-002)
+  // Total: 6 + 6 + 7 = 19 (matches openExceptions KPI - all SGD, all with NBA)
 ]
 
 /**

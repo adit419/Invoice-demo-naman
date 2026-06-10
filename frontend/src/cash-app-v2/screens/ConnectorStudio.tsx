@@ -52,6 +52,61 @@ interface PSPReportFormat {
   }[]
 }
 
+// Manually Added Bank Account
+interface ManualBankAccount {
+  id: string
+  bankName: string
+  bankCode: string
+  country: string
+  currency: string
+  accountNumber: string
+  accountName: string
+  statementFormat: 'MT940' | 'CAMT.053' | 'CAMT.052' | 'BAI2' | 'CSV' | 'PDF'
+  addedAt: string
+  addedBy: string
+}
+
+// In-memory store for manually added banks
+let manualBanksStore: ManualBankAccount[] = [
+  {
+    id: 'MB-001',
+    bankName: 'DBS Bank',
+    bankCode: 'DBSSSGSG',
+    country: 'Singapore',
+    currency: 'SGD',
+    accountNumber: '****4521',
+    accountName: 'Grab Singapore Pte Ltd - Settlement',
+    statementFormat: 'MT940',
+    addedAt: '2026-05-15T10:00:00Z',
+    addedBy: 'Sarah Chen',
+  },
+  {
+    id: 'MB-002',
+    bankName: 'OCBC Bank',
+    bankCode: 'OCBCSGSG',
+    country: 'Singapore',
+    currency: 'SGD',
+    accountNumber: '****7832',
+    accountName: 'Grab Singapore Pte Ltd - Operating',
+    statementFormat: 'MT940',
+    addedAt: '2026-05-15T10:05:00Z',
+    addedBy: 'Sarah Chen',
+  },
+  {
+    id: 'MB-003',
+    bankName: 'Bank Mandiri',
+    bankCode: 'BMRIIDJA',
+    country: 'Indonesia',
+    currency: 'IDR',
+    accountNumber: '****6190',
+    accountName: 'PT Grab Indonesia - Settlement',
+    statementFormat: 'CSV',
+    addedAt: '2026-05-16T08:00:00Z',
+    addedBy: 'Sarah Chen',
+  },
+]
+let manualBankCounter = 3
+
 // Mock Data for Bank Statement Formats
 const bankStatementFormats: BankStatementFormat[] = [
   {
@@ -312,11 +367,28 @@ const ConnectorStudio: React.FC = () => {
   const [uploadStep, setUploadStep] = useState<'select' | 'preview' | 'processing' | 'success' | 'error'>('select')
   const [uploadProgress, setUploadProgress] = useState(0)
   const [parsedRecords, setParsedRecords] = useState<{ date: string; ref: string; amount: string; type: string; desc: string }[]>([])
+  const [selectedBankFormatId, setSelectedBankFormatId] = useState<string | null>(null)
+  const [uploadParseError, setUploadParseError] = useState<string | null>(null)
+  const [isParsing, setIsParsing] = useState(false)
 
   // New Connector modal
   const [showNewConnectorModal, setShowNewConnectorModal] = useState(false)
   const [newConnectorStep, setNewConnectorStep] = useState<'select-type' | 'configure'>('select-type')
   const [selectedConnectorType, setSelectedConnectorType] = useState<ConnectorType | null>(null)
+
+  // Manually added bank accounts
+  const [manualBanks, setManualBanks] = useState<ManualBankAccount[]>([...manualBanksStore])
+  const [showAddBankAccountModal, setShowAddBankAccountModal] = useState(false)
+  const [newBankForm, setNewBankForm] = useState({
+    bankName: '',
+    bankCode: '',
+    country: 'Singapore',
+    currency: 'SGD',
+    accountNumber: '',
+    accountName: '',
+    statementFormat: 'MT940' as 'MT940' | 'CAMT.053' | 'CAMT.052' | 'BAI2' | 'CSV' | 'PDF',
+  })
+  const [addBankError, setAddBankError] = useState<string | null>(null)
 
   // Bank format form state
   const [bankForm, setBankForm] = useState({
@@ -336,6 +408,701 @@ const ConnectorStudio: React.FC = () => {
     sampleFile: null as File | null,
     fieldMappings: [] as { sourceField: string; canonicalField: string; transform: string }[],
   })
+
+  // Handler: add a new bank account
+  const handleAddBankAccount = () => {
+    setAddBankError(null)
+    if (!newBankForm.bankName.trim()) { setAddBankError('Bank name is required'); return }
+    if (!newBankForm.accountName.trim()) { setAddBankError('Account name is required'); return }
+    if (!newBankForm.accountNumber.trim()) { setAddBankError('Account number is required'); return }
+
+    manualBankCounter++
+    const newBank: ManualBankAccount = {
+      id: `MB-${String(manualBankCounter).padStart(3, '0')}`,
+      bankName: newBankForm.bankName.trim(),
+      bankCode: newBankForm.bankCode.trim().toUpperCase() || 'N/A',
+      country: newBankForm.country,
+      currency: newBankForm.currency,
+      accountNumber: newBankForm.accountNumber.trim(),
+      accountName: newBankForm.accountName.trim(),
+      statementFormat: newBankForm.statementFormat,
+      addedAt: new Date().toISOString(),
+      addedBy: 'Sarah Chen',
+    }
+
+    manualBanksStore.push(newBank)
+    setManualBanks([...manualBanksStore])
+    setShowAddBankAccountModal(false)
+    setNewBankForm({
+      bankName: '', bankCode: '', country: 'Singapore', currency: 'SGD',
+      accountNumber: '', accountName: '', statementFormat: 'MT940',
+    })
+  }
+
+  // Derived: selected bank format object
+  const selectedBankFormat = bankStatementFormats.find(f => f.id === selectedBankFormatId) || null
+
+  // ============================================================================
+  // BANK STATEMENT PARSERS
+  // ============================================================================
+
+  /** Read file content as text */
+  const readFileAsText = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result as string)
+      reader.onerror = () => reject(new Error('Failed to read file'))
+      reader.readAsText(file)
+    })
+  }
+
+  /** Read file content as ArrayBuffer (for PDF) */
+  const readFileAsArrayBuffer = (file: File): Promise<ArrayBuffer> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result as ArrayBuffer)
+      reader.onerror = () => reject(new Error('Failed to read file'))
+      reader.readAsArrayBuffer(file)
+    })
+  }
+
+  /** Extract text from PDF using pdfjs-dist and parse into records */
+  const parsePDFStatement = async (file: File): Promise<{ date: string; ref: string; amount: string; type: string; desc: string }[]> => {
+    const pdfjsLib = await import('pdfjs-dist')
+
+    // Set worker source
+    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+      'pdfjs-dist/build/pdf.worker.min.mjs',
+      import.meta.url
+    ).toString()
+
+    const arrayBuffer = await readFileAsArrayBuffer(file)
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+
+    // ---- STEP 1: Extract structured rows (preserving column positions) ----
+    type TextItem = { x: number; y: number; text: string; width: number }
+    const allItems: TextItem[] = []
+
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i)
+      const textContent = await page.getTextContent()
+      const pageItems = textContent.items as Array<{ str: string; transform: number[]; width: number }>
+
+      // Page offset to keep Y values unique across pages (higher page = lower Y)
+      const yOffset = (i - 1) * -10000
+
+      for (const item of pageItems) {
+        if (!item.str.trim()) continue
+        allItems.push({
+          x: Math.round(item.transform[4] * 10) / 10,
+          y: Math.round((item.transform[5] + yOffset) * 10) / 10,
+          text: item.str,
+          width: item.width || item.str.length * 5
+        })
+      }
+    }
+
+    if (allItems.length === 0) throw new Error('No text could be extracted from PDF. The file may be scanned/image-based (OCR not supported).')
+
+    // ---- STEP 2: Group items into rows by Y position (tolerance ±3px) ----
+    const Y_TOLERANCE = 3
+    allItems.sort((a, b) => b.y - a.y) // Sort top to bottom
+
+    const rows: TextItem[][] = []
+    let currentRow: TextItem[] = [allItems[0]]
+    let currentY = allItems[0].y
+
+    for (let i = 1; i < allItems.length; i++) {
+      if (Math.abs(allItems[i].y - currentY) <= Y_TOLERANCE) {
+        currentRow.push(allItems[i])
+      } else {
+        currentRow.sort((a, b) => a.x - b.x)
+        rows.push(currentRow)
+        currentRow = [allItems[i]]
+        currentY = allItems[i].y
+      }
+    }
+    if (currentRow.length) {
+      currentRow.sort((a, b) => a.x - b.x)
+      rows.push(currentRow)
+    }
+
+    // ---- STEP 3: Detect column layout from all rows ----
+    // Collect all unique X positions across rows to find column boundaries
+    const xPositions: number[] = []
+    for (const row of rows) {
+      for (const item of row) {
+        xPositions.push(Math.round(item.x / 5) * 5) // Round to 5px grid
+      }
+    }
+
+    // Build a full text line for each row for fallback parsing
+    const buildLineText = (row: TextItem[]): string => {
+      let text = ''
+      let lastEnd = 0
+      for (const item of row) {
+        const gap = item.x - lastEnd
+        if (text && gap > 20) text += '\t'
+        else if (text && gap > 3) text += ' '
+        text += item.text
+        lastEnd = item.x + item.width
+      }
+      return text.trim()
+    }
+
+    // ---- STEP 4: Detect currency ----
+    const fullText = rows.map(r => buildLineText(r)).join(' ')
+    let currency = 'SGD'
+    if (/\bIDR\b|Rupiah/i.test(fullText)) currency = 'IDR'
+    else if (/\bMYR\b|Ringgit/i.test(fullText)) currency = 'MYR'
+    else if (/\bUSD\b/i.test(fullText)) currency = 'USD'
+    else if (/\bINR\b|Rupee/i.test(fullText)) currency = 'INR'
+    else if (/\bSGD\b|Singapore/i.test(fullText)) currency = 'SGD'
+    else if (/\bEUR\b/i.test(fullText)) currency = 'EUR'
+
+    // ---- STEP 5: Identify column boundaries using header detection ----
+    const dateRegex = /^(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}|\d{4}[\/-]\d{1,2}[\/-]\d{1,2}|\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\s+\d{2,4})$/i
+    const dateStartRegex = /^(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}|\d{4}[\/-]\d{1,2}[\/-]\d{1,2}|\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\s+\d{2,4})/i
+    const amountRegex = /^-?[\d,]+\.\d{2}$/
+
+    // Find columns by analyzing item positions in transaction rows
+    // A transaction row has: date (leftmost), then description, then amount(s) on the right
+    let dateColX = -1
+    let descColX = -1
+    let amountColsX: number[] = []
+
+    // Scan rows to find typical patterns
+    for (const row of rows) {
+      if (row.length < 3) continue
+      const firstItem = row[0]
+      if (dateStartRegex.test(firstItem.text.trim())) {
+        dateColX = Math.round(firstItem.x / 5) * 5
+        // Find amount items (rightmost numeric items)
+        const amtItems = row.filter(item => amountRegex.test(item.text.replace(/[,\s]/g, '').trim()) || /^[\d,]+\.\d{2}$/.test(item.text.trim()))
+        if (amtItems.length > 0) {
+          amountColsX = amtItems.map(item => Math.round(item.x / 5) * 5).sort((a, b) => a - b)
+          // Description is everything between date and first amount
+          const nonDateNonAmount = row.filter(item =>
+            !dateStartRegex.test(item.text.trim()) &&
+            !amountRegex.test(item.text.trim()) &&
+            item.x > firstItem.x + firstItem.width
+          )
+          if (nonDateNonAmount.length > 0) {
+            descColX = Math.round(nonDateNonAmount[0].x / 5) * 5
+          }
+          break // Found a good reference row
+        }
+      }
+    }
+
+    // ---- STEP 6: Parse transaction rows using detected layout ----
+    const records: { date: string; ref: string; amount: string; type: string; desc: string }[] = []
+
+    for (let rowIdx = 0; rowIdx < rows.length; rowIdx++) {
+      const row = rows[rowIdx]
+      const lineText = buildLineText(row)
+
+      // Check if this row starts with a date
+      const firstText = row[0].text.trim()
+      const dateMatch = firstText.match(dateStartRegex) || lineText.match(dateStartRegex)
+      if (!dateMatch) continue
+
+      const dateStr = dateMatch[1]
+
+      // Find amounts in this row
+      const amountItems: { value: number; x: number; text: string }[] = []
+      for (const item of row) {
+        const cleaned = item.text.trim().replace(/,/g, '')
+        if (/^-?\d+\.\d{2}$/.test(cleaned)) {
+          amountItems.push({ value: parseFloat(cleaned), x: item.x, text: item.text.trim() })
+        }
+      }
+
+      if (amountItems.length === 0) continue // Not a transaction row
+
+      // Extract description: all text items that are not the date and not amounts
+      const descParts: string[] = []
+      for (const item of row) {
+        const t = item.text.trim()
+        if (!t) continue
+        // Skip date item(s)
+        if (dateRegex.test(t) || t === dateStr) continue
+        if (dateStartRegex.test(t) && item.x < (descColX > 0 ? descColX : 999)) continue
+        // Skip amount items
+        if (/^-?[\d,]+\.\d{2}$/.test(t.replace(/,/g, ''))) continue
+        descParts.push(t)
+      }
+
+      // Collect continuation lines (lines after this that don't start with a date and have no amounts)
+      for (let j = rowIdx + 1; j < rows.length; j++) {
+        const nextRow = rows[j]
+        const nextLine = buildLineText(nextRow)
+        const nextFirst = nextRow[0].text.trim()
+        // Stop if the next row starts with a date or is a header/separator
+        if (dateStartRegex.test(nextFirst)) break
+        if (/^-{3,}|^={3,}|^\*{3,}|^page\s/i.test(nextLine)) break
+        // Stop if the next row has amounts (it's a new transaction without a date prefix)
+        const hasAmounts = nextRow.some(item => /^-?[\d,]+\.\d{2}$/.test(item.text.trim().replace(/,/g, '')))
+        if (hasAmounts) break
+        // This is a continuation line — append to description
+        if (nextLine.trim()) descParts.push(nextLine.trim())
+      }
+
+      let description = descParts.join(' ').replace(/\s{2,}/g, ' ').trim()
+
+      // Normalize date
+      let normalizedDate = dateStr
+      try {
+        // Handle DD/MM/YYYY, DD-MM-YYYY, etc.
+        const parts = dateStr.split(/[\/-]/)
+        if (parts.length === 3) {
+          let d: Date
+          if (parseInt(parts[0]) > 31) {
+            // YYYY-MM-DD
+            d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]))
+          } else if (parseInt(parts[2]) > 31) {
+            // DD/MM/YYYY
+            d = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]))
+          } else {
+            // Ambiguous — try as DD/MM/YY
+            const yr = parseInt(parts[2]) < 80 ? 2000 + parseInt(parts[2]) : 1900 + parseInt(parts[2])
+            d = new Date(yr, parseInt(parts[1]) - 1, parseInt(parts[0]))
+          }
+          if (!isNaN(d.getTime())) normalizedDate = d.toISOString().split('T')[0]
+        } else {
+          // "01 Jun 2026" style
+          const d = new Date(dateStr)
+          if (!isNaN(d.getTime())) normalizedDate = d.toISOString().split('T')[0]
+        }
+      } catch { /* keep original */ }
+
+      // Determine amount and type
+      let amount = 0
+      let type = 'CR'
+
+      if (amountItems.length >= 3) {
+        // Typically: Debit | Credit | Balance
+        const sortedByX = [...amountItems].sort((a, b) => a.x - b.x)
+        const debit = sortedByX[0].value
+        const credit = sortedByX[1].value
+        if (credit > 0 && debit === 0) {
+          amount = credit; type = 'CR'
+        } else if (debit > 0 && credit === 0) {
+          amount = debit; type = 'DR'
+        } else if (debit > 0) {
+          amount = debit; type = 'DR'
+        } else {
+          amount = credit; type = 'CR'
+        }
+      } else if (amountItems.length === 2) {
+        const sortedByX = [...amountItems].sort((a, b) => a.x - b.x)
+        // Could be: Amount + Balance, or Debit + Credit
+        // If one is much larger (likely balance), take the smaller as transaction
+        const val0 = sortedByX[0].value
+        const val1 = sortedByX[1].value
+        if (Math.abs(val1) > Math.abs(val0) * 5) {
+          // Second value is likely balance
+          amount = Math.abs(val0)
+          type = val0 < 0 ? 'DR' : (/\bDR\b|\bDebit\b|\bWithdrawal\b/i.test(lineText) ? 'DR' : 'CR')
+        } else {
+          // Could be debit/credit columns
+          amount = val0 > 0 ? val0 : val1
+          type = /\bDR\b|\bDebit\b/i.test(lineText) ? 'DR' : 'CR'
+        }
+      } else {
+        // Single amount
+        amount = Math.abs(amountItems[0].value)
+        if (amountItems[0].value < 0 || /\bDR\b|\bDebit\b|\bWithdrawal\b/i.test(lineText)) type = 'DR'
+        else type = 'CR'
+      }
+
+      if (amount <= 0) continue
+
+      // Extract reference from description
+      const refMatch = description.match(/(?:Ref|TRF|UTR|RRN|Txn|Cheque|CHQ|NEFT|IMPS|RTGS|UPI)[:\s#]*([A-Z0-9\-\/]{4,})/i)
+      const ref = refMatch ? refMatch[1].substring(0, 40) : `PDF-${records.length + 1}`
+
+      records.push({
+        date: normalizedDate,
+        ref,
+        amount: `${currency} ${amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
+        type,
+        desc: (description || 'N/A').substring(0, 120)
+      })
+    }
+
+    if (records.length === 0) {
+      // Fallback: try treating extracted text as CSV-like (tab-separated)
+      const csvLikeText = rows.map(r => buildLineText(r)).join('\n')
+      try {
+        return parseCSVStatement(csvLikeText)
+      } catch {
+        throw new Error(`Extracted ${rows.length} text rows from PDF but could not identify transaction rows. The PDF may have a non-standard layout.`)
+      }
+    }
+
+    return records
+  }
+
+  /** Parse CSV bank statement */
+  const parseCSVStatement = (text: string): { date: string; ref: string; amount: string; type: string; desc: string }[] => {
+    const lines = text.split(/\r?\n/).filter(l => l.trim())
+    if (lines.length < 2) throw new Error('CSV file has no data rows (only header or empty)')
+
+    // Detect delimiter
+    const firstLine = lines[0]
+    let delimiter = ','
+    if (firstLine.split('\t').length > firstLine.split(',').length) delimiter = '\t'
+    else if (firstLine.split(';').length > firstLine.split(',').length) delimiter = ';'
+
+    // Parse CSV with quoted field support
+    const parseRow = (line: string): string[] => {
+      const fields: string[] = []
+      let current = ''
+      let inQuotes = false
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i]
+        if (inQuotes) {
+          if (ch === '"' && line[i + 1] === '"') { current += '"'; i++; }
+          else if (ch === '"') { inQuotes = false }
+          else { current += ch }
+        } else {
+          if (ch === '"') { inQuotes = true }
+          else if (ch === delimiter) { fields.push(current.trim()); current = '' }
+          else { current += ch }
+        }
+      }
+      fields.push(current.trim())
+      return fields
+    }
+
+    const rows = lines.map(parseRow)
+    const header = rows[0].map(h => h.toLowerCase().replace(/[^a-z0-9]/g, ''))
+    const dataRows = rows.slice(1).filter(r => r.some(cell => cell.trim()))
+
+    if (dataRows.length === 0) throw new Error('CSV file has no data rows after header')
+
+    // Auto-detect columns by header name patterns
+    const findCol = (patterns: string[]): number => {
+      return header.findIndex(h => patterns.some(p => h.includes(p)))
+    }
+
+    const dateCol = findCol(['date', 'valuedate', 'bookingdate', 'txndate', 'transactiondate', 'postdate', 'postingdate'])
+    const refCol = findCol(['ref', 'reference', 'transactionid', 'txnid', 'id', 'cheque', 'chequeno', 'utr', 'rrn'])
+    const descCol = findCol(['desc', 'description', 'narration', 'narrative', 'particular', 'remark', 'detail', 'memo'])
+    const amountCol = findCol(['amount', 'txnamount', 'transactionamount'])
+    const debitCol = findCol(['debit', 'withdrawal', 'dr'])
+    const creditCol = findCol(['credit', 'deposit', 'cr'])
+    const balanceCol = findCol(['balance', 'runningbalance', 'closingbalance'])
+
+    const records: { date: string; ref: string; amount: string; type: string; desc: string }[] = []
+
+    for (const row of dataRows) {
+      // Skip rows that are clearly not transactions
+      if (row.length < 3) continue
+
+      // Extract date
+      let dateStr = dateCol >= 0 ? row[dateCol] : ''
+      if (!dateStr) {
+        // Try first column as date
+        const first = row[0]
+        if (/\d{1,4}[\-\/\.]\d{1,2}[\-\/\.]\d{1,4}/.test(first)) dateStr = first
+      }
+
+      // Normalize date
+      if (dateStr) {
+        try {
+          const d = new Date(dateStr)
+          if (!isNaN(d.getTime())) dateStr = d.toISOString().split('T')[0]
+        } catch {
+          // Keep original
+        }
+      }
+
+      // Extract reference
+      let ref = refCol >= 0 ? row[refCol] : ''
+      if (!ref) ref = `ROW-${records.length + 1}`
+
+      // Extract description
+      let desc = descCol >= 0 ? row[descCol] : ''
+      if (!desc) {
+        // Fallback: concatenate non-numeric columns
+        desc = row.filter((_, i) => i !== dateCol && i !== amountCol && i !== debitCol && i !== creditCol && i !== balanceCol && i !== refCol).join(' ').trim()
+      }
+
+      // Extract amount and type
+      let amount = ''
+      let type = ''
+
+      if (debitCol >= 0 && creditCol >= 0) {
+        const debitVal = row[debitCol].replace(/[^0-9.\-,]/g, '').replace(/,/g, '')
+        const creditVal = row[creditCol].replace(/[^0-9.\-,]/g, '').replace(/,/g, '')
+        const debitNum = parseFloat(debitVal)
+        const creditNum = parseFloat(creditVal)
+
+        if (!isNaN(creditNum) && creditNum > 0) {
+          amount = creditNum.toLocaleString('en-US', { minimumFractionDigits: 2 })
+          type = 'CR'
+        } else if (!isNaN(debitNum) && debitNum > 0) {
+          amount = debitNum.toLocaleString('en-US', { minimumFractionDigits: 2 })
+          type = 'DR'
+        } else {
+          continue // Skip rows with no amounts
+        }
+      } else if (amountCol >= 0) {
+        const raw = row[amountCol].replace(/[^0-9.\-,]/g, '').replace(/,/g, '')
+        const num = parseFloat(raw)
+        if (isNaN(num)) continue
+        type = num >= 0 ? 'CR' : 'DR'
+        amount = Math.abs(num).toLocaleString('en-US', { minimumFractionDigits: 2 })
+      } else {
+        // Try to find a numeric column
+        for (let i = 0; i < row.length; i++) {
+          if (i === dateCol || i === refCol || i === descCol) continue
+          const val = row[i].replace(/[^0-9.\-,]/g, '').replace(/,/g, '')
+          const num = parseFloat(val)
+          if (!isNaN(num) && Math.abs(num) > 0.01) {
+            type = num >= 0 ? 'CR' : 'DR'
+            amount = Math.abs(num).toLocaleString('en-US', { minimumFractionDigits: 2 })
+            break
+          }
+        }
+        if (!amount) continue
+      }
+
+      // Detect currency from description or header
+      const currency = selectedBankFormat?.country === 'Indonesia' ? 'IDR' :
+                       selectedBankFormat?.country === 'Malaysia' ? 'MYR' : 'SGD'
+
+      records.push({
+        date: dateStr || 'N/A',
+        ref: ref.substring(0, 40),
+        amount: `${currency} ${amount}`,
+        type,
+        desc: desc.substring(0, 100) || 'N/A'
+      })
+    }
+
+    if (records.length === 0) throw new Error('No valid transactions found. Check CSV column headers (expected: Date, Description, Amount/Debit/Credit)')
+
+    return records
+  }
+
+  /** Parse MT940 bank statement */
+  const parseMT940Statement = (text: string): { date: string; ref: string; amount: string; type: string; desc: string }[] => {
+    const records: { date: string; ref: string; amount: string; type: string; desc: string }[] = []
+
+    // Split into statement messages (each starts with :20:)
+    const content = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+
+    // Detect currency from :60F: or :60M: opening balance tag
+    let currency = 'SGD'
+    const balMatch = content.match(/:6[02][FM]:[CD]\d{6}([A-Z]{3})/)
+    if (balMatch) currency = balMatch[1]
+
+    // Extract :61: transaction lines and :86: descriptions
+    // :61: format: YYMMDD[MMDD][C|D|RC|RD][letter]amount,decimals[S|N|F]reference//bankref\n
+    const lines = content.split('\n')
+    let currentTxn: { date: string; ref: string; amount: string; type: string } | null = null
+    let currentDesc = ''
+    let collectingDesc = false
+
+    const flushTxn = () => {
+      if (currentTxn) {
+        records.push({
+          ...currentTxn,
+          desc: currentDesc.trim().substring(0, 100) || 'N/A'
+        })
+      }
+      currentTxn = null
+      currentDesc = ''
+      collectingDesc = false
+    }
+
+    for (const line of lines) {
+      const trimmed = line.trim()
+
+      if (trimmed.startsWith(':61:')) {
+        flushTxn()
+        // Parse :61: line
+        const txnData = trimmed.substring(4)
+        // Date: YYMMDD
+        const dateStr = txnData.substring(0, 6)
+        const year = parseInt(dateStr.substring(0, 2))
+        const month = dateStr.substring(2, 4)
+        const day = dateStr.substring(4, 6)
+        const fullYear = year >= 80 ? 1900 + year : 2000 + year
+        const formattedDate = `${fullYear}-${month}-${day}`
+
+        // Skip optional entry date (MMDD)
+        let pos = 6
+        if (/^\d{4}/.test(txnData.substring(pos))) pos += 4
+
+        // Debit/Credit indicator: C, D, RC, RD
+        let type = 'CR'
+        if (txnData[pos] === 'R') pos++ // Reversal prefix
+        if (txnData[pos] === 'D') { type = 'DR'; pos++ }
+        else if (txnData[pos] === 'C') { type = 'CR'; pos++ }
+
+        // Optional fund code (single letter)
+        if (/^[A-Z]/.test(txnData.substring(pos)) && !/^\d/.test(txnData.substring(pos))) pos++
+
+        // Amount: digits with comma as decimal
+        const amountMatch = txnData.substring(pos).match(/^(\d+[,.]?\d*)/)
+        let amount = '0.00'
+        if (amountMatch) {
+          const rawAmount = amountMatch[1].replace(',', '.')
+          amount = parseFloat(rawAmount).toLocaleString('en-US', { minimumFractionDigits: 2 })
+          pos += amountMatch[0].length
+        }
+
+        // Transaction type (S/N/F + 3 chars)
+        const remaining = txnData.substring(pos)
+        // Reference: everything after type code up to // or end
+        let ref = ''
+        const refMatch = remaining.match(/[SNF]\w{0,3}([^/]*)(?:\/\/(.*))?/)
+        if (refMatch) {
+          ref = (refMatch[2] || refMatch[1] || '').trim()
+        }
+        if (!ref) ref = remaining.replace(/[SNF]\w{0,3}/, '').replace(/\/\//g, ' ').trim()
+        if (!ref) ref = `TXN-${records.length + 1}`
+
+        currentTxn = {
+          date: formattedDate,
+          ref: ref.substring(0, 40),
+          amount: `${currency} ${amount}`,
+          type
+        }
+        collectingDesc = false
+      } else if (trimmed.startsWith(':86:')) {
+        // Description line
+        currentDesc = trimmed.substring(4)
+        collectingDesc = true
+      } else if (collectingDesc && !trimmed.startsWith(':') && trimmed) {
+        // Continuation of :86: description
+        currentDesc += ' ' + trimmed
+      } else if (trimmed.startsWith(':')) {
+        // Any other tag ends description collection
+        if (collectingDesc) flushTxn()
+        collectingDesc = false
+      }
+    }
+
+    // Flush last transaction
+    flushTxn()
+
+    if (records.length === 0) throw new Error('No :61: transaction entries found. Verify this is a valid MT940/SWIFT file')
+
+    return records
+  }
+
+  /** Parse CAMT.053 XML statement */
+  const parseCAMT053Statement = (text: string): { date: string; ref: string; amount: string; type: string; desc: string }[] => {
+    const records: { date: string; ref: string; amount: string; type: string; desc: string }[] = []
+    const parser = new DOMParser()
+    const doc = parser.parseFromString(text, 'application/xml')
+
+    // Check for parse errors
+    const parseError = doc.querySelector('parsererror')
+    if (parseError) throw new Error('Invalid XML file: ' + parseError.textContent?.substring(0, 100))
+
+    // Find all entry elements (Ntry) - handle namespace
+    const entries = doc.querySelectorAll('Ntry') || []
+    if (entries.length === 0) throw new Error('No <Ntry> (transaction entry) elements found in CAMT.053 file')
+
+    // Try to detect currency from statement level
+    let currency = 'SGD'
+    const currEl = doc.querySelector('Bal Amt')
+    if (currEl) currency = currEl.getAttribute('Ccy') || 'SGD'
+
+    entries.forEach((entry, idx) => {
+      // Amount
+      const amtEl = entry.querySelector('Amt')
+      const rawAmt = amtEl?.textContent || '0'
+      const ccy = amtEl?.getAttribute('Ccy') || currency
+      const amount = parseFloat(rawAmt).toLocaleString('en-US', { minimumFractionDigits: 2 })
+
+      // Credit/Debit
+      const cdtDbtInd = entry.querySelector('CdtDbtInd')?.textContent || 'CRDT'
+      const type = cdtDbtInd === 'DBIT' ? 'DR' : 'CR'
+
+      // Dates
+      const valDate = entry.querySelector('ValDt Dt')?.textContent ||
+                      entry.querySelector('BookgDt Dt')?.textContent || ''
+
+      // Reference
+      const entryRef = entry.querySelector('NtryRef')?.textContent || ''
+      const endToEnd = entry.querySelector('EndToEndId')?.textContent || ''
+      const acctSvcrRef = entry.querySelector('AcctSvcrRef')?.textContent || ''
+      const ref = entryRef || endToEnd || acctSvcrRef || `ENTRY-${idx + 1}`
+
+      // Description
+      const ustrd = entry.querySelector('RmtInf Ustrd')?.textContent || ''
+      const addtlInfo = entry.querySelector('AddtlNtryInf')?.textContent || ''
+      const desc = ustrd || addtlInfo || 'N/A'
+
+      records.push({
+        date: valDate,
+        ref: ref.substring(0, 40),
+        amount: `${ccy} ${amount}`,
+        type,
+        desc: desc.substring(0, 100)
+      })
+    })
+
+    return records
+  }
+
+  /** Main parse handler - reads file and dispatches to correct parser */
+  const handleParseFile = async () => {
+    if (!uploadFile) return
+    setIsParsing(true)
+    setUploadParseError(null)
+
+    try {
+      const ext = uploadFile.name.split('.').pop()?.toLowerCase() || ''
+      const formatType = selectedBankFormat?.format || 'CSV'
+
+      let records: { date: string; ref: string; amount: string; type: string; desc: string }[]
+
+      if (ext === 'pdf' || formatType === 'PDF') {
+        // PDF requires special handling (ArrayBuffer + pdfjs-dist)
+        records = await parsePDFStatement(uploadFile)
+      } else {
+        const text = await readFileAsText(uploadFile)
+
+        if (ext === 'xml' || formatType === 'CAMT.053' || formatType === 'CAMT.052') {
+          records = parseCAMT053Statement(text)
+        } else if (ext === 'csv') {
+          records = parseCSVStatement(text)
+        } else if (ext === 'sta' || ext === '940' || formatType === 'MT940' || formatType === 'BAI2') {
+          // Try MT940 first, fallback to CSV
+          try {
+            records = parseMT940Statement(text)
+          } catch {
+            records = parseCSVStatement(text)
+          }
+        } else if (ext === 'txt') {
+          // Detect: if file contains :20: tag, it's MT940; otherwise try CSV
+          if (text.includes(':20:') || text.includes(':61:')) {
+            records = parseMT940Statement(text)
+          } else {
+            records = parseCSVStatement(text)
+          }
+        } else {
+          // Default: try CSV
+          records = parseCSVStatement(text)
+        }
+      }
+
+      setParsedRecords(records)
+      setUploadStep('preview')
+    } catch (err: any) {
+      setUploadParseError(err.message || 'Failed to parse file')
+    } finally {
+      setIsParsing(false)
+    }
+  }
 
   console.log('[ConnectorStudio] Component rendered, connectors:', connectors.length)
 
@@ -479,8 +1246,6 @@ const ConnectorStudio: React.FC = () => {
 
   const getTypeLabel = (type: ConnectorType) => {
     switch (type) {
-      case 'bank':
-        return 'Bank Integrations'
       case 'psp':
         return 'PSP Integrations'
       case 'internal':
@@ -609,7 +1374,7 @@ const ConnectorStudio: React.FC = () => {
               transition: 'all 0.2s',
             }}
           >
-            Format Mappings
+            Data Formats
           </button>
         </div>
 
@@ -624,6 +1389,8 @@ const ConnectorStudio: React.FC = () => {
                 setUploadStep('select')
                 setParsedRecords([])
                 setUploadProgress(0)
+                setSelectedBankFormatId(null)
+                setUploadParseError(null)
                 setShowUploadModal(true)
               }}
               style={{
@@ -685,7 +1452,6 @@ const ConnectorStudio: React.FC = () => {
               }}
             >
               <option value="all">All Types</option>
-              <option value="bank">Banks</option>
               <option value="psp">PSPs</option>
               <option value="internal">Internal</option>
               <option value="erp">ERP</option>
@@ -1139,221 +1905,271 @@ const ConnectorStudio: React.FC = () => {
         </>
       )}
 
-      {/* Format Mappings Tab Content */}
+      {/* Formats Tab Content */}
       {activeTab === 'formats' && (
         <>
-          {/* Bank Statement Formats Section */}
-          <div style={{ marginBottom: 24 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <div>
-                <h3 style={{ fontSize: 12, fontWeight: 600, color: '#0F172A', margin: 0 }}>Bank Statement Formats</h3>
-                <p style={{ fontSize: 10, color: '#64748B', margin: '2px 0 0 0' }}>Configure parsing for MT940, CAMT.053, and other bank statement formats</p>
-              </div>
-              <button
-                onClick={() => setShowAddBankModal(true)}
-                style={{
-                  padding: '5px 10px',
-                  backgroundColor: 'white',
-                  color: '#334155',
-                  border: '1px solid #CBD5E1',
-                  borderRadius: 4,
-                  fontSize: 10,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                + Add Bank Format
-              </button>
-            </div>
-            <div style={{ backgroundColor: 'white', borderRadius: 6, border: '1px solid #E2E8F0', overflow: 'hidden' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid #E2E8F0' }}>
-                    <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase' }}>Bank</th>
-                    <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase' }}>Country</th>
-                    <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase' }}>Format</th>
-                    <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase' }}>Version</th>
-                    <th style={{ padding: '8px 10px', textAlign: 'center', fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase' }}>Fields Mapped</th>
-                    <th style={{ padding: '8px 10px', textAlign: 'right', fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase' }}>Success Rate</th>
-                    <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase' }}>Status</th>
-                    <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase' }}>Last Parsed</th>
-                    <th style={{ padding: '8px 10px', textAlign: 'center', fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {bankStatementFormats.map((bank) => {
-                    const mappedCount = Object.values(bank.fieldsMapping).filter(Boolean).length
-                    const totalFields = Object.keys(bank.fieldsMapping).length
-                    return (
-                      <tr key={bank.id} className="hover:bg-slate-50" style={{ borderBottom: '1px solid #F1F5F9' }}>
-                        <td style={{ padding: '8px 10px' }}>
-                          <div style={{ fontSize: 11, fontWeight: 500, color: '#374151' }}>{bank.bankName}</div>
-                          <div style={{ fontSize: 9, color: '#64748B', fontFamily: 'monospace' }}>{bank.bankCode}</div>
-                        </td>
-                        <td style={{ padding: '8px 10px', fontSize: 11, color: '#374151' }}>{bank.country}</td>
-                        <td style={{ padding: '8px 10px' }}>
-                          <span style={{
-                            fontSize: 10,
-                            fontWeight: 600,
-                            color: bank.format === 'MT940' ? '#0066CC' : bank.format === 'CAMT.053' || bank.format === 'CAMT.052' ? '#7C3AED' : '#64748B'
-                          }}>
-                            {bank.format}
-                          </span>
-                        </td>
-                        <td style={{ padding: '8px 10px', fontSize: 10, color: '#64748B' }}>{bank.version || '—'}</td>
-                        <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                          <span style={{ fontSize: 10, color: mappedCount === totalFields ? '#10B981' : '#F59E0B', fontWeight: 500 }}>
-                            {mappedCount}/{totalFields}
-                          </span>
-                        </td>
-                        <td style={{ padding: '8px 10px', textAlign: 'right' }}>
-                          <span style={{
-                            fontSize: 11,
-                            fontWeight: 500,
-                            color: bank.parseSuccessRate >= 99 ? '#10B981' : bank.parseSuccessRate >= 95 ? '#F59E0B' : '#EF4444'
-                          }}>
-                            {bank.parseSuccessRate > 0 ? `${bank.parseSuccessRate.toFixed(1)}%` : '—'}
-                          </span>
-                        </td>
-                        <td style={{ padding: '8px 10px' }}>
-                          <span style={{
-                            fontSize: 10,
-                            fontWeight: 600,
-                            color: bank.status === 'active' ? '#10B981' : bank.status === 'testing' ? '#F59E0B' : '#64748B'
-                          }}>
-                            {bank.status.charAt(0).toUpperCase() + bank.status.slice(1)}
-                          </span>
-                        </td>
-                        <td style={{ padding: '8px 10px', fontSize: 10, color: '#64748B' }}>
-                          {bank.lastParsed ? new Date(bank.lastParsed).toLocaleString('en-SG', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}
-                        </td>
-                        <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                          <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
-                            <button style={{ padding: '3px 8px', fontSize: 9, fontWeight: 600, color: '#334155', backgroundColor: 'white', border: '1px solid #CBD5E1', borderRadius: 3, cursor: 'pointer' }}>
-                              Edit
-                            </button>
-                            <button style={{ padding: '3px 8px', fontSize: 9, fontWeight: 600, color: '#0066CC', backgroundColor: 'white', border: '1px solid #CBD5E1', borderRadius: 3, cursor: 'pointer' }}>
-                              Test
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
+          {/* Format Actions */}
+          <div style={{ marginBottom: 16, display: 'flex', gap: 8 }}>
+            <button
+              onClick={() => {
+                setAddBankError(null)
+                setNewBankForm({ bankName: '', bankCode: '', country: 'Singapore', currency: 'SGD', accountNumber: '', accountName: '', statementFormat: 'MT940' })
+                setShowAddBankAccountModal(true)
+              }}
+              style={{
+                padding: '6px 12px',
+                backgroundColor: '#0066CC',
+                color: 'white',
+                border: 'none',
+                borderRadius: 4,
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              + Add Bank Account
+            </button>
+            <button
+              onClick={() => setShowAddBankModal(true)}
+              style={{
+                padding: '6px 12px',
+                backgroundColor: '#475569',
+                color: 'white',
+                border: 'none',
+                borderRadius: 4,
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              + Add Bank Format
+            </button>
+            <button
+              onClick={() => setShowAddPSPModal(true)}
+              style={{
+                padding: '6px 12px',
+                backgroundColor: '#059669',
+                color: 'white',
+                border: 'none',
+                borderRadius: 4,
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              + Add PSP Format
+            </button>
           </div>
 
-          {/* PSP Report Formats Section */}
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <div>
-                <h3 style={{ fontSize: 12, fontWeight: 600, color: '#0F172A', margin: 0 }}>PSP Report Format Mappings</h3>
-                <p style={{ fontSize: 10, color: '#64748B', margin: '2px 0 0 0' }}>Map PSP settlement reports to canonical format for reconciliation</p>
+          {/* Registered Bank Accounts Table */}
+          {manualBanks.length > 0 && (
+            <div style={{ marginBottom: 20 }}>
+              <h3 style={{ fontSize: 12, fontWeight: 600, color: '#0F172A', marginBottom: 10 }}>Registered Bank Accounts</h3>
+              <p style={{ fontSize: 10, color: '#64748B', marginBottom: 12 }}>Bank accounts manually registered in the system. These are available for statement uploads and reconciliation mapping.</p>
+              <div style={{ borderRadius: 6, border: '1px solid #E2E8F0', overflow: 'hidden' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#EFF6FF' }}>
+                      <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', borderBottom: '1px solid #E2E8F0' }}>Bank Name</th>
+                      <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', borderBottom: '1px solid #E2E8F0' }}>SWIFT Code</th>
+                      <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', borderBottom: '1px solid #E2E8F0' }}>Country</th>
+                      <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', borderBottom: '1px solid #E2E8F0' }}>Currency</th>
+                      <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', borderBottom: '1px solid #E2E8F0' }}>Account Name</th>
+                      <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', borderBottom: '1px solid #E2E8F0' }}>Account No.</th>
+                      <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', borderBottom: '1px solid #E2E8F0' }}>Format</th>
+                      <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', borderBottom: '1px solid #E2E8F0' }}>Added</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {manualBanks.map((bank, idx) => (
+                      <tr key={bank.id} style={{ backgroundColor: idx % 2 === 0 ? '#fff' : '#FAFBFC', borderBottom: '1px solid #F1F5F9' }}>
+                        <td style={{ padding: '8px 10px', fontSize: 11, fontWeight: 600, color: '#0F172A' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <div style={{ width: 24, height: 24, borderRadius: 4, backgroundColor: '#DBEAFE', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <span style={{ fontSize: 10, fontWeight: 700, color: '#1D4ED8' }}>{bank.bankName.substring(0, 2).toUpperCase()}</span>
+                            </div>
+                            {bank.bankName}
+                          </div>
+                        </td>
+                        <td style={{ padding: '8px 10px', fontSize: 11, color: '#475569', fontFamily: 'monospace' }}>{bank.bankCode}</td>
+                        <td style={{ padding: '8px 10px', fontSize: 11, color: '#475569' }}>{bank.country}</td>
+                        <td style={{ padding: '8px 10px', fontSize: 11, color: '#475569' }}>
+                          <span style={{ padding: '2px 6px', backgroundColor: '#F0FDF4', color: '#166534', borderRadius: 3, fontSize: 10, fontWeight: 600 }}>{bank.currency}</span>
+                        </td>
+                        <td style={{ padding: '8px 10px', fontSize: 11, color: '#475569' }}>{bank.accountName}</td>
+                        <td style={{ padding: '8px 10px', fontSize: 11, color: '#475569', fontFamily: 'monospace' }}>****{bank.accountNumber.slice(-4)}</td>
+                        <td style={{ padding: '8px 10px', fontSize: 11, color: '#475569' }}>
+                          <span style={{ padding: '2px 6px', backgroundColor: '#F1F5F9', color: '#334155', borderRadius: 3, fontSize: 10, fontWeight: 500 }}>{bank.statementFormat}</span>
+                        </td>
+                        <td style={{ padding: '8px 10px', fontSize: 10, color: '#94A3B8' }}>
+                          {new Date(bank.addedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-              <button
-                onClick={() => setShowAddPSPModal(true)}
-                style={{
-                  padding: '5px 10px',
-                  backgroundColor: 'white',
-                  color: '#334155',
-                  border: '1px solid #CBD5E1',
-                  borderRadius: 4,
-                  fontSize: 10,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                + Add PSP Format
-              </button>
             </div>
-            <div style={{ backgroundColor: 'white', borderRadius: 6, border: '1px solid #E2E8F0', overflow: 'hidden' }}>
+          )}
+
+          {/* Bank Statement Formats Table */}
+          <div style={{ marginBottom: 20 }}>
+            <h3 style={{ fontSize: 12, fontWeight: 600, color: '#0F172A', marginBottom: 10 }}>Bank Statement Formats</h3>
+            <p style={{ fontSize: 10, color: '#64748B', marginBottom: 12 }}>Configure parsing formats for manual bank statement uploads. Supports MT940, CAMT, CSV, and PDF extraction.</p>
+            <div style={{ borderRadius: 6, border: '1px solid #E2E8F0', overflow: 'hidden' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
-                  <tr style={{ borderBottom: '1px solid #E2E8F0' }}>
-                    <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase' }}>PSP</th>
-                    <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase' }}>Report Type</th>
-                    <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase' }}>Input Format</th>
-                    <th style={{ padding: '8px 10px', textAlign: 'center', fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase' }}>Fields Mapped</th>
-                    <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase' }}>Canonical Status</th>
-                    <th style={{ padding: '8px 10px', textAlign: 'right', fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase' }}>Records Processed</th>
-                    <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase' }}>Status</th>
-                    <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase' }}>Last Processed</th>
-                    <th style={{ padding: '8px 10px', textAlign: 'center', fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase' }}>Actions</th>
+                  <tr style={{ backgroundColor: '#F8FAFC' }}>
+                    <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', borderBottom: '1px solid #E2E8F0' }}>Bank</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', borderBottom: '1px solid #E2E8F0' }}>Country</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', borderBottom: '1px solid #E2E8F0' }}>Format</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', borderBottom: '1px solid #E2E8F0' }}>Status</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', borderBottom: '1px solid #E2E8F0' }}>Last Parsed</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'right', fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', borderBottom: '1px solid #E2E8F0' }}>Success Rate</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'center', fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', borderBottom: '1px solid #E2E8F0' }}>Fields</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {pspReportFormats.map((psp) => (
-                    <tr key={psp.id} className="hover:bg-slate-50" style={{ borderBottom: '1px solid #F1F5F9' }}>
+                  {bankStatementFormats.map((fmt, idx) => (
+                    <tr key={fmt.id} style={{ borderBottom: idx < bankStatementFormats.length - 1 ? '1px solid #E2E8F0' : 'none' }}>
                       <td style={{ padding: '8px 10px' }}>
-                        <div style={{ fontSize: 11, fontWeight: 500, color: '#374151' }}>{psp.pspName}</div>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: '#0F172A' }}>{fmt.bankName}</div>
+                        <div style={{ fontSize: 9, color: '#64748B', fontFamily: 'monospace' }}>{fmt.bankCode}</div>
                       </td>
-                      <td style={{ padding: '8px 10px', fontSize: 10, color: '#64748B' }}>{psp.reportType}</td>
-                      <td style={{ padding: '8px 10px' }}>
-                        <span style={{
-                          fontSize: 10,
-                          fontWeight: 600,
-                          color: psp.inputFormat === 'API' ? '#7C3AED' : psp.inputFormat === 'JSON' ? '#0066CC' : '#64748B'
-                        }}>
-                          {psp.inputFormat}
-                        </span>
-                      </td>
-                      <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                        <span style={{ fontSize: 10, color: psp.mappedFields === psp.totalFields ? '#10B981' : '#F59E0B', fontWeight: 500 }}>
-                          {psp.mappedFields}/{psp.totalFields}
-                        </span>
-                      </td>
+                      <td style={{ padding: '8px 10px', fontSize: 11, color: '#374151' }}>{fmt.country}</td>
                       <td style={{ padding: '8px 10px' }}>
                         <span style={{
+                          display: 'inline-block',
+                          padding: '2px 6px',
+                          backgroundColor: fmt.format === 'MT940' ? '#DBEAFE' : fmt.format === 'CAMT.053' ? '#D1FAE5' : fmt.format === 'CSV' ? '#FEF3C7' : '#F3E8FF',
+                          color: fmt.format === 'MT940' ? '#1E40AF' : fmt.format === 'CAMT.053' ? '#065F46' : fmt.format === 'CSV' ? '#92400E' : '#6B21A8',
                           fontSize: 10,
                           fontWeight: 600,
-                          color: psp.canonicalMapping === 'complete' ? '#10B981' : psp.canonicalMapping === 'partial' ? '#F59E0B' : '#64748B'
+                          borderRadius: 3,
                         }}>
-                          {psp.canonicalMapping.charAt(0).toUpperCase() + psp.canonicalMapping.slice(1)}
+                          {fmt.format}
                         </span>
-                      </td>
-                      <td style={{ padding: '8px 10px', textAlign: 'right', fontSize: 11, fontWeight: 500, color: '#374151' }}>
-                        {psp.recordsProcessed > 0 ? psp.recordsProcessed.toLocaleString() : '—'}
+                        {fmt.version && <span style={{ fontSize: 9, color: '#64748B', marginLeft: 4 }}>{fmt.version}</span>}
                       </td>
                       <td style={{ padding: '8px 10px' }}>
                         <span style={{
-                          fontSize: 10,
+                          display: 'inline-block',
+                          padding: '2px 6px',
+                          backgroundColor: fmt.status === 'active' ? '#D1FAE5' : fmt.status === 'testing' ? '#FEF3C7' : '#FEE2E2',
+                          color: fmt.status === 'active' ? '#065F46' : fmt.status === 'testing' ? '#92400E' : '#991B1B',
+                          fontSize: 9,
                           fontWeight: 600,
-                          color: psp.status === 'active' ? '#10B981' : psp.status === 'testing' ? '#F59E0B' : '#64748B'
+                          borderRadius: 10,
+                          textTransform: 'uppercase',
                         }}>
-                          {psp.status.charAt(0).toUpperCase() + psp.status.slice(1)}
+                          {fmt.status}
                         </span>
                       </td>
                       <td style={{ padding: '8px 10px', fontSize: 10, color: '#64748B' }}>
-                        {psp.lastProcessed ? new Date(psp.lastProcessed).toLocaleString('en-SG', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}
+                        {fmt.lastParsed ? new Date(fmt.lastParsed).toLocaleString('en-SG', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}
+                      </td>
+                      <td style={{ padding: '8px 10px', textAlign: 'right' }}>
+                        <span style={{
+                          fontSize: 11,
+                          fontWeight: 600,
+                          color: fmt.parseSuccessRate >= 99 ? '#10B981' : fmt.parseSuccessRate >= 95 ? '#F59E0B' : '#EF4444',
+                        }}>
+                          {fmt.parseSuccessRate.toFixed(1)}%
+                        </span>
                       </td>
                       <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                        <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
-                          <button style={{ padding: '3px 8px', fontSize: 9, fontWeight: 600, color: '#334155', backgroundColor: 'white', border: '1px solid #CBD5E1', borderRadius: 3, cursor: 'pointer' }}>
-                            Map
-                          </button>
-                          <button style={{ padding: '3px 8px', fontSize: 9, fontWeight: 600, color: '#0066CC', backgroundColor: 'white', border: '1px solid #CBD5E1', borderRadius: 3, cursor: 'pointer' }}>
-                            Test
-                          </button>
-                        </div>
+                        <span style={{ fontSize: 10, color: '#64748B' }}>
+                          {Object.values(fmt.fieldsMapping).filter(Boolean).length}/{Object.keys(fmt.fieldsMapping).length}
+                        </span>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+          </div>
 
-            {/* Canonical Format Reference */}
-            <div style={{ marginTop: 16, padding: 12, backgroundColor: '#F8FAFC', borderRadius: 6, border: '1px solid #E2E8F0' }}>
-              <h4 style={{ fontSize: 11, fontWeight: 600, color: '#374151', margin: '0 0 8px 0' }}>Canonical Format Fields</h4>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {['transaction_id', 'order_id', 'gross_amount', 'mdr_fee', 'tax_on_mdr', 'fx_margin', 'net_amount', 'currency', 'transaction_date', 'settlement_date', 'psp_name', 'payment_method', 'customer_ref', 'bank_ref'].map((field) => (
-                  <span key={field} style={{ padding: '3px 8px', backgroundColor: 'white', border: '1px solid #E2E8F0', borderRadius: 4, fontSize: 9, fontFamily: 'monospace', color: '#64748B' }}>
-                    {field}
-                  </span>
-                ))}
-              </div>
+          {/* PSP Report Formats Table */}
+          <div>
+            <h3 style={{ fontSize: 12, fontWeight: 600, color: '#0F172A', marginBottom: 10 }}>PSP Report Formats</h3>
+            <p style={{ fontSize: 10, color: '#64748B', marginBottom: 12 }}>Field mappings from PSP settlement reports to canonical reconciliation schema.</p>
+            <div style={{ borderRadius: 6, border: '1px solid #E2E8F0', overflow: 'hidden' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#F8FAFC' }}>
+                    <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', borderBottom: '1px solid #E2E8F0' }}>PSP</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', borderBottom: '1px solid #E2E8F0' }}>Report Type</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', borderBottom: '1px solid #E2E8F0' }}>Input Format</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', borderBottom: '1px solid #E2E8F0' }}>Mapping Status</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', borderBottom: '1px solid #E2E8F0' }}>Status</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'right', fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', borderBottom: '1px solid #E2E8F0' }}>Records</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'center', fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', borderBottom: '1px solid #E2E8F0' }}>Fields</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pspReportFormats.map((fmt, idx) => (
+                    <tr key={fmt.id} style={{ borderBottom: idx < pspReportFormats.length - 1 ? '1px solid #E2E8F0' : 'none' }}>
+                      <td style={{ padding: '8px 10px' }}>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: '#0F172A' }}>{fmt.pspName}</div>
+                      </td>
+                      <td style={{ padding: '8px 10px', fontSize: 11, color: '#374151' }}>{fmt.reportType}</td>
+                      <td style={{ padding: '8px 10px' }}>
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '2px 6px',
+                          backgroundColor: fmt.inputFormat === 'API' ? '#DBEAFE' : fmt.inputFormat === 'JSON' ? '#D1FAE5' : '#FEF3C7',
+                          color: fmt.inputFormat === 'API' ? '#1E40AF' : fmt.inputFormat === 'JSON' ? '#065F46' : '#92400E',
+                          fontSize: 10,
+                          fontWeight: 600,
+                          borderRadius: 3,
+                        }}>
+                          {fmt.inputFormat}
+                        </span>
+                      </td>
+                      <td style={{ padding: '8px 10px' }}>
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '2px 6px',
+                          backgroundColor: fmt.canonicalMapping === 'complete' ? '#D1FAE5' : fmt.canonicalMapping === 'partial' ? '#FEF3C7' : '#FEE2E2',
+                          color: fmt.canonicalMapping === 'complete' ? '#065F46' : fmt.canonicalMapping === 'partial' ? '#92400E' : '#991B1B',
+                          fontSize: 9,
+                          fontWeight: 600,
+                          borderRadius: 10,
+                          textTransform: 'uppercase',
+                        }}>
+                          {fmt.canonicalMapping}
+                        </span>
+                      </td>
+                      <td style={{ padding: '8px 10px' }}>
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '2px 6px',
+                          backgroundColor: fmt.status === 'active' ? '#D1FAE5' : fmt.status === 'testing' ? '#FEF3C7' : '#FEE2E2',
+                          color: fmt.status === 'active' ? '#065F46' : fmt.status === 'testing' ? '#92400E' : '#991B1B',
+                          fontSize: 9,
+                          fontWeight: 600,
+                          borderRadius: 10,
+                          textTransform: 'uppercase',
+                        }}>
+                          {fmt.status}
+                        </span>
+                      </td>
+                      <td style={{ padding: '8px 10px', textAlign: 'right', fontSize: 11, color: '#374151', fontWeight: 500 }}>
+                        {fmt.recordsProcessed.toLocaleString()}
+                      </td>
+                      <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                        <span style={{
+                          fontSize: 10,
+                          color: fmt.mappedFields === fmt.totalFields ? '#10B981' : '#F59E0B',
+                          fontWeight: 500,
+                        }}>
+                          {fmt.mappedFields}/{fmt.totalFields}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         </>
@@ -1408,6 +2224,172 @@ const ConnectorStudio: React.FC = () => {
             >
               Close
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Add Bank Account Modal */}
+      {showAddBankAccountModal && (
+        <div
+          className="bg-white/20 backdrop-blur-sm"
+          style={{
+            position: 'fixed',
+            top: 0, left: 0, right: 0, bottom: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 1000,
+          }}
+          onClick={() => setShowAddBankAccountModal(false)}
+        >
+          <div
+            style={{
+              backgroundColor: 'white',
+              borderRadius: 8,
+              maxWidth: 560,
+              width: '95%',
+              maxHeight: '85vh',
+              overflow: 'auto',
+              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div style={{ padding: '14px 16px', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <h3 style={{ fontSize: 13, fontWeight: 600, color: '#0F172A', margin: 0 }}>Add Bank Account</h3>
+                <p style={{ fontSize: 10, color: '#64748B', margin: '2px 0 0 0' }}>Register a bank account for statement uploads and reconciliation</p>
+              </div>
+              <button onClick={() => setShowAddBankAccountModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B', fontSize: 16 }}>×</button>
+            </div>
+
+            {/* Form */}
+            <div style={{ padding: 16 }}>
+              {/* Bank Details */}
+              <div style={{ fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', marginBottom: 10 }}>Bank Details</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+                <div>
+                  <label style={{ fontSize: 10, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 4 }}>Bank Name <span style={{ color: '#DC2626' }}>*</span></label>
+                  <input
+                    type="text"
+                    placeholder="e.g., DBS Bank"
+                    value={newBankForm.bankName}
+                    onChange={(e) => { setNewBankForm({ ...newBankForm, bankName: e.target.value }); setAddBankError(null) }}
+                    style={{ width: '100%', padding: '7px 8px', fontSize: 11, border: '1px solid #CBD5E1', borderRadius: 4, boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 10, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 4 }}>SWIFT/BIC Code</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., DBSSSGSG"
+                    value={newBankForm.bankCode}
+                    onChange={(e) => setNewBankForm({ ...newBankForm, bankCode: e.target.value.toUpperCase() })}
+                    style={{ width: '100%', padding: '7px 8px', fontSize: 11, border: '1px solid #CBD5E1', borderRadius: 4, fontFamily: 'monospace', boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 10, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 4 }}>Country <span style={{ color: '#DC2626' }}>*</span></label>
+                  <select
+                    value={newBankForm.country}
+                    onChange={(e) => {
+                      const country = e.target.value
+                      const currencyMap: Record<string, string> = { 'Singapore': 'SGD', 'Indonesia': 'IDR', 'Malaysia': 'MYR', 'Thailand': 'THB', 'Vietnam': 'VND', 'Philippines': 'PHP', 'India': 'INR' }
+                      setNewBankForm({ ...newBankForm, country, currency: currencyMap[country] || 'USD' })
+                    }}
+                    style={{ width: '100%', padding: '7px 8px', fontSize: 11, border: '1px solid #CBD5E1', borderRadius: 4, backgroundColor: 'white', boxSizing: 'border-box' }}
+                  >
+                    <option value="Singapore">Singapore</option>
+                    <option value="Indonesia">Indonesia</option>
+                    <option value="Malaysia">Malaysia</option>
+                    <option value="Thailand">Thailand</option>
+                    <option value="Vietnam">Vietnam</option>
+                    <option value="Philippines">Philippines</option>
+                    <option value="India">India</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: 10, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 4 }}>Currency</label>
+                  <input
+                    type="text"
+                    value={newBankForm.currency}
+                    onChange={(e) => setNewBankForm({ ...newBankForm, currency: e.target.value.toUpperCase() })}
+                    style={{ width: '100%', padding: '7px 8px', fontSize: 11, border: '1px solid #CBD5E1', borderRadius: 4, fontFamily: 'monospace', boxSizing: 'border-box' }}
+                  />
+                </div>
+              </div>
+
+              {/* Account Details */}
+              <div style={{ fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', marginBottom: 10 }}>Account Details</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+                <div>
+                  <label style={{ fontSize: 10, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 4 }}>Account Name <span style={{ color: '#DC2626' }}>*</span></label>
+                  <input
+                    type="text"
+                    placeholder="e.g., Grab Singapore - Settlement"
+                    value={newBankForm.accountName}
+                    onChange={(e) => { setNewBankForm({ ...newBankForm, accountName: e.target.value }); setAddBankError(null) }}
+                    style={{ width: '100%', padding: '7px 8px', fontSize: 11, border: '1px solid #CBD5E1', borderRadius: 4, boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 10, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 4 }}>Account Number <span style={{ color: '#DC2626' }}>*</span></label>
+                  <input
+                    type="text"
+                    placeholder="e.g., 001-234567-890"
+                    value={newBankForm.accountNumber}
+                    onChange={(e) => { setNewBankForm({ ...newBankForm, accountNumber: e.target.value }); setAddBankError(null) }}
+                    style={{ width: '100%', padding: '7px 8px', fontSize: 11, border: '1px solid #CBD5E1', borderRadius: 4, fontFamily: 'monospace', boxSizing: 'border-box' }}
+                  />
+                </div>
+              </div>
+
+              {/* Statement Format */}
+              <div style={{ fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', marginBottom: 10 }}>Statement Configuration</div>
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ fontSize: 10, fontWeight: 500, color: '#374151', display: 'block', marginBottom: 4 }}>Expected Statement Format</label>
+                <select
+                  value={newBankForm.statementFormat}
+                  onChange={(e) => setNewBankForm({ ...newBankForm, statementFormat: e.target.value as any })}
+                  style={{ width: '100%', padding: '7px 8px', fontSize: 11, border: '1px solid #CBD5E1', borderRadius: 4, backgroundColor: 'white', boxSizing: 'border-box' }}
+                >
+                  <option value="MT940">MT940 (SWIFT)</option>
+                  <option value="CAMT.053">CAMT.053 (ISO 20022)</option>
+                  <option value="CAMT.052">CAMT.052 (ISO 20022)</option>
+                  <option value="BAI2">BAI2</option>
+                  <option value="CSV">CSV</option>
+                  <option value="PDF">PDF</option>
+                </select>
+              </div>
+
+              {/* Info Note */}
+              <div style={{ backgroundColor: '#EFF6FF', borderRadius: 6, padding: 10, border: '1px solid #BFDBFE' }}>
+                <p style={{ fontSize: 10, color: '#1E40AF', lineHeight: 1.5, margin: 0 }}>
+                  This registers the bank account in the system for manual statement uploads and reconciliation. No automated bank integration is created.
+                </p>
+              </div>
+
+              {/* Error */}
+              {addBankError && (
+                <div style={{ marginTop: 12, backgroundColor: '#FEF2F2', borderRadius: 4, padding: '8px 10px', border: '1px solid #FECACA' }}>
+                  <p style={{ fontSize: 10, color: '#991B1B', margin: 0 }}>{addBankError}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding: '12px 16px', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <button
+                onClick={() => setShowAddBankAccountModal(false)}
+                style={{ padding: '6px 12px', fontSize: 11, fontWeight: 600, color: '#64748B', backgroundColor: 'white', border: '1px solid #CBD5E1', borderRadius: 4, cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddBankAccount}
+                style={{ padding: '6px 16px', fontSize: 11, fontWeight: 600, color: 'white', backgroundColor: '#0066CC', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+              >
+                Add Bank Account
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1806,44 +2788,6 @@ const ConnectorStudio: React.FC = () => {
             {newConnectorStep === 'select-type' && (
               <div style={{ padding: 20 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-                  {/* Bank Connector */}
-                  <div
-                    onClick={() => {
-                      setSelectedConnectorType('bank')
-                      setNewConnectorStep('configure')
-                    }}
-                    style={{
-                      border: '1px solid #E2E8F0',
-                      borderRadius: 8,
-                      padding: 16,
-                      cursor: 'pointer',
-                      transition: 'all 0.15s',
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#0066CC'; e.currentTarget.style.backgroundColor = '#F8FAFC' }}
-                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#E2E8F0'; e.currentTarget.style.backgroundColor = 'white' }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-                      <div style={{ width: 40, height: 40, borderRadius: 8, backgroundColor: '#DBEAFE', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <span style={{ fontSize: 18 }}>🏦</span>
-                      </div>
-                      <div>
-                        <h4 style={{ fontSize: 13, fontWeight: 600, color: '#0F172A', margin: 0 }}>Bank Integration</h4>
-                        <p style={{ fontSize: 10, color: '#64748B', margin: '2px 0 0 0' }}>SFTP, API, or Host-to-Host</p>
-                      </div>
-                    </div>
-                    <p style={{ fontSize: 11, color: '#64748B', lineHeight: 1.5, margin: 0 }}>
-                      Connect to bank systems to pull MT940, CAMT.053 statements, or BAI2 files automatically.
-                    </p>
-                    <div style={{ marginTop: 10, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 9, padding: '2px 6px', backgroundColor: '#F1F5F9', borderRadius: 3, color: '#64748B' }}>DBS</span>
-                      <span style={{ fontSize: 9, padding: '2px 6px', backgroundColor: '#F1F5F9', borderRadius: 3, color: '#64748B' }}>OCBC</span>
-                      <span style={{ fontSize: 9, padding: '2px 6px', backgroundColor: '#F1F5F9', borderRadius: 3, color: '#64748B' }}>UOB</span>
-                      <span style={{ fontSize: 9, padding: '2px 6px', backgroundColor: '#F1F5F9', borderRadius: 3, color: '#64748B' }}>BCA</span>
-                      <span style={{ fontSize: 9, padding: '2px 6px', backgroundColor: '#F1F5F9', borderRadius: 3, color: '#64748B' }}>Mandiri</span>
-                      <span style={{ fontSize: 9, padding: '2px 6px', backgroundColor: '#F1F5F9', borderRadius: 3, color: '#64748B' }}>+15 more</span>
-                    </div>
-                  </div>
-
                   {/* PSP Connector */}
                   <div
                     onClick={() => {
@@ -1952,6 +2896,87 @@ const ConnectorStudio: React.FC = () => {
                       <span style={{ fontSize: 9, padding: '2px 6px', backgroundColor: '#F1F5F9', borderRadius: 3, color: '#64748B' }}>Oracle EBS</span>
                       <span style={{ fontSize: 9, padding: '2px 6px', backgroundColor: '#F1F5F9', borderRadius: 3, color: '#64748B' }}>NetSuite</span>
                       <span style={{ fontSize: 9, padding: '2px 6px', backgroundColor: '#F1F5F9', borderRadius: 3, color: '#64748B' }}>Workday</span>
+                    </div>
+                  </div>
+
+                  {/* Add Bank Account */}
+                  <div
+                    onClick={() => {
+                      setShowNewConnectorModal(false)
+                      setAddBankError(null)
+                      setNewBankForm({
+                        bankName: '', bankCode: '', country: 'Singapore', currency: 'SGD',
+                        accountNumber: '', accountName: '', statementFormat: 'MT940',
+                      })
+                      setShowAddBankAccountModal(true)
+                    }}
+                    style={{
+                      border: '1px solid #E2E8F0',
+                      borderRadius: 8,
+                      padding: 16,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#0066CC'; e.currentTarget.style.backgroundColor = '#F8FAFC' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#E2E8F0'; e.currentTarget.style.backgroundColor = 'white' }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                      <div style={{ width: 40, height: 40, borderRadius: 8, backgroundColor: '#DBEAFE', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <span style={{ fontSize: 18 }}>🏦</span>
+                      </div>
+                      <div>
+                        <h4 style={{ fontSize: 13, fontWeight: 600, color: '#0F172A', margin: 0 }}>Add Bank Account</h4>
+                        <p style={{ fontSize: 10, color: '#64748B', margin: '2px 0 0 0' }}>Register a bank in the system</p>
+                      </div>
+                    </div>
+                    <p style={{ fontSize: 11, color: '#64748B', lineHeight: 1.5, margin: 0 }}>
+                      Manually add bank account details. No integration required — just register the bank for statement uploads and reconciliation.
+                    </p>
+                    <div style={{ marginTop: 10, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 9, padding: '2px 6px', backgroundColor: '#F1F5F9', borderRadius: 3, color: '#64748B' }}>{manualBanks.length} banks added</span>
+                    </div>
+                  </div>
+
+                  {/* Manual Bank Statement Upload */}
+                  <div
+                    onClick={() => {
+                      setShowNewConnectorModal(false)
+                      setUploadConnector(null)
+                      setUploadFile(null)
+                      setUploadStep('select')
+                      setParsedRecords([])
+                      setUploadProgress(0)
+                      setSelectedBankFormatId(null)
+                      setUploadParseError(null)
+                      setShowUploadModal(true)
+                    }}
+                    style={{
+                      border: '1px solid #E2E8F0',
+                      borderRadius: 8,
+                      padding: 16,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#0066CC'; e.currentTarget.style.backgroundColor = '#F8FAFC' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#E2E8F0'; e.currentTarget.style.backgroundColor = 'white' }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                      <div style={{ width: 40, height: 40, borderRadius: 8, backgroundColor: '#DBEAFE', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <span style={{ fontSize: 18 }}>📄</span>
+                      </div>
+                      <div>
+                        <h4 style={{ fontSize: 13, fontWeight: 600, color: '#0F172A', margin: 0 }}>Manual Bank Statement Upload</h4>
+                        <p style={{ fontSize: 10, color: '#64748B', margin: '2px 0 0 0' }}>Upload & Extract Transactions</p>
+                      </div>
+                    </div>
+                    <p style={{ fontSize: 11, color: '#64748B', lineHeight: 1.5, margin: 0 }}>
+                      Upload bank statement files manually. Supports MT940, CAMT.053, and CSV formats with automatic field extraction.
+                    </p>
+                    <div style={{ marginTop: 10, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 9, padding: '2px 6px', backgroundColor: '#DBEAFE', borderRadius: 3, color: '#1E40AF', fontWeight: 600 }}>MT940</span>
+                      <span style={{ fontSize: 9, padding: '2px 6px', backgroundColor: '#D1FAE5', borderRadius: 3, color: '#065F46', fontWeight: 600 }}>CAMT.053</span>
+                      <span style={{ fontSize: 9, padding: '2px 6px', backgroundColor: '#FEF3C7', borderRadius: 3, color: '#92400E', fontWeight: 600 }}>CSV</span>
+                      <span style={{ fontSize: 9, padding: '2px 6px', backgroundColor: '#F1F5F9', borderRadius: 3, color: '#64748B' }}>PDF (OCR)</span>
                     </div>
                   </div>
                 </div>
@@ -2598,14 +3623,14 @@ const ConnectorStudio: React.FC = () => {
               {/* Step 1: Select File */}
               {uploadStep === 'select' && (
                 <div>
-                  {/* Bank Selector (when no connector pre-selected) */}
-                  {!uploadConnector && (
+                  {/* Bank Format Selector */}
+                  {!selectedBankFormat && (
                     <div style={{ marginBottom: 16 }}>
-                      <label style={{ fontSize: 10, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Select Bank Account *</label>
+                      <label style={{ fontSize: 10, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Select Bank Statement Format *</label>
                       <select
                         onChange={(e) => {
-                          const selected = connectors.find(c => c.id === e.target.value)
-                          if (selected) setUploadConnector(selected)
+                          setSelectedBankFormatId(e.target.value || null)
+                          setUploadParseError(null)
                         }}
                         style={{
                           width: '100%',
@@ -2618,46 +3643,67 @@ const ConnectorStudio: React.FC = () => {
                         }}
                         defaultValue=""
                       >
-                        <option value="" disabled>-- Select a bank account --</option>
-                        {connectors.filter(c => c.type === 'bank').map(bank => (
-                          <option key={bank.id} value={bank.id}>
-                            {bank.name} ({bank.currencies?.join(', ')})
+                        <option value="" disabled>-- Select a bank format --</option>
+                        {bankStatementFormats.map(fmt => (
+                          <option key={fmt.id} value={fmt.id}>
+                            {fmt.bankName} — {fmt.format}{fmt.version ? ` (${fmt.version})` : ''} — {fmt.country}
                           </option>
                         ))}
+                        <option value="auto">Auto-Detect (unknown bank)</option>
                       </select>
                     </div>
                   )}
 
-                  {/* Connector Info */}
-                  {uploadConnector && (
+                  {/* Selected Bank Format Info */}
+                  {selectedBankFormat && (
                   <div style={{ backgroundColor: '#F8FAFC', borderRadius: 6, padding: 12, border: '1px solid #E2E8F0', marginBottom: 16 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                      <span style={{ fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase' }}>Selected Bank</span>
+                      <span style={{ fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase' }}>Selected Bank Format</span>
                       <button
-                        onClick={() => setUploadConnector(null)}
+                        onClick={() => { setSelectedBankFormatId(null); setUploadParseError(null) }}
                         style={{ fontSize: 10, color: '#0066CC', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
                       >
                         Change
                       </button>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
                       <div>
                         <p style={{ fontSize: 9, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', marginBottom: 2 }}>Bank</p>
-                        <p style={{ fontSize: 11, fontWeight: 600, color: '#0F172A' }}>{uploadConnector.name}</p>
+                        <p style={{ fontSize: 11, fontWeight: 600, color: '#0F172A' }}>{selectedBankFormat.bankName}</p>
+                        <p style={{ fontSize: 9, color: '#64748B', fontFamily: 'monospace' }}>{selectedBankFormat.bankCode}</p>
                       </div>
                       <div>
-                        <p style={{ fontSize: 9, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', marginBottom: 2 }}>Expected Format</p>
-                        <p style={{ fontSize: 11, fontWeight: 600, color: '#0F172A' }}>
-                          {uploadConnector.subType?.includes('dbs') || uploadConnector.subType?.includes('ocbc') || uploadConnector.subType?.includes('bca') ? 'MT940' :
-                           uploadConnector.subType?.includes('uob') ? 'CAMT.053' :
-                           uploadConnector.subType?.includes('mandiri') ? 'CSV' : 'MT940'}
-                        </p>
+                        <p style={{ fontSize: 9, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', marginBottom: 2 }}>Format</p>
+                        <p style={{ fontSize: 11, fontWeight: 600, color: '#0F172A' }}>{selectedBankFormat.format}</p>
+                        {selectedBankFormat.version && <p style={{ fontSize: 9, color: '#64748B' }}>{selectedBankFormat.version}</p>}
                       </div>
                       <div>
-                        <p style={{ fontSize: 9, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', marginBottom: 2 }}>Currency</p>
-                        <p style={{ fontSize: 11, fontWeight: 600, color: '#0F172A' }}>{uploadConnector.currencies?.join(', ') || 'SGD'}</p>
+                        <p style={{ fontSize: 9, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', marginBottom: 2 }}>Country</p>
+                        <p style={{ fontSize: 11, fontWeight: 600, color: '#0F172A' }}>{selectedBankFormat.country}</p>
+                      </div>
+                      <div>
+                        <p style={{ fontSize: 9, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', marginBottom: 2 }}>Parse Rate</p>
+                        <p style={{ fontSize: 11, fontWeight: 600, color: selectedBankFormat.parseSuccessRate >= 99 ? '#10B981' : '#F59E0B' }}>{selectedBankFormat.parseSuccessRate}%</p>
                       </div>
                     </div>
+                  </div>
+                  )}
+
+                  {/* Auto-detect mode info */}
+                  {selectedBankFormatId === 'auto' && (
+                  <div style={{ backgroundColor: '#EFF6FF', borderRadius: 6, padding: 12, border: '1px solid #BFDBFE', marginBottom: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontSize: 10, fontWeight: 600, color: '#1E40AF' }}>Auto-Detect Mode</span>
+                      <button
+                        onClick={() => { setSelectedBankFormatId(null); setUploadParseError(null) }}
+                        style={{ fontSize: 10, color: '#0066CC', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
+                      >
+                        Change
+                      </button>
+                    </div>
+                    <p style={{ fontSize: 10, color: '#1E40AF', lineHeight: 1.5 }}>
+                      Format will be detected from file extension and content. Supports MT940 (.txt, .sta, .940), CAMT.053 (.xml), and CSV (.csv) files.
+                    </p>
                   </div>
                   )}
 
@@ -2686,7 +3732,7 @@ const ConnectorStudio: React.FC = () => {
                     <input
                       id="upload-file-input"
                       type="file"
-                      accept=".txt,.sta,.940,.xml,.csv,.xlsx"
+                      accept=".txt,.sta,.940,.xml,.csv,.xlsx,.pdf"
                       style={{ display: 'none' }}
                       onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
                     />
@@ -2712,7 +3758,7 @@ const ConnectorStudio: React.FC = () => {
                         </div>
                         <p style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 4 }}>Drop your bank statement file here</p>
                         <p style={{ fontSize: 11, color: '#64748B', marginBottom: 8 }}>or click to browse</p>
-                        <p style={{ fontSize: 10, color: '#94A3B8' }}>Supports MT940 (.txt, .sta, .940), CAMT.053 (.xml), CSV (.csv)</p>
+                        <p style={{ fontSize: 10, color: '#94A3B8' }}>Supports MT940 (.txt, .sta, .940), CAMT.053 (.xml), CSV (.csv), PDF (.pdf)</p>
                       </div>
                     )}
                   </div>
@@ -2727,6 +3773,17 @@ const ConnectorStudio: React.FC = () => {
                     />
                     <span style={{ fontSize: 10, color: '#64748B', marginLeft: 8 }}>Will be used if not detected from file</span>
                   </div>
+
+                  {/* Parse Error Display */}
+                  {uploadParseError && (
+                    <div style={{ marginTop: 16, backgroundColor: '#FEF2F2', borderRadius: 6, padding: 12, border: '1px solid #FECACA' }}>
+                      <p style={{ fontSize: 10, fontWeight: 600, color: '#991B1B', marginBottom: 4 }}>Parsing Error</p>
+                      <p style={{ fontSize: 10, color: '#991B1B', fontFamily: 'monospace', lineHeight: 1.5 }}>{uploadParseError}</p>
+                      <p style={{ fontSize: 9, color: '#B91C1C', marginTop: 6 }}>
+                        Check that the file matches the selected format, or try &quot;Auto-Detect&quot; mode.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -2735,33 +3792,70 @@ const ConnectorStudio: React.FC = () => {
                 <div>
                   {/* Parse Summary */}
                   <div style={{ backgroundColor: '#F0FDF4', borderRadius: 6, padding: 12, border: '1px solid #BBF7D0', marginBottom: 16 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                       <span style={{ fontSize: 16 }}>✓</span>
                       <span style={{ fontSize: 12, fontWeight: 600, color: '#166534' }}>File Parsed Successfully</span>
+                      {uploadFile && (
+                        <span style={{ fontSize: 10, color: '#64748B', marginLeft: 'auto' }}>
+                          {uploadFile.name} ({(uploadFile.size / 1024).toFixed(1)} KB)
+                        </span>
+                      )}
                     </div>
+                    {selectedBankFormat && (
+                      <p style={{ fontSize: 9, color: '#166534', marginBottom: 8, marginLeft: 24 }}>
+                        Parsed using {selectedBankFormat.bankName} — {selectedBankFormat.format} format
+                      </p>
+                    )}
+                    {selectedBankFormatId === 'auto' && (
+                      <p style={{ fontSize: 9, color: '#166534', marginBottom: 8, marginLeft: 24 }}>
+                        Format auto-detected from file content
+                      </p>
+                    )}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
                       <div>
                         <p style={{ fontSize: 9, fontWeight: 600, color: '#64748B', textTransform: 'uppercase' }}>Transactions</p>
                         <p style={{ fontSize: 14, fontWeight: 700, color: '#0F172A' }}>{parsedRecords.length}</p>
                       </div>
                       <div>
-                        <p style={{ fontSize: 9, fontWeight: 600, color: '#64748B', textTransform: 'uppercase' }}>Total Credits</p>
-                        <p style={{ fontSize: 14, fontWeight: 700, color: '#059669' }}>+{parsedRecords.filter(r => r.type === 'CR').length}</p>
+                        <p style={{ fontSize: 9, fontWeight: 600, color: '#64748B', textTransform: 'uppercase' }}>Credits ({parsedRecords.filter(r => r.type === 'CR').length})</p>
+                        <p style={{ fontSize: 14, fontWeight: 700, color: '#059669' }}>
+                          {(() => {
+                            const total = parsedRecords.filter(r => r.type === 'CR').reduce((sum, r) => {
+                              const num = parseFloat(r.amount.replace(/[^0-9.\-]/g, ''))
+                              return sum + (isNaN(num) ? 0 : num)
+                            }, 0)
+                            return total > 0 ? total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'
+                          })()}
+                        </p>
                       </div>
                       <div>
-                        <p style={{ fontSize: 9, fontWeight: 600, color: '#64748B', textTransform: 'uppercase' }}>Total Debits</p>
-                        <p style={{ fontSize: 14, fontWeight: 700, color: '#DC2626' }}>-{parsedRecords.filter(r => r.type === 'DR').length}</p>
+                        <p style={{ fontSize: 9, fontWeight: 600, color: '#64748B', textTransform: 'uppercase' }}>Debits ({parsedRecords.filter(r => r.type === 'DR').length})</p>
+                        <p style={{ fontSize: 14, fontWeight: 700, color: '#DC2626' }}>
+                          {(() => {
+                            const total = parsedRecords.filter(r => r.type === 'DR').reduce((sum, r) => {
+                              const num = parseFloat(r.amount.replace(/[^0-9.\-]/g, ''))
+                              return sum + (isNaN(num) ? 0 : num)
+                            }, 0)
+                            return total > 0 ? total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'
+                          })()}
+                        </p>
                       </div>
                       <div>
-                        <p style={{ fontSize: 9, fontWeight: 600, color: '#64748B', textTransform: 'uppercase' }}>Statement Date</p>
-                        <p style={{ fontSize: 14, fontWeight: 700, color: '#0F172A' }}>{parsedRecords[0]?.date || '2026-06-09'}</p>
+                        <p style={{ fontSize: 9, fontWeight: 600, color: '#64748B', textTransform: 'uppercase' }}>Date Range</p>
+                        <p style={{ fontSize: 12, fontWeight: 700, color: '#0F172A' }}>
+                          {(() => {
+                            const dates = parsedRecords.map(r => r.date).filter(d => d && d !== 'N/A').sort()
+                            if (dates.length === 0) return 'N/A'
+                            return dates[0] === dates[dates.length - 1] ? dates[0] : `${dates[0]} — ${dates[dates.length - 1]}`
+                          })()}
+                        </p>
                       </div>
                     </div>
                   </div>
 
                   {/* Transaction Preview Table */}
-                  <div style={{ fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', marginBottom: 8 }}>Transaction Preview (First 10)</div>
-                  <div style={{ border: '1px solid #E2E8F0', borderRadius: 6, overflow: 'hidden', maxHeight: 280, overflowY: 'auto' }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', marginBottom: 8 }}>Extracted Transactions (First 20)</div>
+                  <div style={{ border: '1px solid #E2E8F0', borderRadius: 6, overflow: 'hidden', maxHeight: 340, overflowY: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
                       <thead>
                         <tr style={{ backgroundColor: '#F8FAFC' }}>
@@ -2773,7 +3867,7 @@ const ConnectorStudio: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {parsedRecords.slice(0, 10).map((record, idx) => (
+                        {parsedRecords.slice(0, 20).map((record, idx) => (
                           <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? 'white' : '#FAFAFA' }}>
                             <td style={{ padding: '8px 10px', borderBottom: '1px solid #F1F5F9', fontFamily: 'monospace' }}>{record.date}</td>
                             <td style={{ padding: '8px 10px', borderBottom: '1px solid #F1F5F9', fontFamily: 'monospace' }}>{record.ref}</td>
@@ -2789,9 +3883,9 @@ const ConnectorStudio: React.FC = () => {
                       </tbody>
                     </table>
                   </div>
-                  {parsedRecords.length > 10 && (
+                  {parsedRecords.length > 20 && (
                     <p style={{ fontSize: 10, color: '#64748B', marginTop: 8, textAlign: 'center' }}>
-                      ...and {parsedRecords.length - 10} more transactions
+                      ...and {parsedRecords.length - 20} more transactions
                     </p>
                   )}
                 </div>
@@ -2887,38 +3981,30 @@ const ConnectorStudio: React.FC = () => {
               <div style={{ display: 'flex', gap: 8 }}>
                 {uploadStep === 'select' && (
                   <button
-                    disabled={!uploadFile || !uploadConnector}
-                    onClick={() => {
-                      // Simulate parsing
-                      const mockRecords = [
-                        { date: '2026-06-09', ref: 'TRF-001-GP-SGD', amount: 'SGD 283,800.00', type: 'CR', desc: 'GRABPAY SETTLEMENT - BATCH 001' },
-                        { date: '2026-06-09', ref: 'TRF-002-AD-SGD', amount: 'SGD 156,420.00', type: 'CR', desc: 'ADYEN PAYOUT - DAILY' },
-                        { date: '2026-06-09', ref: 'TRF-003-ST-SGD', amount: 'SGD 89,250.00', type: 'CR', desc: 'STRIPE TRANSFER' },
-                        { date: '2026-06-09', ref: 'CHG-001-BANK', amount: 'SGD 125.00', type: 'DR', desc: 'BANK CHARGES - MONTHLY' },
-                        { date: '2026-06-09', ref: 'TRF-004-GP-SGD', amount: 'SGD 467,880.00', type: 'CR', desc: 'GRABPAY SETTLEMENT - BATCH 002' },
-                        { date: '2026-06-09', ref: 'FEE-001-SWIFT', amount: 'SGD 35.00', type: 'DR', desc: 'SWIFT TRANSACTION FEE' },
-                        { date: '2026-06-09', ref: 'TRF-005-OV-SGD', amount: 'SGD 234,500.00', type: 'CR', desc: 'OVO SETTLEMENT' },
-                        { date: '2026-06-09', ref: 'TRF-006-GP-SGD', amount: 'SGD 178,900.00', type: 'CR', desc: 'GRABPAY SETTLEMENT - BATCH 003' },
-                        { date: '2026-06-08', ref: 'TRF-007-AD-SGD', amount: 'SGD 145,200.00', type: 'CR', desc: 'ADYEN PAYOUT - DAILY' },
-                        { date: '2026-06-08', ref: 'TRF-008-ST-SGD', amount: 'SGD 67,800.00', type: 'CR', desc: 'STRIPE TRANSFER' },
-                        { date: '2026-06-08', ref: 'CHG-002-GIRO', amount: 'SGD 50.00', type: 'DR', desc: 'GIRO TRANSACTION FEE' },
-                        { date: '2026-06-08', ref: 'TRF-009-GP-SGD', amount: 'SGD 312,450.00', type: 'CR', desc: 'GRABPAY SETTLEMENT - BATCH 001' },
-                      ]
-                      setParsedRecords(mockRecords)
-                      setUploadStep('preview')
-                    }}
+                    disabled={!uploadFile || (!selectedBankFormatId && !uploadConnector) || isParsing}
+                    onClick={handleParseFile}
                     style={{
                       padding: '6px 16px',
                       fontSize: 11,
                       fontWeight: 600,
                       color: 'white',
-                      backgroundColor: (!uploadFile || !uploadConnector) ? '#94A3B8' : '#0066CC',
+                      backgroundColor: (!uploadFile || (!selectedBankFormatId && !uploadConnector) || isParsing) ? '#94A3B8' : '#0066CC',
                       border: 'none',
                       borderRadius: 4,
-                      cursor: (!uploadFile || !uploadConnector) ? 'not-allowed' : 'pointer',
+                      cursor: (!uploadFile || (!selectedBankFormatId && !uploadConnector) || isParsing) ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
                     }}
                   >
-                    Parse File
+                    {isParsing ? (
+                      <>
+                        <span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid white', borderTop: '2px solid transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                        Parsing...
+                      </>
+                    ) : (
+                      'Parse & Extract'
+                    )}
                   </button>
                 )}
                 {uploadStep === 'preview' && (

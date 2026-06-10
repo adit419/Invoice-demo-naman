@@ -664,7 +664,7 @@ export const ExceptionWorkspace: React.FC = () => {
                     <td style={{ padding: '6px 10px', fontSize: 10, color: ownerName ? '#374151' : '#9ca3af' }}>
                       {ownerName || 'Unassigned'}
                     </td>
-                    <td style={{ padding: '6px 10px', fontSize: 9, color: '#6b7280', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <td style={{ padding: '6px 10px', fontSize: 9, color: '#374151', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {exception.aiSuggestion || '—'}
                     </td>
                   </tr>

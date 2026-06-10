@@ -57,7 +57,7 @@ export const AccountingEntriesModal: React.FC<AccountingEntriesModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="bg-emerald-700 px-4 py-3 flex items-center justify-between">
+        <div className="bg-slate-800 px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded bg-white/10 flex items-center justify-center">
               <BookOpen size={16} className="text-white" />
@@ -65,11 +65,11 @@ export const AccountingEntriesModal: React.FC<AccountingEntriesModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <span style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>Accounting Entries</span>
-                <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.2)', color: '#d1fae5' }}>
+                <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 3, backgroundColor: 'rgba(56,189,248,0.2)', color: '#7dd3fc' }}>
                   POSTED
                 </span>
               </div>
-              <p style={{ fontSize: 9, color: '#a7f3d0', marginTop: 1 }}>
+              <p style={{ fontSize: 9, color: '#94a3b8', marginTop: 1 }}>
                 <span style={{ fontFamily: 'monospace' }}>{creditId}</span>
               </p>
             </div>

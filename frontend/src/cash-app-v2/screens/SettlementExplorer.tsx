@@ -8,6 +8,7 @@
  */
 
 import React, { useState, useEffect } from 'react'
+import { Loader2 } from 'lucide-react'
 import { SkeletonCard, SkeletonTable } from '../components/ui/Skeleton'
 import { settlementsService } from '../services'
 import type { BankCreditRecordDetail, SettlementExplorerKPIs } from '../types/domain'
@@ -138,6 +139,7 @@ export const SettlementExplorer: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [selectedCreditId, setSelectedCreditId] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [loadingRowId, setLoadingRowId] = useState<string | null>(null)
 
   // Filters
   const [dateRange, setDateRange] = useState<'yesterday' | '7d' | '30d' | '90d' | 'all'>('yesterday')
@@ -243,7 +245,16 @@ export const SettlementExplorer: React.FC = () => {
   }, [bankCredits])
 
   // Handlers
-  const handleRowClick = (credit: BankCreditRecordDetail) => {
+  const handleRowClick = async (credit: BankCreditRecordDetail) => {
+    if (loadingRowId) return // Prevent double-clicks
+
+    setLoadingRowId(credit.id)
+
+    // Synthetic delay for demo (2-3 seconds random)
+    const delay = 2000 + Math.random() * 1000
+    await new Promise(resolve => setTimeout(resolve, delay))
+
+    setLoadingRowId(null)
     setSelectedCreditId(credit.id)
     setIsModalOpen(true)
   }
@@ -613,15 +624,27 @@ export const SettlementExplorer: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {paginatedCredits.map((credit) => (
+                {paginatedCredits.map((credit) => {
+                  const isRowLoading = loadingRowId === credit.id
+                  return (
                   <tr
                     key={credit.id}
                     onClick={() => handleRowClick(credit)}
-                    className="hover:bg-slate-50 cursor-pointer"
-                    style={{ borderBottom: '1px solid #f1f5f9' }}
+                    className={`cursor-pointer ${isRowLoading ? 'bg-sky-50' : 'hover:bg-slate-50'}`}
+                    style={{
+                      borderBottom: '1px solid #f1f5f9',
+                      opacity: loadingRowId && !isRowLoading ? 0.5 : 1,
+                      pointerEvents: loadingRowId ? 'none' : 'auto',
+                      transition: 'all 0.2s',
+                    }}
                   >
                     <td style={{ fontSize: 10, padding: '6px 8px', color: '#374151' }}>
-                      {new Date(credit.valueDate).toLocaleDateString('en-SG', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {isRowLoading && (
+                          <Loader2 size={12} className="animate-spin text-sky-600" />
+                        )}
+                        {new Date(credit.valueDate).toLocaleDateString('en-SG', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </div>
                     </td>
                     <td style={{ fontSize: 10, padding: '6px 8px', color: '#374151' }}>
                       {credit.bankAccount}
@@ -666,7 +689,8 @@ export const SettlementExplorer: React.FC = () => {
                       {credit.age}
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           </div>

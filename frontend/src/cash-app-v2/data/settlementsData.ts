@@ -366,6 +366,73 @@ const generateRealisticOrderLines = (
   return lines
 }
 
+/**
+ * Inject some unmatched/mismatched order lines into the visible sample lines
+ * to make L2 line-item KPIs realistic.
+ * noOrderCount lines become 'no_order', mismatchCount lines become 'mismatch'.
+ * Only modifies visible sample lines (not the summary "... N more orders" row).
+ */
+const injectL2Exceptions = (
+  lines: SettlementOrderLine[],
+  noOrderCount: number,
+  mismatchCount: number
+): SettlementOrderLine[] => {
+  const result = [...lines]
+  let injected = 0
+
+  for (let i = 0; i < result.length && injected < noOrderCount; i++) {
+    if (!result[i].pspTxnId.startsWith('...') && result[i].matchStatus === 'matched') {
+      result[i] = { ...result[i], matchStatus: 'no_order', orderId: null, omsGross: null }
+      injected++
+    }
+  }
+
+  let mismatchInjected = 0
+  for (let i = result.length - 1; i >= 0 && mismatchInjected < mismatchCount; i--) {
+    if (!result[i].pspTxnId.startsWith('...') && result[i].matchStatus === 'matched') {
+      const omsVariance = round(result[i].gross * (0.02 + Math.random() * 0.03)) // 2-5% off
+      result[i] = {
+        ...result[i],
+        matchStatus: 'mismatch',
+        omsGross: round(result[i].gross - omsVariance)
+      }
+      mismatchInjected++
+    }
+  }
+
+  return result
+}
+
+/**
+ * Create a lightweight settlement-level Exception reference
+ */
+const makeSettlementException = (
+  id: string,
+  type: Exception['type'],
+  referenceId: string,
+  amount: number,
+  psp: string,
+  pspName: string,
+  suggestion: string
+): Exception => ({
+  id,
+  type,
+  priority: type === 'unmatched_order' ? 'medium' : 'high',
+  referenceId,
+  amount,
+  currency: 'SGD',
+  psp,
+  pspName,
+  createdAt: new Date(getYesterday().getTime() + 14 * 3600000).toISOString(), // yesterday 2pm
+  slaDue: new Date(getYesterday().getTime() + 38 * 3600000).toISOString(), // yesterday + 24h
+  owner: null,
+  aiConfidence: 85,
+  aiSuggestion: suggestion,
+  status: 'open',
+  age: '1d',
+  pastSLA: true
+})
+
 // ============================================================================
 // GRABPAY SETTLEMENTS - Total must = 3,500,000 SGD
 // ============================================================================
@@ -384,14 +451,20 @@ const settlement_GP_500K: SettlementPayoutDetail = {
   status: 'reconciled',
   date: formatDate(getYesterday()),
   grossToNet: calculateWaterfall(500000, 0.025, 0.07, 0.003, 0),
-  orderLines: generateOrderLinesTotalGross('GP001', 500000, 2000, 0.025, 1, 10),
+  orderLines: injectL2Exceptions(
+    generateOrderLinesTotalGross('GP001', 500000, 2000, 0.025, 1, 10),
+    2, // 2 no_order (unmatched PSP refund lines)
+    1  // 1 mismatch (promo discount diff)
+  ),
   feeBreakdown: {
     components: [
       { name: 'MDR', contractRate: '2.50%', actualRate: '2.50%', variance: '0%', status: 'match' },
       { name: 'GST', contractRate: '7.00%', actualRate: '7.00%', variance: '0%', status: 'match' }
     ]
   },
-  exceptions: []
+  exceptions: [
+    makeSettlementException('SE-GP001-UO-001', 'unmatched_order', 'GP001-TXN-000001', 342, 'grabpay', 'GrabPay', 'PSP refund with no OMS match - check voided orders')
+  ]
 }
 
 const credit_GP_001: BankCreditRecordDetail = (() => {
@@ -441,14 +514,20 @@ const settlement_GP_520K: SettlementPayoutDetail = {
   status: 'reconciled',
   date: formatDate(getYesterday()),
   grossToNet: calculateWaterfall(520000, 0.025, 0.07, 0.003, 0),
-  orderLines: generateOrderLinesTotalGross('GP002', 520000, 2150, 0.025, 3000, 10),
+  orderLines: injectL2Exceptions(
+    generateOrderLinesTotalGross('GP002', 520000, 2150, 0.025, 3000, 10),
+    1, // 1 no_order
+    1  // 1 mismatch (promo discount)
+  ),
   feeBreakdown: {
     components: [
       { name: 'MDR', contractRate: '2.50%', actualRate: '2.50%', variance: '0%', status: 'match' },
       { name: 'GST', contractRate: '7.00%', actualRate: '7.00%', variance: '0%', status: 'match' }
     ]
   },
-  exceptions: []
+  exceptions: [
+    makeSettlementException('SE-GP002-AM-001', 'amount_mismatch', 'GP002-TXN-003009', 18.75, 'grabpay', 'GrabPay', 'Promo discount GRAB15 not reflected in PSP file')
+  ]
 }
 
 const credit_GP_002: BankCreditRecordDetail = (() => {
@@ -831,14 +910,20 @@ const settlement_STR_380K: SettlementPayoutDetail = {
   status: 'reconciled',
   date: formatDate(getYesterday()),
   grossToNet: calculateWaterfall(380000, 0.029, 0.07, 0.005, 0),
-  orderLines: generateOrderLinesTotalGross('STR001', 380000, 1500, 0.029, 16000, 10),
+  orderLines: injectL2Exceptions(
+    generateOrderLinesTotalGross('STR001', 380000, 1500, 0.029, 16000, 10),
+    1, // 1 no_order (legacy format order ID)
+    1  // 1 mismatch
+  ),
   feeBreakdown: {
     components: [
       { name: 'MDR', contractRate: '2.90%', actualRate: '2.90%', variance: '0%', status: 'match' },
       { name: 'GST', contractRate: '7.00%', actualRate: '7.00%', variance: '0%', status: 'match' }
     ]
   },
-  exceptions: []
+  exceptions: [
+    makeSettlementException('SE-STR001-UO-001', 'unmatched_order', 'STR001-TXN-016001', 187.50, 'stripe', 'Stripe', 'Legacy format order IDs - cross-reference partner OMS')
+  ]
 }
 
 const credit_STR_001: BankCreditRecordDetail = (() => {
@@ -888,14 +973,20 @@ const settlement_STR_FINAL: SettlementPayoutDetail = {
   status: 'matched_l1',
   date: formatDate(getYesterday()),
   grossToNet: calculateWaterfall(399000, 0.029, 0.07, 0.005, 0),
-  orderLines: generateOrderLinesTotalGross('STR002', 399000, 1550, 0.029, 18000, 10),
+  orderLines: injectL2Exceptions(
+    generateOrderLinesTotalGross('STR002', 399000, 1550, 0.029, 18000, 10),
+    1, // 1 no_order
+    1  // 1 mismatch (FX rate difference)
+  ),
   feeBreakdown: {
     components: [
       { name: 'MDR', contractRate: '2.90%', actualRate: '2.90%', variance: '0%', status: 'match' },
       { name: 'GST', contractRate: '7.00%', actualRate: '7.00%', variance: '0%', status: 'match' }
     ]
   },
-  exceptions: []
+  exceptions: [
+    makeSettlementException('SE-STR002-AM-001', 'amount_mismatch', 'STR002-TXN-018009', 4.82, 'stripe', 'Stripe', 'FX rate difference - auto-clear recommended')
+  ]
 }
 
 // STR_002: L1 matched (zero variance), but has L2 exceptions (amount mismatch at order level)
