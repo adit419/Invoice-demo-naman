@@ -15,6 +15,25 @@ import { withAuthGuard } from "@/components/AuthGuard"
 
 // ─────────────────────────────────────────── types ───────────────────────────
 
+interface GrabCardOwner {
+  name: string; email?: string; handle?: string; slack?: string
+  role?: string; seniority?: string
+}
+interface GrabCardSupplier {
+  name: string; description?: string; notes?: string
+  tier?: string; channel?: string; buying_channel?: string
+  threshold?: string; approval_threshold_usd?: number | null
+  p_card?: boolean | string; p_card_eligible?: string
+}
+interface GrabCardData {
+  process_level?: string
+  managers?: GrabCardOwner[]
+  suppliers?: GrabCardSupplier[]
+  approval_chain?: string[]
+  steps?: string[]; process_steps?: string[]
+  compliance_note?: string
+}
+
 interface Msg {
   id: string
   role: "user" | "bot"
@@ -23,6 +42,8 @@ interface Msg {
   traceIdx?: number | null
   invNums?: string[]
   vendorNames?: string[]
+  pdfUrlMap?: Record<string, string>   // invoice# → absolute PDF proxy URL
+  grabCard?: GrabCardData              // structured S2P card from grab_card API field
   question?: string
   isHtml?: boolean       // pre-formatted HTML — skip renderMarkdown
 }
@@ -59,13 +80,17 @@ interface PRFormData {
 // ──────────────────────────────────────── constants ──────────────────────────
 
 const API      = (p: string) => `/api/ask-neo/${p}`
-const SID_KEY       = "ask_neoflo_sid"
-const MSGS_KEY      = "ask_neoflo_msgs"
-const CHATS_KEY     = "ask_neoflo_chats"
-const ACTIVE_CHAT_KEY = "ask_neoflo_active_chat"
+const SID_KEY         = "ask_neoflo_sid"
+const MSGS_KEY        = "ask_neoflo_msgs"
+const CHATS_KEY       = "ask_neoflo_chats"          // legacy compat
+const ACTIVE_CHAT_KEY = "ask_neoflo_active_chat"    // legacy compat
+const APP_MODE_KEY    = "ask_neoflo_app_mode"
 
 // Per-chat message storage key
-const chatKey = (id: string) => `ask_neoflo_chat_${id}`
+const chatKey         = (id: string) => `ask_neoflo_chat_${id}`
+// Mode-scoped storage keys
+const modeActiveChatKey = (m: string) => `ask_neoflo_active_chat_${m}`
+const modeChatsKey      = (m: string) => `ask_neoflo_chats_${m}`
 
 const STEP_LABELS: Record<string, string> = {
   router:        "Intent Detection",
@@ -171,7 +196,22 @@ function renderTraceBody(step: TraceStep): string {
   return h
 }
 
-function renderMarkdown(raw: string, invNums: string[], vendors: string[]): string {
+let _rmCallId = 0  // ensures unique table IDs across renderMarkdown calls
+
+function renderMarkdown(raw: string, invNums: string[], vendors: string[], pdfUrlMap: Record<string,string> = {}): string {
+  const callId = ++_rmCallId
+  // Fuzzy lookup: try exact key first, then normalised partial-match
+  const normK = (s: string) => s.toLowerCase().replace(/[-_\s]/g, "").replace(/\.pdf$/i, "")
+  function findPdfUrl(key: string): string {
+    if (pdfUrlMap[key]) return pdfUrlMap[key]
+    const kn = normK(key)
+    for (const [mk, mv] of Object.entries(pdfUrlMap)) {
+      const mn = normK(mk)
+      if (mn === kn || mn.includes(kn) || kn.includes(mn)) return mv
+    }
+    return ""
+  }
+
   let text = raw, srcHtml = ""
 
   // Pull out "Sources: …" suffix before rendering
@@ -186,9 +226,12 @@ function renderMarkdown(raw: string, invNums: string[], vendors: string[]): stri
     const dm = rest.match(/\(([^)]+)\)\s*$/)
     if (dm) { desc = dm[1]; rest = rest.slice(0, dm.index!).trim() }
     const chips = rest.split(/\s*,\s*/).map(c => c.trim()).filter(Boolean)
-    const chipsHtml = chips
-      .map(c => `<a href="#" class="anf-src-chip" data-inv="${esc(c)}">${esc(c)}</a>`)
-      .join("")
+    const chipsHtml = chips.map(c => {
+      const pdfUrl = findPdfUrl(c)
+      const pdfAttr = pdfUrl ? ` data-pdf="${esc(pdfUrl)}"` : ""
+      const icon = pdfUrl ? "📄 " : ""
+      return `<a href="#" class="anf-src-chip${pdfUrl ? " anf-src-chip-pdf" : ""}" data-inv="${esc(c)}"${pdfAttr}>${icon}${esc(c)}</a>`
+    }).join("")
     srcHtml = `<div class="anf-src"><span class="anf-src-lbl">${esc(label)}</span> `
       + `<span class="anf-src-chips">${chipsHtml}</span>`
       + (desc ? `<span class="anf-src-desc">${esc(desc)}</span>` : "")
@@ -196,8 +239,22 @@ function renderMarkdown(raw: string, invNums: string[], vendors: string[]): stri
   }
 
   // Convert markdown lines to HTML (tables + text)
+  const TABLE_THRESH = 5  // data rows shown before "Show more"
   const lines = text.split("\n")
-  let html = "", inTable = false, tHtml = ""
+  let html = "", inTable = false, tHtml = "", tDataRows = 0, tIdx = 0
+
+  const flushTable = () => {
+    if (tDataRows > TABLE_THRESH) {
+      const tid = `anftw-${callId}-${++tIdx}`
+      const extra = tDataRows - TABLE_THRESH
+      html += `<div class="anf-tw anf-tw-coll" id="${tid}">${tHtml}</table><div class="anf-tw-fade"></div></div>`
+             + `<button class="anf-show-more" data-expand-tw="${tid}">Show ${extra} more rows ↓</button>`
+    } else {
+      html += `<div class="anf-tw">${tHtml}</table></div>`
+    }
+    tHtml = ""; tDataRows = 0; inTable = false
+  }
+
   for (const line of lines) {
     if (line.trim().startsWith("|") && line.trim().endsWith("|")) {
       if (!inTable) { inTable = true; tHtml = "<table>" }
@@ -205,16 +262,17 @@ function renderMarkdown(raw: string, invNums: string[], vendors: string[]): stri
       if (cells.every(c => /^[-:]+$/.test(c))) continue
       const isHdr = !tHtml.includes("<tr>")
       const tag   = isHdr ? "th" : "td"
+      if (!isHdr) tDataRows++
       tHtml += "<tr>" + cells.map(c => {
         const ch = esc(c).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
         return `<${tag}>${ch}</${tag}>`
       }).join("") + "</tr>"
     } else {
-      if (inTable) { html += `<div class="anf-tw">${tHtml}</table></div>`; tHtml = ""; inTable = false }
+      if (inTable) flushTable()
       html += esc(line) + "\n"
     }
   }
-  if (inTable) html += `<div class="anf-tw">${tHtml}</table></div>`
+  if (inTable) flushTable()
 
   html = html
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
@@ -236,9 +294,11 @@ function renderMarkdown(raw: string, invNums: string[], vendors: string[]): stri
   if (invNums.length) {
     ;[...invNums].sort((a, b) => b.length - a.length).forEach(inv => {
       const e = inv.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+      const pdfUrl  = findPdfUrl(inv)
+      const pdfAttr = pdfUrl ? ` data-pdf="${esc(pdfUrl)}"` : ""
       html = replaceText(html,
         new RegExp(`(?<![\\w/-])(${e})(?![\\w/-])`, "g"),
-        `<a href="#" class="anf-inv" data-inv="${esc(inv)}">$1</a>`)
+        `<a href="#" class="anf-inv${pdfUrl ? " anf-inv-pdf" : ""}" data-inv="${esc(inv)}"${pdfAttr}>$1</a>`)
     })
   }
 
@@ -549,19 +609,190 @@ function formatS2PAnswer(q: S2PQuestion): string {
   return html
 }
 
+// ──────────────────────────────────── GrabCard component ─────────────────────
+
+function GrabCard({ card, text }: { card: GrabCardData; text: string }) {
+  const steps    = card.steps ?? card.process_steps ?? []
+  const managers = card.managers ?? []
+  const suppliers = card.suppliers ?? []
+  const chain    = card.approval_chain ?? []
+
+  const tierColor = (tier = "") => {
+    const t = tier.toLowerCase()
+    if (t === "preferred") return "gc-tier-preferred"
+    if (t === "approved")  return "gc-tier-approved"
+    return "gc-tier-other"
+  }
+  const pCardNo = (s: GrabCardSupplier) => {
+    const v = s.p_card ?? s.p_card_eligible ?? ""
+    if (v === false || String(v).toLowerCase() === "no") return true
+    return false
+  }
+  const threshold = (s: GrabCardSupplier) => {
+    if (s.threshold) return s.threshold
+    if (s.approval_threshold_usd != null) return `$${Number(s.approval_threshold_usd).toLocaleString()}`
+    return "—"
+  }
+
+  return (
+    <div className="gc-root">
+      {/* Badge */}
+      {card.process_level && (
+        <div className="gc-badge">{card.process_level}</div>
+      )}
+
+      {/* Plain-text summary */}
+      {text && (
+        <div className="gc-text">
+          {text.split(/\n+/).filter(Boolean).map((p, i) => (
+            <p key={i}>{p}</p>
+          ))}
+        </div>
+      )}
+
+      {/* Procurement Owners */}
+      {managers.length > 0 && (
+        <div className="gc-section">
+          <div className="gc-section-title">PROCUREMENT OWNERS</div>
+          <div className="gc-owners">
+            {managers.map((m, i) => (
+              <div key={i} className="gc-owner-card">
+                <div className="gc-owner-name">{m.name}</div>
+                {m.email && (
+                  <div className="gc-owner-email">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5}
+                         width={12} height={12} strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="1" y="3" width="14" height="10" rx="2"/>
+                      <path d="M1 5l7 5 7-5"/>
+                    </svg>
+                    {m.email}
+                  </div>
+                )}
+                <div className="gc-owner-meta">
+                  {(m.handle || m.slack) && <span>{m.handle ?? m.slack}</span>}
+                  {(m.role || m.seniority) && (
+                    <span className="gc-owner-sep">·</span>
+                  )}
+                  {(m.role || m.seniority) && <span>{m.role ?? m.seniority}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Approved Suppliers */}
+      {suppliers.length > 0 && (
+        <div className="gc-section">
+          <div className="gc-section-title">APPROVED SUPPLIERS</div>
+          <div className="gc-sup-wrap">
+            <table className="gc-sup-table">
+              <thead>
+                <tr>
+                  <th>Supplier</th><th>Tier</th><th>Buying Channel</th>
+                  <th>Threshold</th><th>P-Card</th>
+                </tr>
+              </thead>
+              <tbody>
+                {suppliers.map((s, i) => (
+                  <tr key={i}>
+                    <td>
+                      <div className="gc-sup-name">{s.name}</div>
+                      {(s.description || s.notes) && (
+                        <div className="gc-sup-desc">{s.description ?? s.notes}</div>
+                      )}
+                    </td>
+                    <td>
+                      <span className={`gc-tier ${tierColor(s.tier)}`}>{s.tier ?? "—"}</span>
+                    </td>
+                    <td>{s.channel ?? s.buying_channel ?? "—"}</td>
+                    <td>{threshold(s)}</td>
+                    <td className="gc-pcard">
+                      {pCardNo(s)
+                        ? <span className="gc-pcard-no">✕</span>
+                        : <span className="gc-pcard-yes">✓</span>
+                      }
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Approval Chain */}
+      {chain.length > 0 && (
+        <div className="gc-section">
+          <div className="gc-section-title">APPROVAL CHAIN</div>
+          <div className="gc-chain">
+            {chain.map((step, i) => (
+              <React.Fragment key={i}>
+                <div className="gc-chain-step">{step}</div>
+                {i < chain.length - 1 && <span className="gc-chain-arrow">→</span>}
+              </React.Fragment>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Process Steps */}
+      {steps.length > 0 && (
+        <div className="gc-section">
+          <div className="gc-section-title">PROCESS STEPS</div>
+          <ol className="gc-steps">
+            {steps.map((step, i) => (
+              <li key={i} className="gc-step-item">
+                <span className="gc-step-num">{i + 1}</span>
+                <span className="gc-step-text">{step}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+
+      {/* Compliance Note */}
+      {card.compliance_note && (
+        <div className="gc-compliance">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.8}
+               width={16} height={16} strokeLinecap="round" strokeLinejoin="round"
+               style={{ flexShrink: 0, marginTop: 2 }}>
+            <path d="M10 2L2 17h16L10 2z"/>
+            <path d="M10 8v4M10 14h.01"/>
+          </svg>
+          <div>
+            <strong>Compliance Note:</strong>{" "}
+            <span style={{ color: "#b45309" }}>{card.compliance_note}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ──────────────────────────────────────── component ──────────────────────────
 
 function AskNeoFloPage() {
+  // ── App mode (invoice | s2p) ─────────────────────────────────────────────
+  const [appMode, setAppMode] = useState<"invoice" | "s2p">(() =>
+    (localStorage.getItem(APP_MODE_KEY) as "invoice" | "s2p") || "invoice"
+  )
+
   // ── Active chat ID (drives per-chat storage) ───────────────────────────────
   const [activeChatId, setActiveChatId] = useState<string>(() => {
-    return localStorage.getItem(ACTIVE_CHAT_KEY)
+    const m = localStorage.getItem(APP_MODE_KEY) || "invoice"
+    return localStorage.getItem(modeActiveChatKey(m))
+      || localStorage.getItem(ACTIVE_CHAT_KEY)
       || localStorage.getItem(SID_KEY)
       || crypto.randomUUID()
   })
 
   const [msgs,          setMsgs]          = useState<Msg[]>(() => {
     try {
-      const aid = localStorage.getItem(ACTIVE_CHAT_KEY) || localStorage.getItem(SID_KEY)
+      const m   = localStorage.getItem(APP_MODE_KEY) || "invoice"
+      const aid = localStorage.getItem(modeActiveChatKey(m))
+        || localStorage.getItem(ACTIVE_CHAT_KEY)
+        || localStorage.getItem(SID_KEY)
       const perChat = aid ? localStorage.getItem(chatKey(aid)) : null
       return JSON.parse(perChat || localStorage.getItem(MSGS_KEY) || "[]")
     } catch { return [] }
@@ -575,7 +806,12 @@ function AskNeoFloPage() {
   const [traceCount,    setTraceCount]    = useState(0)
   const [activeCtx,     setActiveCtx]     = useState<Record<string,string>>({})
   const [sideChats,     setSideChats]     = useState<SideChat[]>(() => {
-    try { return JSON.parse(localStorage.getItem(CHATS_KEY) || "[]") } catch { return [] }
+    try {
+      const m = localStorage.getItem(APP_MODE_KEY) || "invoice"
+      return JSON.parse(
+        localStorage.getItem(modeChatsKey(m)) || localStorage.getItem(CHATS_KEY) || "[]"
+      )
+    } catch { return [] }
   })
   const [traceHist,     setTraceHist]     = useState<TraceEntry[]>([])
   const [activeTrace,   setActiveTrace]   = useState(-1)
@@ -588,6 +824,7 @@ function AskNeoFloPage() {
   const [prOpen,        setPrOpen]        = useState(false)
   const [prSubmitted,   setPrSubmitted]   = useState(false)
   const [prForm,        setPrForm]        = useState<PRFormData | null>(null)
+  const [prLoading,     setPrLoading]     = useState(false)
 
   const msgsRef       = useRef<HTMLDivElement>(null)
   const inputRef      = useRef<HTMLTextAreaElement>(null)
@@ -600,8 +837,14 @@ function AskNeoFloPage() {
   useEffect(() => {
     sidRef.current = activeChatId
     localStorage.setItem(SID_KEY, activeChatId)
-    localStorage.setItem(ACTIVE_CHAT_KEY, activeChatId)
-  }, [activeChatId])
+    localStorage.setItem(ACTIVE_CHAT_KEY, activeChatId)        // compat
+    localStorage.setItem(modeActiveChatKey(appMode), activeChatId)
+  }, [activeChatId, appMode])
+
+  // ── Persist app mode ──────────────────────────────────────────────────────
+  useEffect(() => {
+    localStorage.setItem(APP_MODE_KEY, appMode)
+  }, [appMode])
 
   // ── Persist messages per-chat ─────────────────────────────────────────────
   useEffect(() => {
@@ -616,8 +859,11 @@ function AskNeoFloPage() {
 
   // ── Persist side chats list ───────────────────────────────────────────────
   useEffect(() => {
-    try { localStorage.setItem(CHATS_KEY, JSON.stringify(sideChats)) } catch { /* quota */ }
-  }, [sideChats])
+    try {
+      localStorage.setItem(modeChatsKey(appMode), JSON.stringify(sideChats))
+      localStorage.setItem(CHATS_KEY, JSON.stringify(sideChats)) // compat
+    } catch { /* quota */ }
+  }, [sideChats, appMode])
 
   // ── Auto-scroll messages ──────────────────────────────────────────────────
   useEffect(() => {
@@ -732,11 +978,32 @@ function AskNeoFloPage() {
           vns.forEach(v => { if (!vendorNames.includes(v)) vendorNames.push(v) })
         }
 
+        // Fallback 1: parse "INV-XXXXXXX" style numbers from answer text
+        const answerText = (c.answer as string) || ""
+        const textInvMatches = answerText.match(/INV[-_ ]?\d+/gi) || []
+        for (const m2 of textInvMatches) {
+          // Normalise: strip the "INV" prefix and keep just the digit portion
+          const digits = m2.replace(/^INV[-_ ]?/i, "")
+          if (!invNums.includes(digits)) invNums.push(digits)
+        }
+
+        // Use the backend-provided pdf_url_map for direct invoice → PDF URL lookup.
+        // URLs are already proxied by chat.ts.
+        const pdfUrlMap: Record<string, string> =
+          (c.pdf_url_map as Record<string, string>) || {}
+
+        // Ensure every mapped key is included in invNums so it renders as a clickable chip
+        for (const key of Object.keys(pdfUrlMap)) {
+          if (!invNums.includes(key)) invNums.push(key)
+        }
+
+        const grabCard = (c.grab_card as GrabCardData) || undefined
+
         setMsgs(prev => prev.map(m => m.id === typingId ? {
           id: typingId, role: "bot" as const,
           text: c.answer as string,
           ms: (c.generated_in_ms as number) || 0,
-          traceIdx, invNums, vendorNames, question: msg,
+          traceIdx, invNums, vendorNames, question: msg, pdfUrlMap, grabCard,
         } : m))
         setActiveCtx((c.active_entities as Record<string,string>) || {})
 
@@ -752,7 +1019,11 @@ function AskNeoFloPage() {
       const res = await fetch(API("chat"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: msg, session_id: sidRef.current }),
+        body: JSON.stringify({
+        message: msg,
+        session_id: sidRef.current,
+        kg_mode: appMode === "s2p" ? "grab" : "invoice",
+      }),
         signal: ctrl.signal,
       })
       const reader = res.body!.getReader()
@@ -782,7 +1053,7 @@ function AskNeoFloPage() {
       abortRef.current = null
       inputRef.current?.focus()
     }
-  }, [input, busy, activeChatId])
+  }, [input, busy, activeChatId, appMode])
 
   function stopStream() {
     abortRef.current?.abort()
@@ -801,6 +1072,44 @@ function AskNeoFloPage() {
     setActiveCtx({}); setTraceHist([]); setActiveTrace(-1)
     setTraceLabel("PEV Trace")
   }
+
+  // ── Switch between Invoice and S2P modes ──────────────────────────────────
+  function switchMode(newMode: "invoice" | "s2p") {
+    if (newMode === appMode) return
+
+    // Save current mode state
+    try { localStorage.setItem(modeActiveChatKey(appMode), activeChatId) } catch {}
+    try { localStorage.setItem(modeChatsKey(appMode), JSON.stringify(sideChats)) } catch {}
+    if (!msgs.some(m => m.text === "__TYPING__")) {
+      try { localStorage.setItem(chatKey(activeChatId), JSON.stringify(msgs)) } catch {}
+    }
+
+    // Load target mode state
+    const newActiveId = localStorage.getItem(modeActiveChatKey(newMode)) || crypto.randomUUID()
+    let newChats: SideChat[] = []
+    let newMsgs: Msg[] = []
+    try { newChats = JSON.parse(localStorage.getItem(modeChatsKey(newMode)) || "[]") } catch {}
+    try { newMsgs  = JSON.parse(localStorage.getItem(chatKey(newActiveId)) || "[]")  } catch {}
+
+    setAppMode(newMode)
+    setActiveChatId(newActiveId)
+    setSideChats(newChats)
+    setMsgs(newMsgs)
+    setTraceHist([]); setActiveTrace(-1)
+    setTraceSteps([]); setTraceCount(0)
+    setActiveCtx({})
+  }
+
+  // ── Listen for mode-switch events from the global nav sidebar ─────────────
+  const switchModeRef = useRef(switchMode)
+  useEffect(() => { switchModeRef.current = switchMode })
+  useEffect(() => {
+    function handler(e: Event) {
+      switchModeRef.current((e as CustomEvent<"invoice" | "s2p">).detail)
+    }
+    window.addEventListener("ask_neo_mode", handler)
+    return () => window.removeEventListener("ask_neo_mode", handler)
+  }, [])
 
   async function newChat() {
     // Save current chat messages before switching away
@@ -911,57 +1220,36 @@ function AskNeoFloPage() {
     } finally { el.style.opacity = "1" }
   }
 
-  async function sendS2P(q: S2PQuestion) {
-    setTestQsOpen(false)
-    if (busy) return
-    setBusy(true)
-
-    const typingId = crypto.randomUUID()
-    const userMsg  = q.question
-
-    setMsgs(prev => [
-      ...prev,
-      { id: crypto.randomUUID(), role: "user", text: userMsg },
-      { id: typingId, role: "bot",  text: "__TYPING__" },
-    ])
-    setStageLabel("Thinking…")
-    setTraceSteps([])
-    setTraceCount(0)
-
-    setSideChats(prev => {
-      const exists = prev.some(c => c.id === activeChatId)
-      if (exists) return prev
-      const title = userMsg.length > 36 ? userMsg.slice(0, 36) + "…" : userMsg
-      return [{ id: activeChatId, title }, ...prev]
-    })
-
-    // L1 = random 4–8 s · L2 = random 8–13 s
-    const delay = q.level === "L2"
-      ? (8000 + Math.floor(Math.random() * 5001))
-      : (4000 + Math.floor(Math.random() * 4001))
-    startPipeline()
-    await new Promise<void>(resolve => setTimeout(resolve, delay))
-    clearTimer()
-
-    setMsgs(prev => prev.map(m =>
-      m.id === typingId
-        ? { id: typingId, role: "bot" as const, text: formatS2PAnswer(q), ms: delay, isHtml: true, question: userMsg }
-        : m
-    ))
-    setBusy(false)
-    inputRef.current?.focus()
-  }
 
   function handleBubbleClick(e: React.MouseEvent) {
     const t = e.target as HTMLElement
 
-    // Source chips & inline invoice numbers → copy reference to clipboard
+    // Source chips & inline invoice numbers → open PDF if available, else copy
     if (t.dataset.inv) {
       e.preventDefault()
-      const ref = t.dataset.inv
-      navigator.clipboard.writeText(ref).catch(() => {})
-      setPdfError(`📋 Copied invoice reference: ${ref}`)
-      setTimeout(() => setPdfError(null), 3000)
+      const pdfUrl = t.dataset.pdf
+      if (pdfUrl) {
+        window.open(pdfUrl, "_blank", "noopener,noreferrer")
+        setPdfError(`📄 Opening PDF…`)
+        setTimeout(() => setPdfError(null), 2000)
+      } else {
+        const ref = t.dataset.inv
+        navigator.clipboard.writeText(ref).catch(() => {})
+        setPdfError(`📋 Copied invoice reference: ${ref}`)
+        setTimeout(() => setPdfError(null), 3000)
+      }
+      return
+    }
+
+    // "Show more rows" button on collapsed tables
+    if (t.dataset.expandTw) {
+      e.preventDefault()
+      const tw = document.getElementById(t.dataset.expandTw)
+      if (tw) {
+        tw.classList.remove("anf-tw-coll")
+        tw.querySelector(".anf-tw-fade")?.remove()
+      }
+      t.remove()
       return
     }
 
@@ -1003,79 +1291,66 @@ function AskNeoFloPage() {
   }
 
   function generatePR(): PRFormData {
-    // Find most recent S2P bot answer and match to S2P_QUESTIONS
-    const s2pMsg = [...msgs].reverse().find(m => m.isHtml && m.question)
-    const s2pQ   = s2pMsg?.question ? S2P_QUESTIONS.find(q => q.question === s2pMsg.question) : null
-    const sa     = s2pQ?.structured_answer as Record<string,unknown> | undefined
-    const lastQ  = [...msgs].reverse().find(m => m.role === "user")
+    // Find the last user question and the last bot answer from chat history
+    const reversed  = [...msgs].reverse()
+    const lastUser  = reversed.find(m => m.role === "user")
+    const lastBot   = reversed.find(m => m.role === "bot" && m.text !== "__TYPING__")
 
-    const suppliers: S2PSupplier[] = [
-      ...((sa?.suppliers         as S2PSupplier[]) || []),
-      ...((sa?.preferred_suppliers as S2PSupplier[]) || []),
-      ...((sa?.existing_approved_suppliers as S2PSupplier[]) || []),
-    ]
-    const topSupplier = suppliers.find(s => s.tier === "Preferred") || suppliers[0]
+    const question   = lastUser?.text || "Purchase Requisition"
+    const answerText = lastBot?.text  || ""
 
-    const amountMatch = (s2pQ?.question || lastQ?.text || "").match(/\$[\d,]+/)
-    const rawAmt = amountMatch ? amountMatch[0].replace(/[$,]/g, "") : ""
+    // Try to extract an amount from the question or answer
+    const amountMatch = (question + " " + answerText).match(/\$[\d,]+/)
+    const rawAmt      = amountMatch ? amountMatch[0].replace(/[$,]/g, "") : ""
 
-    const category = ((sa?.category as string) || "General Procurement").split("(")[0].trim()
-    const country  = ((sa?.country  as string) || "Corporate").split("(")[0].trim()
-    const chain    = (sa?.approval_chain as string[]) || ["Manager", "Finance", "Procurement"]
+    // Try to extract a supplier/vendor name mentioned in the answer
+    const supplierMatch = answerText.match(/(?:supplier|vendor|provider)[:\s]+([A-Z][A-Za-z\s&.,-]{2,30})/i)
+    const supplierName  = supplierMatch ? supplierMatch[1].trim() : ""
 
-    const lineItems: PRLineItem[] = suppliers.filter(s => s.tier !== "Other").slice(0, 3).length
-      ? suppliers.filter(s => s.tier !== "Other").slice(0, 3).map((s, i) => ({
-          id: String(i + 1),
-          description: category,
-          category,
-          supplier: s.name,
-          qty: "1",
-          unit: "EA",
-          unitCost: rawAmt || String(s.approval_threshold_usd || ""),
-          glAccount: glAccount(category),
-          buyingChannel: s.buying_channel,
-        }))
-      : [{
-          id: "1",
-          description: (lastQ?.text || "Purchase Request").slice(0, 80),
-          category: "General",
-          supplier: topSupplier?.name || "",
-          qty: "1",
-          unit: "EA",
-          unitCost: rawAmt,
-          glAccount: "7100-000",
-          buyingChannel: "PO via Oracle ERP",
-        }]
-
-    const today    = new Date()
-    const pad      = (n: number) => String(n).padStart(2,"0")
-    const fmtDate  = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`
-    const needBy   = new Date(today.getTime() + 30 * 864e5)
-    const prNum    = `PR-${fmtDate(today).replace(/-/g,"")}-${String(Math.floor(Math.random()*90000)+10000)}`
+    const today   = new Date()
+    const pad     = (n: number) => String(n).padStart(2, "0")
+    const fmtDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+    const needBy  = new Date(today.getTime() + 30 * 864e5)
+    const prNum   = `PR-${fmtDate(today).replace(/-/g, "")}-${String(Math.floor(Math.random() * 90000) + 10000)}`
 
     return {
-      prNumber: prNum,
-      prDate: fmtDate(today),
-      requestor: "Naman Sharma",
-      department: category,
-      businessUnit: country,
-      costCenter: `CC-${String(Math.floor(Math.random()*9000)+1000)}`,
-      currency: "USD",
-      needByDate: fmtDate(needBy),
-      deliverToLocation: country + " Office",
-      description: (s2pQ?.question || lastQ?.text || "Purchase Requisition").slice(0, 140),
-      justification: s2pQ?.answer?.slice(0, 400) || "Business requirement identified via Ask Neo procurement query.",
-      lineItems,
-      approvalChain: chain,
+      prNumber:         prNum,
+      prDate:           fmtDate(today),
+      requestor:        "Naman Sharma",
+      department:       "Procurement",
+      businessUnit:     "Corporate",
+      costCenter:       `CC-${String(Math.floor(Math.random() * 9000) + 1000)}`,
+      currency:         "USD",
+      needByDate:       fmtDate(needBy),
+      deliverToLocation:"Head Office",
+      description:      question.slice(0, 140),
+      justification:    answerText.slice(0, 400) || "Business requirement identified via Ask Neo S2P query.",
+      lineItems: [{
+        id:           "1",
+        description:  question.slice(0, 80),
+        category:     "General Procurement",
+        supplier:     supplierName,
+        qty:          "1",
+        unit:         "EA",
+        unitCost:     rawAmt,
+        glAccount:    "7100-000",
+        buyingChannel:"PO via Oracle ERP",
+      }],
+      approvalChain: ["Manager", "Finance", "Procurement Head"],
       notes: "",
     }
   }
 
   function openCreatePR() {
+    if (prLoading) return
+    setPrLoading(true)
     const data = generatePR()
     setPrForm(data)
     setPrSubmitted(false)
-    setPrOpen(true)
+    setTimeout(() => {
+      setPrLoading(false)
+      setPrOpen(true)
+    }, 2000)
   }
 
   function updateLineItem(idx: number, field: keyof PRLineItem, val: string) {
@@ -1141,7 +1416,9 @@ function AskNeoFloPage() {
 
           {lsideOpen && (
             <div className="anf-chat-list">
-              <div className="anf-list-lbl">Your chats</div>
+              <div className="anf-list-lbl">
+                {appMode === "invoice" ? "Invoice chats" : "S2P chats"}
+              </div>
               {sideChats.length === 0
                 ? <div className="anf-chat-empty">No chats yet</div>
                 : sideChats.map(c => (
@@ -1169,15 +1446,28 @@ function AskNeoFloPage() {
           {/* Header */}
           <header className="anf-header">
             <div className="anf-brand">Ask <span>Neo</span></div>
+
             <div className="anf-header-r">
-              <button
-                className="anf-header-btn anf-header-btn-outline"
-                onClick={() => openCreatePR()}
-                title="Generate Oracle Purchase Requisition from chat"
-                disabled={msgs.length === 0}
-              >
-                + Create PR
-              </button>
+              {appMode === "s2p" && (
+                <button
+                  className="anf-header-btn anf-header-btn-outline"
+                  onClick={() => openCreatePR()}
+                  title="Generate Oracle Purchase Requisition from chat"
+                  disabled={msgs.length === 0 || prLoading}
+                  style={{ minWidth: 100, display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}
+                >
+                  {prLoading ? (
+                    <>
+                      <svg className="anf-pr-spin" viewBox="0 0 20 20" fill="none" width={14} height={14}>
+                        <circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="2.5" strokeDasharray="40" strokeDashoffset="15" strokeLinecap="round"/>
+                      </svg>
+                      Generating…
+                    </>
+                  ) : (
+                    <>+ Create PR</>
+                  )}
+                </button>
+              )}
               <button
                 className="anf-header-btn"
                 onClick={() => openTestQs()}
@@ -1219,11 +1509,13 @@ function AskNeoFloPage() {
                             </div>
                             <span className="anf-stage">{stageLabel}</span>
                           </div>
+                        ) : msg.grabCard ? (
+                          <GrabCard card={msg.grabCard} text={msg.text} />
                         ) : msg.isHtml ? (
                           <div dangerouslySetInnerHTML={{ __html: msg.text }} />
                         ) : (
                           <div dangerouslySetInnerHTML={{
-                            __html: renderMarkdown(msg.text, msg.invNums ?? [], msg.vendorNames ?? [])
+                            __html: renderMarkdown(msg.text, msg.invNums ?? [], msg.vendorNames ?? [], msg.pdfUrlMap ?? {})
                           }} />
                         )}
                       </div>
@@ -1316,28 +1608,17 @@ function AskNeoFloPage() {
           onClick={e => { if (e.target === e.currentTarget) setTestQsOpen(false) }}>
           <div className="anf-modal">
             <div className="anf-modal-hdr">
-              <h2>FAQ</h2>
+              <div>
+                <h2 style={{ margin:0 }}>FAQ</h2>
+                <span className="anf-faq-mode-tag">
+                  {appMode === "invoice" ? "Queries on Invoice" : "Source to Procure"}
+                </span>
+              </div>
               <button className="anf-modal-close" onClick={() => setTestQsOpen(false)}>×</button>
             </div>
 
-            {/* Tab bar */}
-            <div className="anf-faq-tabs">
-              <button
-                className={`anf-faq-tab${faqTab === "invoice" ? " anf-faq-tab-active" : ""}`}
-                onClick={() => setFaqTab("invoice")}
-              >
-                Invoice &amp; PO
-              </button>
-              <button
-                className={`anf-faq-tab${faqTab === "s2p" ? " anf-faq-tab-active" : ""}`}
-                onClick={() => setFaqTab("s2p")}
-              >
-                Source to Procure
-              </button>
-            </div>
-
             <div className="anf-modal-body">
-              {faqTab === "invoice" ? (
+              {appMode === "invoice" ? (
                 /* ── Invoice & PO questions ─────────────────────────────── */
                 Object.entries(testQsGrouped).map(([tmpl, qs]) => (
                   <div key={tmpl} className="anf-tq-group">
@@ -1361,8 +1642,7 @@ function AskNeoFloPage() {
                     {S2P_QUESTIONS.filter(q => q.level === "L1").map((q, i) => (
                       <div key={i} className="anf-tq-card anf-tq-card-s2p">
                         <div className="anf-tq-q">{q.question}</div>
-                        <button className="anf-tq-try"
-                          onClick={() => sendS2P(q)}>
+                        <button className="anf-tq-try" onClick={() => { setTestQsOpen(false); sendMessage(q.question) }}>
                           Try this →
                         </button>
                       </div>
@@ -1373,8 +1653,7 @@ function AskNeoFloPage() {
                     {S2P_QUESTIONS.filter(q => q.level === "L2").map((q, i) => (
                       <div key={i} className="anf-tq-card anf-tq-card-s2p">
                         <div className="anf-tq-q">{q.question}</div>
-                        <button className="anf-tq-try"
-                          onClick={() => sendS2P(q)}>
+                        <button className="anf-tq-try" onClick={() => { setTestQsOpen(false); sendMessage(q.question) }}>
                           Try this →
                         </button>
                       </div>
@@ -1671,6 +1950,36 @@ const CSS = `
   padding:0 18px; height:54px; flex-shrink:0;
   display:flex; align-items:center; justify-content:space-between;
 }
+/* ── Mode selector in sidebar ────────────────────────────────────────────── */
+.anf-mode-sidebar {
+  padding:10px 10px 6px;
+  border-bottom:1px solid rgba(255,255,255,.07);
+  margin-bottom:4px;
+}
+.anf-mode-sidebar-lbl {
+  font-size:10px; font-weight:700; text-transform:uppercase;
+  letter-spacing:.8px; color:rgba(255,255,255,.35);
+  padding:0 6px; margin-bottom:5px;
+}
+.anf-mode-sidebar-opt {
+  display:flex; align-items:center; gap:8px; width:100%;
+  padding:8px 10px; border-radius:7px; border:none;
+  background:none; color:rgba(255,255,255,.65);
+  font-size:12.5px; font-weight:500; cursor:pointer;
+  font-family:inherit; text-align:left; transition:background .12s, color .12s;
+  margin-bottom:2px;
+}
+.anf-mode-sidebar-opt:hover { background:rgba(255,255,255,.08); color:#fff; }
+.anf-mode-sidebar-opt-active {
+  background:rgba(96,165,250,.18); color:#93c5fd; font-weight:600;
+}
+/* FAQ mode tag */
+.anf-faq-mode-tag {
+  font-size:11px; font-weight:500; color:#64748b;
+  background:#f1f5f9; border:1px solid #e2e8f0;
+  border-radius:20px; padding:2px 10px; margin-top:4px; display:inline-block;
+}
+
 .anf-brand {
   font-size:18px; font-weight:700; color:#0f172a; letter-spacing:-.4px;
 }
@@ -1688,6 +1997,8 @@ const CSS = `
 }
 .anf-header-btn-outline:hover { background:#274B95; color:#fff; }
 .anf-header-btn:disabled { opacity:.4; cursor:not-allowed; pointer-events:none; }
+@keyframes anf-spin { to { transform:rotate(360deg) } }
+.anf-pr-spin { animation:anf-spin .75s linear infinite; }
 .anf-hdr-btn {
   padding:5px 12px; border-radius:7px; border:1px solid rgba(255,255,255,0.15);
   font-size:12px; cursor:pointer; background:rgba(255,255,255,0.06); color:rgba(255,255,255,0.7);
@@ -1757,6 +2068,23 @@ const CSS = `
   overflow-x:auto; margin:12px 0; border-radius:10px;
   border:1px solid rgba(255,255,255,0.1); box-shadow:0 1px 4px rgba(0,0,0,.2);
 }
+/* Collapsed state: cap height and show gradient fade */
+.anf-tw-coll {
+  max-height:232px; overflow:hidden; position:relative;
+}
+.anf-tw-fade {
+  position:absolute; bottom:0; left:0; right:0; height:72px;
+  background:linear-gradient(to bottom, transparent, rgba(255,255,255,0.96));
+  pointer-events:none;
+}
+.anf-show-more {
+  display:block; width:100%; margin:-4px 0 10px;
+  padding:8px 12px; text-align:center;
+  background:#f0f5ff; border:1px solid #c7d7f9; border-radius:0 0 10px 10px;
+  color:#274B95; font-size:12.5px; font-weight:500; cursor:pointer;
+  transition:background .15s;
+}
+.anf-show-more:hover { background:#dce8ff; }
 .anf-tw table { border-collapse:collapse; width:100%; font-size:13px; min-width:400px; }
 .anf-tw th {
   background:linear-gradient(135deg,#274B95,#1d4ed8); color:#fff;
@@ -2109,4 +2437,94 @@ const CSS = `
   cursor:pointer; font-family:inherit; transition:all .15s;
 }
 .anf-pr-done-btn:hover { background:#f1f5f9; border-color:#cbd5e1; }
+
+/* ── GrabCard ──────────────────────────────────────────────────────────────── */
+.gc-root { display:flex; flex-direction:column; gap:18px; font-size:14px; color:#1e293b; }
+.gc-badge {
+  display:inline-block; width:fit-content;
+  background:#f3f0ff; color:#6d28d9; border:1px solid #c4b5fd;
+  border-radius:20px; padding:4px 14px; font-size:12px; font-weight:600;
+}
+.gc-text p { margin:0 0 8px; line-height:1.65; }
+.gc-text p:last-child { margin-bottom:0; }
+
+/* Section */
+.gc-section { display:flex; flex-direction:column; gap:10px; }
+.gc-section-title {
+  font-size:11px; font-weight:700; letter-spacing:.08em;
+  color:#94a3b8; text-transform:uppercase;
+}
+
+/* Owners */
+.gc-owners { display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:10px; }
+.gc-owner-card {
+  background:#fff; border:1px solid #e2e8f0; border-radius:10px;
+  padding:12px 14px; display:flex; flex-direction:column; gap:4px;
+}
+.gc-owner-name  { font-weight:700; font-size:14px; color:#0f172a; }
+.gc-owner-email {
+  display:flex; align-items:center; gap:5px;
+  font-size:12.5px; color:#3b82f6;
+}
+.gc-owner-meta  { font-size:12px; color:#64748b; display:flex; align-items:center; gap:4px; }
+.gc-owner-sep   { color:#cbd5e1; }
+
+/* Suppliers table */
+.gc-sup-wrap {
+  border:1px solid #e2e8f0; border-radius:10px; overflow:hidden;
+  background:#fff;
+}
+.gc-sup-table { width:100%; border-collapse:collapse; font-size:13px; }
+.gc-sup-table thead { background:#274B95; color:#fff; }
+.gc-sup-table thead th {
+  padding:10px 14px; text-align:left; font-weight:600;
+  font-size:12px; white-space:nowrap;
+}
+.gc-sup-table tbody tr { border-top:1px solid #f1f5f9; }
+.gc-sup-table tbody tr:first-child { border-top:none; }
+.gc-sup-table td { padding:10px 14px; vertical-align:top; color:#334155; }
+.gc-sup-name { font-weight:600; color:#0f172a; }
+.gc-sup-desc { font-size:12px; color:#64748b; margin-top:2px; }
+.gc-tier {
+  display:inline-block; border-radius:12px; padding:2px 10px;
+  font-size:11.5px; font-weight:600;
+}
+.gc-tier-preferred { background:#dcfce7; color:#15803d; }
+.gc-tier-approved  { background:#dbeafe; color:#1d4ed8; }
+.gc-tier-other     { background:#f1f5f9; color:#475569; }
+.gc-pcard { text-align:center; }
+.gc-pcard-no  { color:#ef4444; font-weight:700; font-size:15px; }
+.gc-pcard-yes { color:#16a34a; font-weight:700; font-size:15px; }
+
+/* Approval chain */
+.gc-chain {
+  display:flex; flex-wrap:wrap; align-items:center; gap:8px;
+  background:#fff; border:1px solid #e2e8f0; border-radius:10px;
+  padding:14px 16px;
+}
+.gc-chain-step {
+  background:#f0f4ff; color:#1e3a8a; border:1px solid #c7d7f7;
+  border-radius:20px; padding:5px 14px; font-size:12.5px; font-weight:600;
+  white-space:nowrap;
+}
+.gc-chain-arrow { color:#94a3b8; font-size:16px; font-weight:700; }
+
+/* Process steps */
+.gc-steps { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:10px; }
+.gc-step-item { display:flex; align-items:flex-start; gap:12px; }
+.gc-step-num {
+  min-width:28px; height:28px; border-radius:50%;
+  background:#1e3a8a; color:#fff;
+  display:flex; align-items:center; justify-content:center;
+  font-size:12px; font-weight:700; flex-shrink:0;
+}
+.gc-step-text { line-height:1.55; padding-top:5px; color:#334155; }
+
+/* Compliance note */
+.gc-compliance {
+  display:flex; align-items:flex-start; gap:10px;
+  background:#fff7ed; border-left:4px solid #f97316;
+  border-radius:0 8px 8px 0; padding:12px 14px;
+  color:#92400e; font-size:13px; line-height:1.55;
+}
 `
