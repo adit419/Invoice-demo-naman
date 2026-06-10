@@ -1,15 +1,9 @@
 import { withAuthGuard } from "@/components/AuthGuard";
 
+// The iframe is preloaded in _app.tsx — this page is a transparent passthrough.
 function VendorPortalPage() {
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }}>
-      <iframe
-        src="https://vendoronboarding.neoflo.ai/portal"
-        title="Vendor Portal"
-        allow="camera; microphone; clipboard-read; clipboard-write"
-        style={{ flex: 1, width: "100%", border: "none", display: "block" }}
-      />
-    </div>
+    <div style={{ height: "100vh", background: "transparent", position: "relative" }} />
   );
 }
 

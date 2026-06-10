@@ -166,10 +166,10 @@ export default function LoginPage() {
       if (selectedModules.length > 0) {
         localStorage.setItem(NAV_MODULE_FILTER_KEY, JSON.stringify(selectedModules));
       } else {
-        // Default: show all modules except Vendor Onboarding & Driver Onboarding
+        // Default: show all modules except Freight and Driver Onboarding
         const defaultModules = ALL_MODULES
           .map(m => m.key)
-          .filter(k => k !== "vendorOnboarding" && k !== "driverOnboarding");
+          .filter(k => k !== "freight" && k !== "driverOnboarding");
         localStorage.setItem(NAV_MODULE_FILTER_KEY, JSON.stringify(defaultModules));
       }
       router.push("/dashboard");

@@ -244,6 +244,12 @@ function renderMarkdown(raw: string, invNums: string[], vendors: string[], pdfUr
   let html = "", inTable = false, tHtml = "", tDataRows = 0, tIdx = 0
 
   const flushTable = () => {
+    // Skip tables with no data rows — backend sometimes returns only a header,
+    // which renders as a lone blue bar. Don't show anything in that case.
+    if (tDataRows === 0) {
+      tHtml = ""; tDataRows = 0; inTable = false
+      return
+    }
     if (tDataRows > TABLE_THRESH) {
       const tid = `anftw-${callId}-${++tIdx}`
       const extra = tDataRows - TABLE_THRESH
@@ -782,8 +788,6 @@ function AskNeoFloPage() {
   const [activeChatId, setActiveChatId] = useState<string>(() => {
     const m = localStorage.getItem(APP_MODE_KEY) || "invoice"
     return localStorage.getItem(modeActiveChatKey(m))
-      || localStorage.getItem(ACTIVE_CHAT_KEY)
-      || localStorage.getItem(SID_KEY)
       || crypto.randomUUID()
   })
 
@@ -791,10 +795,8 @@ function AskNeoFloPage() {
     try {
       const m   = localStorage.getItem(APP_MODE_KEY) || "invoice"
       const aid = localStorage.getItem(modeActiveChatKey(m))
-        || localStorage.getItem(ACTIVE_CHAT_KEY)
-        || localStorage.getItem(SID_KEY)
       const perChat = aid ? localStorage.getItem(chatKey(aid)) : null
-      return JSON.parse(perChat || localStorage.getItem(MSGS_KEY) || "[]")
+      return JSON.parse(perChat || "[]")
     } catch { return [] }
   })
   const [input,         setInput]         = useState("")
@@ -808,9 +810,7 @@ function AskNeoFloPage() {
   const [sideChats,     setSideChats]     = useState<SideChat[]>(() => {
     try {
       const m = localStorage.getItem(APP_MODE_KEY) || "invoice"
-      return JSON.parse(
-        localStorage.getItem(modeChatsKey(m)) || localStorage.getItem(CHATS_KEY) || "[]"
-      )
+      return JSON.parse(localStorage.getItem(modeChatsKey(m)) || "[]")
     } catch { return [] }
   })
   const [traceHist,     setTraceHist]     = useState<TraceEntry[]>([])
@@ -836,8 +836,6 @@ function AskNeoFloPage() {
   // ── Init session ref from activeChatId ───────────────────────────────────
   useEffect(() => {
     sidRef.current = activeChatId
-    localStorage.setItem(SID_KEY, activeChatId)
-    localStorage.setItem(ACTIVE_CHAT_KEY, activeChatId)        // compat
     localStorage.setItem(modeActiveChatKey(appMode), activeChatId)
   }, [activeChatId, appMode])
 
@@ -852,7 +850,6 @@ function AskNeoFloPage() {
     if (!hasTyping) {
       try {
         localStorage.setItem(chatKey(activeChatId), JSON.stringify(msgs))
-        localStorage.setItem(MSGS_KEY, JSON.stringify(msgs)) // compat fallback
       } catch { /* quota */ }
     }
   }, [msgs, activeChatId])
@@ -861,7 +858,6 @@ function AskNeoFloPage() {
   useEffect(() => {
     try {
       localStorage.setItem(modeChatsKey(appMode), JSON.stringify(sideChats))
-      localStorage.setItem(CHATS_KEY, JSON.stringify(sideChats)) // compat
     } catch { /* quota */ }
   }, [sideChats, appMode])
 
@@ -944,7 +940,6 @@ function AskNeoFloPage() {
 
       } else if (c.type === "done") {
         sidRef.current = (c.session_id as string) || sidRef.current
-        localStorage.setItem(SID_KEY, sidRef.current)
         clearTimer()
 
         const trace = (c.trace as TraceStep[]) || liveTrace
@@ -1159,7 +1154,7 @@ function AskNeoFloPage() {
     { template: "medium", question: "Which vendors sent more than 2 invoices, and how many did each send?" },
     { template: "medium", question: "List all invoices from Deloitte Touche Solutions with their dates and amounts." },
     { template: "medium", question: "Which vendors billed in USD and what was their total spend?" },
-    { template: "medium", question: "Which invoices had a total amount before VAT greater than 10,000,000?" },
+    { template: "medium", question: "Which invoices had a total amount before VAT greater than 10,000?" },
     { template: "medium", question: "Which invoices had withholding tax applied?" },
     { template: "complex", question: "What is the average ingestion lag between invoice date and ingestion date across all vendors?" },
     { template: "complex", question: "Show the monthly invoice count and total spend breakdown for 2026." },
@@ -1316,7 +1311,7 @@ function AskNeoFloPage() {
     return {
       prNumber:         prNum,
       prDate:           fmtDate(today),
-      requestor:        "Naman Sharma",
+      requestor:        "Prithvi Rajaram",
       department:       "Procurement",
       businessUnit:     "Corporate",
       costCenter:       `CC-${String(Math.floor(Math.random() * 9000) + 1000)}`,
@@ -1689,7 +1684,6 @@ function AskNeoFloPage() {
               </div>
               {/* Right: status + close */}
               <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                <span className="anf-pr-status-badge">DRAFT</span>
                 {!prSubmitted && (
                   <button className="anf-modal-close"
                     style={{ color:"rgba(255,255,255,.55)", fontSize:22, lineHeight:1, background:"none", border:"none", cursor:"pointer", padding:"0 2px" }}

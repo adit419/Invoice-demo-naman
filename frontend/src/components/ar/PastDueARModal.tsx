@@ -762,7 +762,6 @@ export function PastDueARModal({ onClose }: PastDueARModalProps) {
                         sortDirection === 'asc' ? <ChevronUp className="w-4 h-4 inline-block" /> : <ChevronDown className="w-4 h-4 inline-block" />
                       )}
                     </th>
-                    <th className="text-left py-3 px-4 text-slate-600">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -787,15 +786,6 @@ export function PastDueARModal({ onClose }: PastDueARModalProps) {
                         </span>
                       </td>
                       <td className="py-3 px-4 text-slate-600">{invoice.collector}</td>
-                      <td className="py-3 px-4">
-                        <button 
-                          className="p-1 hover:bg-blue-50 rounded transition-colors" 
-                          title="View communication history"
-                          onClick={() => setSelectedInvoiceForComm(invoice)}
-                        >
-                          <Mail className="w-4 h-4 text-blue-600" />
-                        </button>
-                      </td>
                     </tr>
                   ))}
                 </tbody>

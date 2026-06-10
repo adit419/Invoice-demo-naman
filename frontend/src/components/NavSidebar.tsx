@@ -341,19 +341,19 @@ interface NavSidebarProps {
 const NAV_CONFIG_KEY = 'nav_view_config';
 // Bump this whenever the default nav order changes so stale localStorage
 // configs get wiped and reset to the new default ordering.
-const NAV_CONFIG_VERSION = 9;
+const NAV_CONFIG_VERSION = 12;
 const NAV_CONFIG_VERSION_KEY = 'nav_view_config_version';
 
 interface NavItemConfig { key: string; label: string; }
 
 const DEFAULT_NAV_CONFIG: NavItemConfig[] = [
-  { key: 'dashboard',           label: 'Dashboard'              },
-  { key: 'reporting',           label: 'Reporting'              },
+  { key: 'dashboard',           label: 'Invoice Processing Dashboard' },
+  { key: 'reporting',           label: 'AP Reporting'           },
   { key: 'arForecast',          label: 'AR Forecast'            },
   { key: 'cashApplication',     label: 'Cash Application'       },
   { key: 'freight',             label: 'Freight'                },
   { key: 'askNeoflo',           label: 'Ask Neo'                },
-  { key: 'vendorOnboarding',    label: 'Vendor Onboarding'  },
+  { key: 'vendorOnboarding',    label: 'Partner Onboarding' },
   { key: 'driverOnboarding',    label: 'Driver Onboarding'      },
   { key: 'financeOS',           label: 'Finance OS'             },
 ];
@@ -384,7 +384,7 @@ const NAV_ICON: Record<string, React.ReactNode> = {
 
 // Vendor Onboarding sub-sections
 const VENDOR_ONBOARDING_CHILDREN = [
-  { label: "Vendor Portal", href: "/vendor-onboarding/portal", dot: "#3b82f6" },
+  { label: "Partner Portal", href: "/vendor-onboarding/portal", dot: "#3b82f6" },
   { label: "Admin Portal",  href: "/vendor-onboarding/admin",  dot: "#8b5cf6" },
 ];
 
@@ -392,7 +392,7 @@ const VENDOR_ONBOARDING_CHILDREN = [
 const ASK_NEO_CHILDREN: { label: string; mode: string | null; href: string | null; dot: string }[] = [
   { label: "Queries on Invoice", mode: "invoice", href: null,               dot: "#3b82f6" },
   { label: "Source to Procure",  mode: "s2p",     href: null,               dot: "#8b5cf6" },
-  { label: "Agentic Search",     mode: null,       href: "/agentic-search",  dot: "#10b981" },
+  { label: "KNO Store",           mode: null,       href: "/agentic-search",  dot: "#10b981" },
 ];
 
 // Freight sub-sections
