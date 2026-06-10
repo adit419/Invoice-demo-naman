@@ -13,7 +13,7 @@
 import { Select, Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useMemo } from "react";
-import type { BillLineItem, LineItemEdit } from "./types";
+import type { BillLineItem, LineItemEdit, VatCodeOption } from "./types";
 
 function getCurrencySymbol(code: string | null | undefined): string {
   switch ((code ?? "").toUpperCase()) {
@@ -35,15 +35,11 @@ function formatMoney(v: number, symbol: string): string {
 }
 
 // ── VAT tax codes ─────────────────────────────────────────────────────────────
-// Flat list matching the SAP VatLookupItem format from the main app:
-//   VatTaxCodeSelect renders as `${item.taxCode}: ${item.description}`
-export const VAT_OPTIONS: { value: string; label: string }[] = [
-  { value: "IO", label: "IO: INPUT-PURCHASES FROM NON-GST REGISTERED SUPPLIER" },
-  { value: "IB", label: "IB: INPUT-BUSINESS PURCHASES" },
-  { value: "IE", label: "IE: INPUT-EXEMPT PURCHASES" },
-  { value: "VS", label: "VS: VAT STANDARD 12%" },
-  { value: "VZ", label: "VZ: VAT ZERO-RATED 0%" },
-  { value: "E0", label: "E0: EXPORT 0%" },
+// Fallback used when no country-specific codes are available for the currency.
+export const VAT_OPTIONS_FALLBACK: VatCodeOption[] = [
+  { value: "IO", label: "IO: INPUT-PURCHASES FROM NON-GST REGISTERED SUPPLIER 0%" },
+  { value: "IB", label: "IB: INPUT TAX-LOCAL DELIVERIES OF GOODS&SERVICES 11%" },
+  { value: "IE", label: "IE: INPUT TAX-ID NONCOLLECTED VAT 0%" },
 ];
 
 // ── WHT tax codes ─────────────────────────────────────────────────────────────
@@ -98,6 +94,8 @@ interface BillPostingTableProps {
    */
   allowedErpFields?: Set<string> | null;
   currency: string;
+  /** Country-specific VAT code options from the backend. Falls back to VAT_OPTIONS_FALLBACK. */
+  vatOptions?: VatCodeOption[];
   onVatChange: (itemId: string, vatCode: string) => void;
   onWhtChange: (itemId: string, whtCode: string) => void;
   onRequestEditMode?: () => void;
@@ -127,9 +125,11 @@ export function BillPostingTable({
   isVendorSubjectToWht,
   allowedErpFields,
   currency,
+  vatOptions,
   onVatChange,
   onWhtChange,
 }: BillPostingTableProps) {
+  const activeVatOptions = vatOptions && vatOptions.length > 0 ? vatOptions : VAT_OPTIONS_FALLBACK;
   const symbol = getCurrencySymbol(currency);
 
   // Column visibility: workflow settings mask=false → hide column.
@@ -199,7 +199,7 @@ export function BillPostingTable({
               suffixIcon={caretIcon}
               popupMatchSelectWidth={false}
               placeholder="Select VAT code"
-              options={VAT_OPTIONS}
+              options={activeVatOptions}
               style={{ minWidth: 180 }}
               allowClear={isEditMode}
               showSearch={isEditMode}
@@ -246,7 +246,7 @@ export function BillPostingTable({
     }
 
     return base;
-  }, [symbol, lineEdits, isEditMode, showVatColumn, showWhtColumn, onVatChange, onWhtChange]);
+  }, [symbol, lineEdits, isEditMode, showVatColumn, showWhtColumn, activeVatOptions, onVatChange, onWhtChange]);
 
   if (rows.length === 0) {
     return (

@@ -12,7 +12,7 @@
     "total": 302801.26,
     "wht": null,
     "net_amount_after_wht": 302801.26,
-    "required_vat_code": "IB"
+    "required_vat_code": "T1"
   },
   "line_items": [
     {
@@ -24,7 +24,7 @@
       "quantity": 1,
       "unit_price": 280371.54,
       "tax_type": "SST 8%",
-      "vat_tax_code": "IB",
+      "vat_tax_code": "T1",
       "wht_tax_code": null,
       "total": 280371.54
     }

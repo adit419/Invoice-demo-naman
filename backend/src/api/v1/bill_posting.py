@@ -1,8 +1,10 @@
+import json
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 from bson import ObjectId
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from ...auth.deps import CurrentUser
@@ -24,6 +26,43 @@ from ._common import (
     _require_editor,
     _unwrap_fixture,
 )
+
+
+# VAT codes — country-specific data loaded from the script output.
+_VAT_CODES_FILE = Path(__file__).resolve().parents[3] / "scripts" / "vat_codes.json"
+
+_CURRENCY_TO_COUNTRY: dict[str, str] = {
+    "SGD": "SG",
+    "MYR": "MY",
+    "PHP": "PH",
+    "IDR": "ID",
+    "HKD": "HK",
+}
+
+
+@router.get("/vat-codes")
+async def get_vat_codes(currency: str = Query(default="")):
+    """Return SAP VAT codes for the given invoice currency."""
+    country = _CURRENCY_TO_COUNTRY.get(currency.upper(), "")
+    if not country or not _VAT_CODES_FILE.exists():
+        return {"country": country, "codes": []}
+
+    with _VAT_CODES_FILE.open() as fh:
+        all_codes: dict = json.load(fh)
+
+    raw = all_codes.get(country, [])
+    if not isinstance(raw, list):
+        return {"country": country, "codes": []}
+
+    codes = [
+        {
+            "tax_code": item["TAX_CODE"],
+            "description": item["DESCRIPTION"],
+            "percentage": item["PERCENTAGE"].strip(),
+        }
+        for item in raw
+    ]
+    return {"country": country, "codes": codes}
 
 
 # Generic accounting fallback when the bill-posting fixture carries no
@@ -202,25 +241,63 @@ _COUNTRY_BY_CCY = {
     "GBP": "GB", "MYR": "MY", "IDR": "ID", "JPY": "JP",
 }
 
-# VAT code → display percentage for the simulate document Description column.
-# IO is intentionally absent — non-GST purchases carry no percentage label.
-_VAT_CODE_TO_PCT: dict[str, str] = {
-    "IB": "12%",
-    "IE": "0%",
-    "VS": "12%",
-    "VZ": "0%",
-    "E0": "0%",
-}
+def _build_vat_code_to_pct() -> dict[str, str]:
+    """Build TAX_CODE → 'PCT%' map from vat_codes.json. 0% codes map to empty string
+    so that zero-rate entries don't show a redundant '0%' in the simulate description."""
+    if not _VAT_CODES_FILE.exists():
+        return {}
+    try:
+        with _VAT_CODES_FILE.open() as fh:
+            data: dict = json.load(fh)
+    except Exception:
+        return {}
+    result: dict[str, str] = {}
+    for entries in data.values():
+        if not isinstance(entries, list):
+            continue
+        for item in entries:
+            code = item.get("TAX_CODE", "")
+            pct_raw = item.get("PERCENTAGE", "").strip()
+            if code and code not in result:
+                try:
+                    pct_val = float(pct_raw)
+                    result[code] = f"{int(pct_val)}%" if pct_val == int(pct_val) else f"{pct_val}%"
+                except ValueError:
+                    result[code] = ""
+    return result
 
-# VAT code → full label (mirrors the frontend dropdown).
-_VAT_CODE_LABELS: dict[str, str] = {
-    "IO": "IO: INPUT-PURCHASES FROM NON-GST REGISTERED SUPPLIER",
-    "IB": "IB: INPUT-BUSINESS PURCHASES",
-    "IE": "IE: INPUT-EXEMPT PURCHASES",
-    "VS": "VS: VAT STANDARD 12%",
-    "VZ": "VZ: VAT ZERO-RATED 0%",
-    "E0": "E0: EXPORT 0%",
-}
+
+_VAT_CODE_TO_PCT: dict[str, str] = _build_vat_code_to_pct()
+
+def _build_vat_code_labels() -> dict[str, str]:
+    """Build TAX_CODE → 'CODE: DESCRIPTION PCT%' map from vat_codes.json."""
+    if not _VAT_CODES_FILE.exists():
+        return {}
+    try:
+        with _VAT_CODES_FILE.open() as fh:
+            data: dict = json.load(fh)
+    except Exception:
+        return {}
+    labels: dict[str, str] = {}
+    for entries in data.values():
+        if not isinstance(entries, list):
+            continue
+        for item in entries:
+            code = item.get("TAX_CODE", "")
+            desc = item.get("DESCRIPTION", "")
+            pct_raw = item.get("PERCENTAGE", "").strip()
+            try:
+                pct_val = float(pct_raw)
+                pct_str = f"{int(pct_val)}%" if pct_val == int(pct_val) else f"{pct_val}%"
+            except ValueError:
+                pct_str = pct_raw
+            if code and code not in labels:
+                label = f"{code}: {desc}" if desc.rstrip().endswith(pct_str) else f"{code}: {desc} {pct_str}"
+                labels[code] = label
+    return labels
+
+
+_VAT_CODE_LABELS: dict[str, str] = _build_vat_code_labels()
 
 # WHT code → display percentage (mirrors _WHT_RATE_TO_CODE entries).
 _WHT_CODE_TO_PCT: dict[str, str] = {

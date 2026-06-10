@@ -118,4 +118,10 @@ export const stagesService = {
       `/api/v1/invoices/${invoiceId}/stages/metadata_validation/unacknowledge`,
       { field_names: fieldNames },
     ),
+
+  /** Fetch SAP VAT codes for the given invoice currency. */
+  getVatCodes: (currency: string) =>
+    api.get<{ country: string; codes: Array<{ tax_code: string; description: string; percentage: string }> }>(
+      `/api/v1/vat-codes?currency=${encodeURIComponent(currency)}`,
+    ),
 };
