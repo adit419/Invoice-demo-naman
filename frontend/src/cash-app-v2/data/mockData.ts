@@ -198,6 +198,13 @@ export const mockDashboardKPIs: DashboardKPIs = {
   openExceptionsTrend: -2,       // -2 fewer exceptions (negative is good)
   pendingJEsTrend: -3,           // -3 fewer pending JEs (negative is good)
   totalBankCreditTrend: 3.2,     // +3.2% increase vs previous day
+  // Touchless Rate - Quarter on Quarter (L1/L2 auto-reconciliation without human involvement)
+  // This measures % of bank credits that were fully reconciled (L1 matched + L2 matched) automatically
+  touchlessRateCurrentQtr: 91.2, // Q2 2026: 91.2% of reconciliations were touchless (no human intervention)
+  touchlessRatePrevQtr: 87.8,    // Q1 2026: 87.8% touchless rate
+  touchlessRateQoQChange: 3.4,   // +3.4% improvement QoQ (91.2 - 87.8)
+  touchlessRateCurrentQtrLabel: 'Q2 2026',
+  touchlessRatePrevQtrLabel: 'Q1 2026',
   // Sparkline data (last 7 days)
   coverageSparkline: [96.2, 97.1, 96.8, 97.5, 98.1, 97.9, 98.4], // Trending up
   touchlessSparkline: [89.5, 90.2, 89.8, 90.5, 91.0, 90.8, 91.2], // Trending up
@@ -205,6 +212,63 @@ export const mockDashboardKPIs: DashboardKPIs = {
   // Last updated timestamp
   lastUpdated: new Date().toISOString(),
 }
+
+/**
+ * Historical Bank Credit Data (Last 14 days)
+ * Shows daily bank credit collection summary by PSP
+ */
+const generateHistoricalBankCredits = () => {
+  const data = []
+  const today = new Date()
+
+  // Base amounts with some variation
+  const baseGrabpay = 3500000 // SGD 3.5M
+  const baseStripe = 750000   // SGD 750K
+
+  for (let i = 1; i <= 14; i++) {
+    const date = new Date(today)
+    date.setDate(date.getDate() - i)
+
+    // Add realistic daily variation (±15%)
+    const variation = 0.85 + Math.random() * 0.30
+    const grabpayAmount = Math.round(baseGrabpay * variation)
+    const stripeAmount = Math.round(baseStripe * (0.85 + Math.random() * 0.30))
+    const totalAmount = grabpayAmount + stripeAmount
+
+    // Credit count varies with amount
+    const creditCount = Math.round(totalAmount / 500000) + Math.floor(Math.random() * 3)
+
+    // Reconciliation rate varies (85-98%)
+    const reconciledPct = 85 + Math.random() * 13
+    const reconciledCount = Math.round((creditCount * reconciledPct) / 100)
+
+    data.push({
+      date: date.toISOString().split('T')[0],
+      dateDisplay: date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+      totalAmount,
+      currency: 'SGD',
+      grabpayAmount,
+      stripeAmount,
+      creditCount,
+      reconciledCount,
+      reconciledPct: Math.round(reconciledPct * 10) / 10,
+    })
+  }
+
+  // Override yesterday's data to match dashboard KPI
+  if (data.length > 0) {
+    data[0].totalAmount = 4250000
+    data[0].grabpayAmount = 3500000
+    data[0].stripeAmount = 750000
+    data[0].creditCount = 9
+    data[0].reconciledCount = 3  // GP-004, GP-005, GP-BATCH
+    data[0].reconciledPct = 33.3  // 3 of 9 reconciled
+  }
+
+  return data
+}
+
+export const mockBankCreditHistory = generateHistoricalBankCredits()
 
 /**
  * Open AR Summary (From Beginning of Time)

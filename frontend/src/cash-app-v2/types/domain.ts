@@ -56,6 +56,12 @@ export interface DashboardKPIs {
   openExceptionsTrend?: number
   pendingJEsTrend?: number
   totalBankCreditTrend?: number
+  // Touchless Rate - Quarter on Quarter (L1/L2 auto-reconciliation without human involvement)
+  touchlessRateCurrentQtr: number // Current quarter touchless rate %
+  touchlessRatePrevQtr: number // Previous quarter touchless rate %
+  touchlessRateQoQChange: number // QoQ change (positive = improvement)
+  touchlessRateCurrentQtrLabel: string // e.g., "Q2 2026"
+  touchlessRatePrevQtrLabel: string // e.g., "Q1 2026"
   // Sparkline data (last 7 days)
   coverageSparkline?: number[]
   touchlessSparkline?: number[]

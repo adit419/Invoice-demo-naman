@@ -12,12 +12,16 @@ import {
   FileText,
   DollarSign,
   Landmark,
+  ArrowUp,
+  ArrowDown,
+  Loader2,
 } from 'lucide-react'
 import { SkeletonCard, SkeletonTable } from '../components/ui/Skeleton'
 import { ExceptionAgingChart } from '../components/ui/ExceptionAgingChart'
 import { OpenARDetailModal } from '../components/modals/OpenARDetailModal'
+import { BankCreditHistoryModal } from '../components/modals/BankCreditHistoryModal'
 import { dashboardService } from '../services'
-import { mockOpenARSummary } from '../data/mockData'
+import { mockOpenARSummary, mockBankCreditHistory } from '../data/mockData'
 import type {
   DashboardKPIs,
   ExceptionSummary,
@@ -157,6 +161,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   const [unsettledAging, setUnsettledAging] = useState<UnsettledAgingBucket[]>([])
   const [loading, setLoading] = useState(true)
   const [isOpenARModalOpen, setIsOpenARModalOpen] = useState(false)
+  const [isBankCreditHistoryOpen, setIsBankCreditHistoryOpen] = useState(false)
+  const [bankCreditHistoryLoading, setBankCreditHistoryLoading] = useState(false)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -212,24 +218,130 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {/* KPI Tiles */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10 }}>
-        <KPITile
-          title="Touchless Rate"
-          value={`${kpis.touchlessRate}%`}
-          subtitle={`1 Day (${yesterdayDate})`}
-          icon={<CheckCircle2 size={32} />}
-          colorClass={getTouchlessColor(kpis.touchlessRate)}
-          trend={kpis.touchlessRateTrend}
-          lastUpdated={kpis.lastUpdated}
-        />
-        <KPITile
-          title="Total Bank Credit"
-          value={formatCurrency(kpis.totalBankCreditSGD, 'SGD')}
-          subtitle={`1 Day (${yesterdayDate})`}
-          icon={<Landmark size={32} />}
-          colorClass="text-sky-600"
-          trend={kpis.totalBankCreditTrend}
-          lastUpdated={kpis.lastUpdated}
-        />
+        {/* Touchless Rate - Quarter on Quarter with improvement indicator */}
+        <div
+          style={{
+            backgroundColor: 'white',
+            borderRadius: 6,
+            border: '1px solid #E2E8F0',
+            borderLeft: `3px solid ${kpis.touchlessRateCurrentQtr >= 90 ? '#059669' : '#d97706'}`,
+            padding: '10px 12px',
+            position: 'relative',
+          }}
+        >
+          {/* Quarter label - top right */}
+          <div style={{ position: 'absolute', top: 8, right: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ fontSize: 8, color: '#94a3b8', fontWeight: 600 }}>{kpis.touchlessRateCurrentQtrLabel}</span>
+          </div>
+
+          {/* Title */}
+          <p style={{ fontSize: 9, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
+            Touchless Rate
+          </p>
+
+          {/* Main Value with QoQ Change */}
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 2 }}>
+            <p style={{ fontSize: 18, fontWeight: 700, color: '#101828', margin: 0 }}>
+              {kpis.touchlessRateCurrentQtr}%
+            </p>
+            {/* QoQ Change Badge with Arrow */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 2,
+                padding: '2px 6px',
+                borderRadius: 4,
+                backgroundColor: kpis.touchlessRateQoQChange >= 0 ? '#d1fae5' : '#fee2e2',
+              }}
+            >
+              {kpis.touchlessRateQoQChange >= 0 ? (
+                <ArrowUp size={10} style={{ color: '#059669' }} />
+              ) : (
+                <ArrowDown size={10} style={{ color: '#dc2626' }} />
+              )}
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: kpis.touchlessRateQoQChange >= 0 ? '#059669' : '#dc2626',
+                }}
+              >
+                {Math.abs(kpis.touchlessRateQoQChange).toFixed(1)}%
+              </span>
+            </div>
+          </div>
+
+          {/* Subtitle - QoQ comparison */}
+          <p style={{ fontSize: 9, color: '#64748b', margin: 0 }}>
+            vs {kpis.touchlessRatePrevQtr}% ({kpis.touchlessRatePrevQtrLabel})
+          </p>
+
+          {/* Description */}
+          <p style={{ fontSize: 8, color: '#94a3b8', margin: '4px 0 0 0', fontStyle: 'italic' }}>
+            L1/L2 reconciled without human intervention
+          </p>
+        </div>
+        {/* Total Bank Credit - Clickable to view history */}
+        <div
+          onClick={() => {
+            if (bankCreditHistoryLoading) return
+            setBankCreditHistoryLoading(true)
+            setTimeout(() => {
+              setBankCreditHistoryLoading(false)
+              setIsBankCreditHistoryOpen(true)
+            }, 2500)
+          }}
+          style={{
+            backgroundColor: 'white',
+            borderRadius: 6,
+            border: '1px solid #E2E8F0',
+            borderLeft: '3px solid #0369a1',
+            padding: '10px 12px',
+            cursor: 'pointer',
+            position: 'relative',
+            transition: 'box-shadow 0.15s',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)' }}
+          onMouseLeave={(e) => { e.currentTarget.style.boxShadow = 'none' }}
+        >
+          {/* Live indicator - top right corner */}
+          <div style={{ position: 'absolute', top: 8, right: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
+            {bankCreditHistoryLoading ? (
+              <Loader2 size={12} className="animate-spin" style={{ color: '#0369a1' }} />
+            ) : (
+              <>
+                <div style={{ width: 5, height: 5, borderRadius: '50%', backgroundColor: '#10b981' }} />
+                <span style={{ fontSize: 8, color: '#94a3b8', whiteSpace: 'nowrap' }}>Yesterday</span>
+              </>
+            )}
+          </div>
+
+          {/* Header */}
+          <p style={{ fontSize: 9, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
+            Total Bank Credit
+          </p>
+
+          {/* Value with trend indicator */}
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 2 }}>
+            <p style={{ fontSize: 18, fontWeight: 700, color: '#101828', margin: 0 }}>
+              {formatCurrency(kpis.totalBankCreditSGD, 'SGD')}
+            </p>
+            {kpis.totalBankCreditTrend !== undefined && kpis.totalBankCreditTrend !== 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 10, fontWeight: 600, color: kpis.totalBankCreditTrend > 0 ? '#10b981' : '#ef4444' }}>
+                {kpis.totalBankCreditTrend > 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+                <span>{Math.abs(kpis.totalBankCreditTrend).toFixed(1)}</span>
+              </div>
+            )}
+          </div>
+
+          <p style={{ fontSize: 10, color: '#64748b', margin: 0 }}>{`1 Day (${yesterdayDate})`}</p>
+
+          {/* Click hint */}
+          <p style={{ fontSize: 8, color: '#94a3b8', margin: '4px 0 0 0', fontStyle: 'italic' }}>
+            Click to view historical data
+          </p>
+        </div>
         <KPITile
           title="Open Exceptions"
           value={formatCurrency(kpis.exceptionAmountSGD, 'SGD')}
@@ -434,6 +546,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           console.log('View details for category:', category)
           // TODO: Navigate to detailed view for this category
         }}
+      />
+
+      {/* Bank Credit History Modal */}
+      <BankCreditHistoryModal
+        isOpen={isBankCreditHistoryOpen}
+        onClose={() => setIsBankCreditHistoryOpen(false)}
+        historicalData={mockBankCreditHistory}
+        currency="SGD"
       />
     </div>
   )
