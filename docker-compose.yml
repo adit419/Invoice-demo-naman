@@ -17,15 +17,12 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      target: dev
+      args:
+        NEXT_PUBLIC_BE_BASE_URL: "https://invoicedemo-api.neoflo.ai"
+        BE_BASE_URL: "https://invoicedemo-api.neoflo.ai"
     restart: unless-stopped
     ports:
       - "3002:3002"
-    volumes:
-      # Mount source so edits are picked up immediately by next dev
-      - ./frontend:/app
-      # Keep node_modules from the image — don't overwrite with host copy
-      - /app/node_modules
     environment:
       PORT: "3002"
       HOSTNAME: "0.0.0.0"

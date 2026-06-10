@@ -1,21 +1,3 @@
-# ── Development image ─────────────────────────────────────────────────────────
-FROM node:22-alpine AS dev
-
-WORKDIR /app
-
-COPY package*.json ./
-RUN npm ci --frozen-lockfile
-
-ENV NEXT_TELEMETRY_DISABLED=1
-# Enable polling so Next.js hot-reload works inside Docker on macOS/Windows
-ENV WATCHPACK_POLLING=true
-ENV CHOKIDAR_USEPOLLING=true
-
-EXPOSE 3002
-
-CMD ["npm", "run", "dev"]
-
-# ── Production builder ────────────────────────────────────────────────────────
 FROM node:22-alpine AS builder
 
 WORKDIR /app
