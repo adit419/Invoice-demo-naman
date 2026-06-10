@@ -69,6 +69,7 @@ def _build_per_item_matching(
     """
     # Build PO/GRN lookups: item_code → [po_item, ...] and item_id → grn_entry
     code_to_po_items: dict[str, list] = {}
+    desc_to_po_items: dict[str, list] = {}
     grn_map: dict[str, dict] = {}
     fixture_po_number: str | None = None
 
@@ -79,6 +80,8 @@ def _build_per_item_matching(
             if " - " in desc:
                 code = desc.split(" - ")[0].strip()
                 code_to_po_items.setdefault(code, []).append(po_item)
+            else:
+                desc_to_po_items.setdefault(desc.strip().upper(), []).append(po_item)
     if grn_data:
         for entry in grn_data:
             iid = entry.get("item_id")
@@ -99,10 +102,21 @@ def _build_per_item_matching(
         # Map to UI status names
         ui_status = "matched" if fixture_status == "perfect" else fixture_status
 
+        # Resolve PO items: by SKU code first, then by description for non-SKU items.
+        # When matched by description, override unit_price/inv_total so the invoice
+        # left table shows the PO price (e.g. inclusive-of-tax total from PO).
+        matching_po_items = code_to_po_items.get(item_code, [])
+        if not matching_po_items and not item_code:
+            _desc_po = desc_to_po_items.get(description.strip().upper(), [])
+            if _desc_po:
+                matching_po_items = _desc_po
+                _po_price = float(_desc_po[0].get("unit_price", unit_price))
+                unit_price = _po_price
+                inv_total = round(inv_qty * _po_price, 2)
+
         grn_candidates = []
 
         if result and fixture_status == "perfect":
-            matching_po_items = code_to_po_items.get(item_code, [])
             if matching_po_items:
                 # Use actual per-size PO/GRN data
                 for j, po_item in enumerate(matching_po_items):
@@ -152,7 +166,6 @@ def _build_per_item_matching(
                     })
 
         elif result and fixture_status == "probable":
-            matching_po_items = code_to_po_items.get(item_code, [])
             if matching_po_items:
                 # Use actual per-size PO/GRN data with probable flagging
                 for j, po_item in enumerate(matching_po_items):

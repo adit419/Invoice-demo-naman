@@ -150,8 +150,8 @@ def _resolve_bill_line_items(
             "invoice_line_id": row_id,
             "description": inv.get("item_description") or src.get("description") or "",
             "quantity": inv.get("quantity"),
-            "unit_price": inv.get("unit_price"),
-            "total": inv.get("total_price_before_vat"),
+            "unit_price": src.get("unit_price") or inv.get("unit_price"),
+            "total": src.get("total") or inv.get("total_price_before_vat"),
             "account_code": src.get("account_code") or default_code,
             "account_name": src.get("account_name") or default_name,
             "tax_type": src.get("tax_type"),
@@ -360,9 +360,8 @@ def _build_simulate_document(run_id, header: dict, line_items: list[dict]):
         (it.get("vat_tax_code") for it in line_items if it.get("vat_tax_code")),
         "VS",
     )
-    if tax_amount > 0:
-        # Append the tax percentage to the description for all VAT codes
-        # except IO (non-GST registered supplier — no percentage displayed).
+    if tax_amount >= 0 and input_vat_code and input_vat_code != "VS":
+        # Show input tax row for all invoices with a VAT code (including 0% rate).
         vat_pct = _VAT_CODE_TO_PCT.get(input_vat_code, "")
         input_vat_desc = f"Input tax · {vat_pct}" if vat_pct else "Input tax"
         rows.append({
