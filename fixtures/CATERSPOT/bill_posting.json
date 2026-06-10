@@ -11,7 +11,8 @@
     "tax_amount": 23.85,
     "total": 288.85,
     "wht": null,
-    "net_amount_after_wht": 288.85
+    "net_amount_after_wht": 288.85,
+    "required_vat_code": "IB"
   },
   "line_items": [
     {
@@ -23,7 +24,7 @@
       "quantity": 30,
       "unit_price": 7.50,
       "tax_type": "GST 9%",
-      "vat_tax_code": "SR",
+      "vat_tax_code": "IB",
       "wht_tax_code": null,
       "total": 225.00
     },
@@ -36,7 +37,7 @@
       "quantity": 1,
       "unit_price": 40.00,
       "tax_type": "GST 9%",
-      "vat_tax_code": "SR",
+      "vat_tax_code": "IB",
       "wht_tax_code": null,
       "total": 40.00
     }

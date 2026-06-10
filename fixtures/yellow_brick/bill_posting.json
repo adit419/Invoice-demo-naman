@@ -11,7 +11,9 @@
     "tax_amount": 84137.22,
     "total": 785280.72,
     "wht": 14022.87,
-    "net_amount_after_wht": 771257.85
+    "net_amount_after_wht": 771257.85,
+    "required_vat_code": "IB",
+    "required_wht_code": "01"
   },
   "line_items": [
     {

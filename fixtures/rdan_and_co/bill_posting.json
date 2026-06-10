@@ -11,19 +11,21 @@
     "tax_amount": 4107.32,
     "total": 38335.00,
     "wht": 684.55,
-    "net_amount_after_wht": 37650.45
+    "net_amount_after_wht": 37650.45,
+    "required_vat_code": "VS",
+    "required_wht_code": "01"
   },
   "line_items": [
     {
       "id": "bl_1",
-      "invoice_line_id": "e0cwnyss",
+      "invoice_line_id": "5smlxgjw",
       "description": "Quarterly PMS Support Services for the material Handling",
       "account_code": "6020",
       "account_name": "Maintenance & Support Services",
       "quantity": 1,
       "unit_price": 34227.68,
       "tax_type": "VAT 12%",
-      "vat_tax_code": "IB",
+      "vat_tax_code": "VS",
       "wht_tax_code": "01",
       "total": 34227.68
     }

@@ -221,13 +221,13 @@
           "invoice": [
             {
               "document_id": " 0736",
-              "value": "37650.45"
+              "value": "38335"
             }
           ],
           "po": [
             {
               "document_id": "PO-00066",
-              "value": 37650.45
+              "value": "38335"
             }
           ],
           "grn": [

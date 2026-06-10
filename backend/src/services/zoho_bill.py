@@ -210,6 +210,29 @@ def _fmt_date(d: str | None) -> str:
     return d[:10]
 
 
+def _find_tax_by_rate(taxes: list[dict], rate: float, name_hints: list[str] = [], tolerance: float = 0.1) -> str | None:
+    """Return first tax_id whose percentage matches rate (±tolerance). Prefers name_hints matches."""
+    matches = [t for t in taxes if abs(float(t.get("tax_percentage") or 0) - rate) < tolerance]
+    if not matches:
+        return None
+    if name_hints:
+        for t in matches:
+            name = (t.get("tax_name") or "").lower()
+            if any(h in name for h in name_hints):
+                return str(t["tax_id"])
+    return str(matches[0]["tax_id"])
+
+
+def _find_any_tds_tax(taxes: list[dict]) -> str | None:
+    """Return the first TDS/WHT tax found in the org, regardless of rate."""
+    hints = ["tds", "wht", "withhold", "deduct"]
+    for t in taxes:
+        name = (t.get("tax_name") or "").lower()
+        if any(h in name for h in hints):
+            return str(t["tax_id"])
+    return None
+
+
 async def post_bill(
     vendor_name: str,
     bill_date: str,
@@ -217,6 +240,8 @@ async def post_bill(
     line_items: list[dict],
     reference_number: str = "",
     currency_code: str = "",
+    tax_amount: float = 0,
+    wht_amount: float = 0,
 ) -> dict[str, Any]:
     """
     Posts a bill to Zoho Books.
@@ -236,7 +261,7 @@ async def post_bill(
         return _demo_post_bill(vendor_name, bill_date, reference_number)
 
     try:
-        return await _post_bill_live(vendor_name, bill_date, due_date, line_items, reference_number, currency_code)
+        return await _post_bill_live(vendor_name, bill_date, due_date, line_items, reference_number, currency_code, tax_amount, wht_amount)
     except Exception as exc:
         err_str = str(exc).lower()
         # Credential errors: fall back to demo instead of surfacing a 502
@@ -256,6 +281,8 @@ async def _post_bill_live(
     line_items: list[dict],
     reference_number: str = "",
     currency_code: str = "",
+    tax_amount: float = 0,
+    wht_amount: float = 0,
 ) -> dict[str, Any]:
     """Internal: actually calls the Zoho Books API."""
     async with ZohoApiClient() as client:
@@ -263,6 +290,7 @@ async def _post_bill_live(
         vendor_id = await _get_or_create_vendor(client, org_id, vendor_name, currency_code)
         accounts = await get_gl_accounts(client, org_id)
         by_code, by_name = _build_account_maps(accounts)
+        taxes = await get_taxes(client, org_id)
 
         default_account_id: str | None = next(
             (str(a.get("account_id", "")) for a in accounts
@@ -272,56 +300,79 @@ async def _post_bill_live(
         if not default_account_id and accounts:
             default_account_id = str(accounts[0].get("account_id", ""))
 
-        # For foreign-currency (non-INR) bills Zoho India requires either a tax,
-        # a tax_exemption_id, or reverse charge on every line item (error 110802).
-        # Applying IGST to overseas vendors also fails (error 71512), so we fetch
-        # a tax exemption reason and apply it per line, plus set the bill-level
-        # reverse charge flag which is the correct GST treatment for imports.
         is_foreign = bool(currency_code and currency_code.upper() != "INR")
+
         default_tax_id: str | None = None
         default_exemption_id: str | None = None
 
         if is_foreign:
+            # Foreign vendor bills must use tax exemption (applying domestic Indian
+            # GST/IGST to overseas vendors causes Zoho error 3032/71512).
+            # VAT is absorbed into the line amounts via the scale factor below.
             exemptions = await get_tax_exemptions(client, org_id)
             if exemptions:
-                # Prefer an exemption clearly related to overseas / out-of-scope purchases.
                 default_exemption_id = next(
                     (str(e.get("tax_exemption_id", "")) for e in exemptions
                      if any(kw in (e.get("tax_exemption_name") or "").lower()
                             for kw in ("out of scope", "exempt", "overseas", "zero", "nil", "export"))),
                     str(exemptions[0].get("tax_exemption_id", "")),
                 ) or None
-            logger.info(
-                "[zoho_bill] foreign bill — using tax_exemption_id=%s + is_reverse_charge_applicable",
-                default_exemption_id,
-            )
+            logger.info("[zoho_bill] foreign bill — using exemption_id=%s", default_exemption_id)
         else:
-            taxes = await get_taxes(client, org_id)
             default_tax_id = next(
                 (str(t.get("tax_id", "")) for t in taxes
                  if (t.get("tax_name", "") or "").lower() == "igst0"),
                 None,
             )
 
+        subtotal_sum = sum(float(li.get("unit_price", 0)) * float(li.get("quantity", 1)) for li in line_items)
+
+        # All bills use explicit VAT and WHT line items for a consistent breakdown:
+        #   pre-VAT amount → VAT/GST → Less WHT → Balance Due
+        # We do NOT apply tax_id on individual line items (would double-count with the VAT line).
         zoho_line_items = []
         for item in line_items:
             account_id = _resolve_account_id(item, by_code, by_name) or default_account_id
             li: dict = {
                 "description": item.get("description", ""),
-                "rate": float(item.get("unit_price", 0)),
+                "rate": round(float(item.get("unit_price", 0)), 2),
                 "quantity": float(item.get("quantity", 1)),
                 "is_tax_inclusive": False,
             }
             if account_id:
                 li["account_id"] = account_id
-            if is_foreign:
-                if default_exemption_id:
-                    li["tax_exemption_id"] = default_exemption_id
-            else:
-                tax_id = item.get("tax_id") or default_tax_id
-                if tax_id:
-                    li["tax_id"] = tax_id
+            if default_exemption_id:
+                li["tax_exemption_id"] = default_exemption_id
             zoho_line_items.append(li)
+
+        if tax_amount > 0:
+            vat_li: dict = {
+                "description": "VAT/GST",
+                "rate": round(tax_amount, 2),
+                "quantity": 1.0,
+                "is_tax_inclusive": False,
+            }
+            if default_account_id:
+                vat_li["account_id"] = default_account_id
+            if default_exemption_id:
+                vat_li["tax_exemption_id"] = default_exemption_id
+            zoho_line_items.append(vat_li)
+            logger.info("[zoho_bill] added VAT/GST line item: %.2f", tax_amount)
+
+        if wht_amount > 0:
+            wht_rate_pct = round(wht_amount / subtotal_sum * 100, 0) if subtotal_sum > 0 else 0
+            wht_li: dict = {
+                "description": f"Less: Withholding Tax (WHT) {int(wht_rate_pct)}%",
+                "rate": -round(wht_amount, 2),
+                "quantity": 1.0,
+                "is_tax_inclusive": False,
+            }
+            if default_account_id:
+                wht_li["account_id"] = default_account_id
+            if default_exemption_id:
+                wht_li["tax_exemption_id"] = default_exemption_id
+            zoho_line_items.append(wht_li)
+            logger.info("[zoho_bill] added WHT line item: -%.2f", wht_amount)
 
         # Generate a unique bill_number — Zoho India orgs require it (auto-numbering disabled)
         ts = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
@@ -338,7 +389,7 @@ async def _post_bill_live(
             payload["reference_number"] = reference_number
         if currency_code:
             payload["currency_code"] = currency_code
-        if is_foreign:
+        if is_foreign and not default_tax_id:
             payload["is_reverse_charge_applicable"] = True
 
         logger.info("[zoho_bill] posting bill payload (excl line_items): %s", {k: v for k, v in payload.items() if k != "line_items"})
