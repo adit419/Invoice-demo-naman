@@ -308,7 +308,6 @@ async def _post_bill_live(
         if is_foreign:
             # Foreign vendor bills must use tax exemption (applying domestic Indian
             # GST/IGST to overseas vendors causes Zoho error 3032/71512).
-            # VAT is absorbed into the line amounts via the scale factor below.
             exemptions = await get_tax_exemptions(client, org_id)
             if exemptions:
                 default_exemption_id = next(
@@ -319,11 +318,26 @@ async def _post_bill_live(
                 ) or None
             logger.info("[zoho_bill] foreign bill — using exemption_id=%s", default_exemption_id)
         else:
-            default_tax_id = next(
-                (str(t.get("tax_id", "")) for t in taxes
-                 if (t.get("tax_name", "") or "").lower() == "igst0"),
-                None,
-            )
+            # Domestic (INR) bill — every line item needs a tax_id or tax_exemption_id.
+            # For 0% VAT bills (e.g. non-GST registered supplier), try to find a 0%
+            # tax first; fall back to a tax exemption if the org has none.
+            if tax_amount == 0:
+                default_tax_id = _find_tax_by_rate(
+                    taxes, 0.0, ["igst0", "igst 0", "zero", "0%"]
+                )
+                if not default_tax_id:
+                    exemptions = await get_tax_exemptions(client, org_id)
+                    if exemptions:
+                        default_exemption_id = next(
+                            (str(e.get("tax_exemption_id", "")) for e in exemptions
+                             if any(kw in (e.get("tax_exemption_name") or "").lower()
+                                    for kw in ("out of scope", "exempt", "zero", "nil", "non-gst", "non gst"))),
+                            str(exemptions[0].get("tax_exemption_id", "")),
+                        ) or None
+                logger.info(
+                    "[zoho_bill] domestic 0%% bill — tax_id=%s exemption_id=%s",
+                    default_tax_id, default_exemption_id,
+                )
 
         subtotal_sum = sum(float(li.get("unit_price", 0)) * float(li.get("quantity", 1)) for li in line_items)
 
@@ -343,6 +357,8 @@ async def _post_bill_live(
                 li["account_id"] = account_id
             if default_exemption_id:
                 li["tax_exemption_id"] = default_exemption_id
+            elif default_tax_id:
+                li["tax_id"] = default_tax_id
             zoho_line_items.append(li)
 
         if tax_amount > 0:

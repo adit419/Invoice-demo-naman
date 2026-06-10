@@ -12,7 +12,7 @@
     "total": 785280.72,
     "wht": 14022.87,
     "net_amount_after_wht": 771257.85,
-    "required_vat_code": "IB",
+    "required_vat_code": "VS",
     "required_wht_code": "01"
   },
   "line_items": [
@@ -25,7 +25,7 @@
       "quantity": 1,
       "unit_price": 701143.5,
       "tax_type": "VAT 12%",
-      "vat_tax_code": "IB",
+      "vat_tax_code": "VS",
       "wht_tax_code": "01",
       "total": 701143.5
     }

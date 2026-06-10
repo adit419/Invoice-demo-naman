@@ -27,7 +27,7 @@ import { useToast } from "@/components/ui";
 import { formatDate } from "@/utils/format";
 import { BillPostingScreen } from "@/components/BillPosting";
 import type {
-  BillPostingData, LineItemEdit,
+  BillPostingData, LineItemEdit, VatCodeOption,
 } from "@/components/BillPosting";
 
 const { Title } = Typography;
@@ -91,6 +91,9 @@ function BillPostingPage() {
   // Per-line-item VAT/WHT selections.
   const [lineEdits, setLineEdits] = useState<Map<string, LineItemEdit>>(new Map());
 
+  // Country-specific VAT code options — fetched once per currency after data loads.
+  const [vatOptions, setVatOptions] = useState<VatCodeOption[]>([]);
+
   // ERP fields workflow settings:
   //   allowedErpFields — Set of field keys where mask=true (null = show all).
   //   mandatoryErpFields — Set of field keys that must be filled before posting.
@@ -119,6 +122,21 @@ function BillPostingPage() {
     try {
       const result = await stagesService.get<BillPostingData>(id, "bill_posting");
       setData(result);
+
+      // Fetch country-specific VAT codes based on the invoice currency.
+      const currency = result.bill_header?.currency ?? "";
+      stagesService.getVatCodes(currency)
+        .then(({ codes }) => {
+          setVatOptions(codes.map(c => {
+            const pct = `${parseFloat(c.percentage)}%`;
+            const desc = c.description.trimEnd();
+            const label = desc.endsWith(pct)
+              ? `${c.tax_code}: ${desc}`
+              : `${c.tax_code}: ${desc} ${pct}`;
+            return { value: c.tax_code, label };
+          }));
+        })
+        .catch(() => { /* fallback to VAT_OPTIONS_FALLBACK in BillPostingTable */ });
 
       // Seed metadata edits from server-persisted overrides so the read-only
       // post-posted view shows the user's previously-entered values.
@@ -406,6 +424,7 @@ function BillPostingPage() {
           metaEdits={metaEdits}
           onMetaEdit={handleMetaEdit}
           lineEdits={lineEdits}
+          vatOptions={vatOptions}
           onVatChange={handleVatChange}
           onWhtChange={handleWhtChange}
           isVendorSubjectToWht={isVendorSubjectToWht}
