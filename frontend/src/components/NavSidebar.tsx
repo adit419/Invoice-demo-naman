@@ -388,6 +388,13 @@ const VENDOR_ONBOARDING_CHILDREN = [
   { label: "Admin Portal",  href: "/vendor-onboarding/admin",  dot: "#8b5cf6" },
 ];
 
+// Ask Neo sub-sections
+const ASK_NEO_CHILDREN: { label: string; mode: string | null; href: string | null; dot: string }[] = [
+  { label: "Queries on Invoice", mode: "invoice", href: null,               dot: "#3b82f6" },
+  { label: "Source to Procure",  mode: "s2p",     href: null,               dot: "#8b5cf6" },
+  { label: "Agentic Search",     mode: null,       href: "/agentic-search",  dot: "#10b981" },
+];
+
 // Freight sub-sections
 const FREIGHT_CHILDREN = [
   { label: "Reconciliations", href: "/freight",            dot: "#3b82f6" },
@@ -451,6 +458,19 @@ export function NavSidebar({ collapsed, onCollapse }: NavSidebarProps) {
   useEffect(() => { if (isOnFreight) setFreightOpen(true); }, [isOnFreight]);
   // Auto-expand when user navigates to any Vendor Onboarding route
   useEffect(() => { if (isOnVendorOnboarding) setVendorOnboardingOpen(true); }, [isOnVendorOnboarding]);
+
+  const isOnAskNeo = router.pathname === "/ask-neoflo" || router.pathname === "/agentic-search";
+  const [askNeoOpen, setAskNeoOpen] = useState(false);
+  useEffect(() => { if (isOnAskNeo) setAskNeoOpen(true); }, [isOnAskNeo]);
+  // Track which Ask Neo sub-mode is active (read/sync from localStorage)
+  const [askNeoMode, setAskNeoMode] = useState<string>(() =>
+    typeof window !== "undefined" ? (localStorage.getItem("ask_neoflo_app_mode") || "invoice") : "invoice"
+  );
+  useEffect(() => {
+    function handler(e: Event) { setAskNeoMode((e as CustomEvent<string>).detail); }
+    window.addEventListener("ask_neo_mode", handler);
+    return () => window.removeEventListener("ask_neo_mode", handler);
+  }, []);
 
   // Persist user info to localStorage so the App Router Finance OS sidebar
   // (which can't access AuthContext) can read the logged-in user.
@@ -907,6 +927,93 @@ export function NavSidebar({ collapsed, onCollapse }: NavSidebarProps) {
                 </div>
               );
             }
+            if (item.pageKey === "askNeoflo") {
+              const active = isOnAskNeo;
+              return (
+                <div key="askNeoflo">
+                  <button
+                    onClick={() => setAskNeoOpen(o => !o)}
+                    title={collapsed ? "Ask Neo" : undefined}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 12,
+                      width: collapsed ? 40 : "calc(100% - 16px)",
+                      height: collapsed ? 40 : "auto",
+                      margin: collapsed ? "2px auto" : "2px 8px",
+                      padding: collapsed ? 0 : "10px 12px",
+                      justifyContent: collapsed ? "center" : "flex-start",
+                      background: active && !askNeoOpen ? ACTIVE_BG : "transparent",
+                      borderRadius: 8, color: "#fff", fontSize: 14, fontWeight: 400,
+                      border: "none", cursor: "pointer", transition: "background 0.15s", textAlign: "left",
+                    }}
+                    onMouseEnter={e => { if (!(active && !askNeoOpen)) (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.08)"; }}
+                    onMouseLeave={e => { if (!(active && !askNeoOpen)) (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
+                  >
+                    <span style={{ flexShrink: 0 }}>{item.icon}</span>
+                    {!collapsed && (
+                      <>
+                        <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.label}</span>
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"
+                          style={{ flexShrink: 0, transition: "transform 0.18s", transform: askNeoOpen ? "rotate(180deg)" : "rotate(0deg)" }}>
+                          <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </>
+                    )}
+                  </button>
+                  {askNeoOpen && !collapsed && (
+                    <div style={{ marginLeft: 8, marginRight: 8, marginBottom: 4 }}>
+                      {ASK_NEO_CHILDREN.map(child => {
+                        const childActive = child.href
+                          ? router.pathname === child.href
+                          : router.pathname === "/ask-neoflo" && askNeoMode === child.mode;
+                        const childStyle = {
+                          display: "flex", alignItems: "center", gap: 10,
+                          width: "100%", padding: "7px 12px 7px 36px", borderRadius: 7,
+                          color: childActive ? "#fff" : "rgba(255,255,255,0.6)",
+                          fontSize: 13, fontWeight: childActive ? 500 : 400,
+                          background: childActive ? "rgba(255,255,255,0.1)" : "transparent",
+                          border: "none", cursor: "pointer", textAlign: "left" as const,
+                          transition: "background 0.13s, color 0.13s", fontFamily: "inherit",
+                          textDecoration: "none",
+                        };
+                        const content = (
+                          <>
+                            <span style={{ width: 6, height: 6, borderRadius: "50%", background: childActive ? child.dot : "rgba(255,255,255,0.25)", flexShrink: 0 }} />
+                            <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{child.label}</span>
+                          </>
+                        );
+                        if (child.href) {
+                          return (
+                            <Link key={child.href} href={child.href} style={childStyle}
+                              onMouseEnter={e => { if (!childActive) { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(255,255,255,0.06)"; (e.currentTarget as HTMLAnchorElement).style.color = "#fff"; } }}
+                              onMouseLeave={e => { if (!childActive) { (e.currentTarget as HTMLAnchorElement).style.background = "transparent"; (e.currentTarget as HTMLAnchorElement).style.color = "rgba(255,255,255,0.6)"; } }}
+                            >{content}</Link>
+                          );
+                        }
+                        return (
+                          <button
+                            key={child.mode}
+                            onClick={() => {
+                              const m = child.mode!;
+                              localStorage.setItem("ask_neoflo_app_mode", m);
+                              setAskNeoMode(m);
+                              if (router.pathname === "/ask-neoflo") {
+                                window.dispatchEvent(new CustomEvent("ask_neo_mode", { detail: m }));
+                              } else {
+                                router.push("/ask-neoflo");
+                              }
+                            }}
+                            style={childStyle}
+                            onMouseEnter={e => { if (!childActive) { (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.06)"; (e.currentTarget as HTMLButtonElement).style.color = "#fff"; } }}
+                            onMouseLeave={e => { if (!childActive) { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.6)"; } }}
+                          >{content}</button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
             return renderLink(item);
           };
 
