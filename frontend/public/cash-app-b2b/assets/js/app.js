@@ -330,6 +330,56 @@
   const _cockpit = {};                       // per credit, so edits persist across renders
   const postedIds = new Set();               // credits that have been applied & posted (drop from the open queue)
   const postedKey = (id) => selectedEntityId + ":" + id;
+
+  // Workspace queue search + sort state
+  let wsSearch = "", wsSortKey = "date", wsSortDir = "asc";
+
+  function applyQueueFilter(list) {
+    const q = wsSearch.trim().toLowerCase();
+    let out = q ? list.filter((x) =>
+      x.desc.toLowerCase().includes(q) ||
+      (x.customer && x.customer !== "— unidentified —" && x.customer.toLowerCase().includes(q)) ||
+      x.id.toLowerCase().includes(q)
+    ) : list.slice();
+    out.sort((a, b) => {
+      let av, bv;
+      if (wsSortKey === "amount")   { av = a.amount;   bv = b.amount; }
+      else if (wsSortKey === "customer") { av = (a.customer || "").toLowerCase(); bv = (b.customer || "").toLowerCase(); }
+      else if (wsSortKey === "desc") { av = a.desc.toLowerCase(); bv = b.desc.toLowerCase(); }
+      else { av = a.date; bv = b.date; }
+      if (av < bv) return wsSortDir === "asc" ? -1 : 1;
+      if (av > bv) return wsSortDir === "asc" ? 1 : -1;
+      return 0;
+    });
+    return out;
+  }
+
+  function sortChevron(key) {
+    if (wsSortKey !== key) return `<span class="sort-chev sort-chev--none">⇅</span>`;
+    return wsSortDir === "asc"
+      ? `<span class="sort-chev sort-chev--active">↑</span>`
+      : `<span class="sort-chev sort-chev--active">↓</span>`;
+  }
+
+  function buildQueueRows(list, ccy, r) {
+    const filtered = applyQueueFilter(list);
+    if (!filtered.length) {
+      const msg = wsSearch.trim() ? "No results" : "All credits applied";
+      const sub = wsSearch.trim() ? "Try a different search term." : "Every open credit has been posted.";
+      return { rows: `<tr><td colspan="5">${emptyState(msg, sub)}</td></tr>`, count: 0 };
+    }
+    return {
+      rows: filtered.map((x) => `
+        <tr class="queue-row ${x.id === r.id ? "is-active" : ""}" data-rid="${x.id}">
+          <td class="muted" style="white-space:nowrap">${x.date}</td>
+          <td><div class="cell-main" style="font-weight:var(--font-weight-medium)">${x.desc}</div><div class="cell-sub">${bankName()} · ref ${x.id}</div></td>
+          <td class="num strong">${fmt(x.amount, ccy)}</td>
+          <td>${x.customer === "— unidentified —" ? `<span class="pill pill--error">Unidentified</span>` : `<span class="cell-main">${x.customer}</span>`}</td>
+          <td class="dot-conf">${confOf(x)}</td>
+        </tr>`).join(""),
+      count: filtered.length,
+    };
+  }
   function bankName() { const b = D.banks.find((x) => x.id === selectedBankId); return b ? b.name : "—"; }
   function confOf(it) { return it.reason === "Unidentified customer" ? "—" : (0.72 + ((Math.abs(it.amount) % 26) / 100)).toFixed(2); }
   function getCredit(id) {
@@ -355,35 +405,89 @@
       `<span class="topbar__chip"><span>Entity</span> ${currentEntity().name}</span>${bankSelectChip()}`,
       uploadStmtAction());
 
-    // Same bank-statement credits as the dashboard (consistent data + amounts)
-    const queueRows = openList.length ? openList.map((x) => `
-      <tr class="queue-row ${x.id === r.id ? "is-active" : ""}" data-rid="${x.id}">
-        <td class="muted" style="white-space:nowrap">${x.date}</td>
-        <td><div class="cell-main" style="font-weight:var(--font-weight-medium)">${x.desc}</div><div class="cell-sub">${bankName()} · ref ${x.id}</div></td>
-        <td class="num strong">${fmt(x.amount, ccy)}</td>
-        <td>${x.customer === "— unidentified —" ? `<span class="pill pill--error">Unidentified</span>` : `<span class="cell-main">${x.customer}</span>`}</td>
-        <td class="dot-conf">${confOf(x)}</td>
-      </tr>`).join("") : `<tr><td colspan="5">${emptyState("All credits applied", "Every open credit for this account has been posted. Upload a new statement to continue.")}</td></tr>`;
+    const { rows: queueRows, count: queueCount } = openList.length
+      ? buildQueueRows(openList, ccy, r)
+      : { rows: `<tr><td colspan="5">${emptyState("All credits applied", "Every open credit for this account has been posted. Upload a new statement to continue.")}</td></tr>`, count: 0 };
 
     content.innerHTML = `
       <div class="section">
         <div class="card">
-          <div class="card__head"><div class="card__title">Bank statement — open &amp; unapplied credits</div><span class="muted" style="font-size:12px">${openList.length} open</span></div>
+          <div class="card__head">
+            <div class="card__title">Bank statement — open &amp; unapplied credits</div>
+            <span class="muted" style="font-size:12px" id="ws-count">${queueCount} of ${openList.length} shown</span>
+            <div class="ws-search-wrap">
+              <input id="ws-search" class="ws-search-input" type="search" placeholder="Search description, customer, ref…" value="${wsSearch.replace(/"/g, '&quot;')}" autocomplete="off" />
+            </div>
+          </div>
           <div class="card__body card__body--flush"><div class="table-wrap ws-queue-scroll" id="ws-queue-scroll"><table class="tbl tbl--fixed">
-            <colgroup><col style="width:11%"><col style="width:45%"><col style="width:15%"><col style="width:19%"><col style="width:10%"></colgroup>
-            <thead><tr><th>Date</th><th>Description</th><th class="num">Amount</th><th>Identified customer</th><th>Conf.</th></tr></thead>
-            <tbody>${queueRows}</tbody>
+            <colgroup><col style="width:11%"><col style="width:42%"><col style="width:15%"><col style="width:22%"><col style="width:10%"></colgroup>
+            <thead><tr>
+              <th class="ws-sort-th" data-sort="date">Date ${sortChevron("date")}</th>
+              <th class="ws-sort-th" data-sort="desc">Description ${sortChevron("desc")}</th>
+              <th class="num ws-sort-th" data-sort="amount">Amount ${sortChevron("amount")}</th>
+              <th class="ws-sort-th" data-sort="customer">Identified customer ${sortChevron("customer")}</th>
+              <th>Conf.</th>
+            </tr></thead>
+            <tbody id="ws-queue-tbody">${queueRows}</tbody>
           </table></div></div>
         </div>
       </div>
       <div id="cockpit"></div>`;
 
     wireBankBar();
-    content.querySelectorAll(".queue-row").forEach((row) => {
-      row.onclick = () => { activeReceiptId = row.dataset.rid; viewWorkspace(); };
+
+    // Wire sort headers
+    content.querySelectorAll(".ws-sort-th").forEach((th) => {
+      th.style.cursor = "pointer";
+      th.style.userSelect = "none";
+      th.onclick = () => {
+        const key = th.dataset.sort;
+        if (wsSortKey === key) { wsSortDir = wsSortDir === "asc" ? "desc" : "asc"; }
+        else { wsSortKey = key; wsSortDir = key === "amount" ? "desc" : "asc"; }
+        refreshQueueTable(openList, ccy, r);
+      };
     });
-    const arow = content.querySelector(".queue-row.is-active");
-    if (arow) arow.scrollIntoView({ block: "nearest" });
+
+    // Wire search input
+    const searchEl = $("#ws-search");
+    if (searchEl) {
+      searchEl.oninput = () => { wsSearch = searchEl.value; refreshQueueTable(openList, ccy, r); };
+      searchEl.onclick = (e) => e.stopPropagation();
+    }
+
+    function refreshQueueTable(list, ccy, r) {
+      const tbody = $("#ws-queue-tbody");
+      const countEl = $("#ws-count");
+      if (!tbody) return;
+      const { rows, count } = buildQueueRows(list, ccy, r);
+      tbody.innerHTML = rows;
+      if (countEl) countEl.textContent = `${count} of ${list.length} shown`;
+      // update sort chevrons in headers
+      content.querySelectorAll(".ws-sort-th").forEach((th) => {
+        const key = th.dataset.sort;
+        const chev = th.querySelector(".sort-chev");
+        if (chev) {
+          if (wsSortKey === key) {
+            chev.textContent = wsSortDir === "asc" ? "↑" : "↓";
+            chev.className = "sort-chev sort-chev--active";
+          } else {
+            chev.textContent = "⇅";
+            chev.className = "sort-chev sort-chev--none";
+          }
+        }
+      });
+      wireQueueRows();
+    }
+
+    function wireQueueRows() {
+      content.querySelectorAll(".queue-row").forEach((row) => {
+        row.onclick = () => { activeReceiptId = row.dataset.rid; viewWorkspace(); };
+      });
+      const arow = content.querySelector(".queue-row.is-active");
+      if (arow) arow.scrollIntoView({ block: "nearest" });
+    }
+
+    wireQueueRows();
 
     renderCockpit(r);
   }

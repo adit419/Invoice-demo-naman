@@ -542,6 +542,19 @@ th.sortable:hover .sort-ind.on { color: var(--text-primary-default); }
 .remit-doc__addr { font-size: 11px; color: var(--text-default-caption); margin-top: 2px; }
 .remit-doc__party { display: grid; grid-template-columns: 1fr 1fr; gap: var(--scale-400); padding: var(--scale-300) var(--scale-400); border-bottom: 1px solid var(--border-default-default); font-size: 13px; }
 .remit-doc__plabel { font-size: 10px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-default-caption); margin-bottom: 3px; }
+/* workspace queue search + sort */
+.ws-search-wrap { margin-left: auto; }
+.ws-search-input {
+  font-family: var(--font-family-inter); font-size: 13px;
+  padding: 6px 10px 6px 30px; width: 240px;
+  border: 1px solid var(--border-default-default); border-radius: var(--radius-sm);
+  background: var(--surface-default-default) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2367635c' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") no-repeat 9px center;
+  color: var(--text-default-body); outline: none; transition: border-color .15s;
+}
+.ws-search-input:focus { border-color: var(--border-primary-default); }
+.sort-chev { margin-left: 4px; font-size: 11px; font-style: normal; }
+.sort-chev--none { color: var(--text-default-placeholder); }
+.sort-chev--active { color: var(--text-primary-default); }
 /* workspace queue (smaller, so the cockpit is visible) + disabled post + add invoice */
 .ws-queue-scroll { max-height: 220px; overflow-y: auto; }
 .ws-queue-scroll thead th { position: sticky; top: 0; z-index: 1; }
