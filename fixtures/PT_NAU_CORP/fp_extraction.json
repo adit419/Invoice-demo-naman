@@ -23,7 +23,7 @@
         {
           "row_id": "xis21klv",
           "field": "taxable_amount",
-          "value": "8341667.00",
+          "value": "9100000",
           "is_required": false
         },
         {
@@ -69,10 +69,10 @@
         },
         {
           "row_id": "xis21klv",
-          "bbox_left": 0.864,
-          "bbox_top": 0.758,
-          "bbox_width": 0.102,
-          "bbox_height": 0.020,
+          "bbox_left": 0.848,
+          "bbox_top": 0.614,
+          "bbox_width": 0.117,
+          "bbox_height": 0.026,
           "page": 2,
           "field": "taxable_amount",
           "value_confidence": 0.93
