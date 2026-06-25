@@ -86,6 +86,7 @@ function BillPostingPage() {
   const [pdfRotate, setPdfRotate] = useState(0);
 
   // Metadata edits (string fields like Reference, Text, Ref Keys, Doc Header).
+  const [qbdModalOpen, setQbdModalOpen] = useState(false);
   const [metaEdits, setMetaEdits] = useState<Record<string, string>>({});
 
   // Per-line-item VAT/WHT selections.
@@ -269,7 +270,10 @@ function BillPostingPage() {
   // server-side. The OR makes us resilient if the cascade-complete that
   // marks the pipeline completed ever races / no-ops — the Zoho post is
   // still authoritative because the URL only exists after a 201 from Zoho.
-  const isCompleted = data.status === "completed" || Boolean(data.erp?.zoho_url);
+  const isCompleted =
+    data.status === "completed" ||
+    Boolean(data.erp?.zoho_url) ||
+    (data.erp?.erp_type === "qbd" && Boolean(data.erp?.bill_id));
   const isVendorSubjectToWht = (data.bill_header?.wht ?? 0) > 0;
 
   // ── Header meta items (ComponentHeader-style) ───────────────────────────
@@ -319,6 +323,23 @@ function BillPostingPage() {
       className="min-h-screen flex flex-col bg-white"
       style={{ fontFamily: "Inter, -apple-system, BlinkMacSystemFont, sans-serif" }}
     >
+      {confirming && (
+        <div
+          style={{
+            position: "fixed", inset: 0, zIndex: 1000,
+            background: "rgba(255,255,255,0.85)",
+            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16,
+          }}
+        >
+          <svg className="animate-spin" width="40" height="40" viewBox="0 0 1024 1024" style={{ color: "#2FB350" }}>
+            <path fill="currentColor" d="M988 548c-19.9 0-36-16.1-36-36 0-59.4-11.6-117-34.6-171.3a440.45 440.45 0 0 0-94.3-139.9 437.71 437.71 0 0 0-139.9-94.3C629 83.6 571.4 72 512 72c-19.9 0-36-16.1-36-36s16.1-36 36-36c69.1 0 136.2 13.5 199.3 40.3C772.3 66 827 103 874 150c47 47 83.9 101.8 109.7 162.7 26.7 63.1 40.2 130.2 40.2 199.3.1 19.9-16 36-35.9 36z" />
+          </svg>
+          <div style={{ textAlign: "center" }}>
+            <p style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "#101828" }}>Posting to ERP…</p>
+            <p style={{ margin: "4px 0 0", fontSize: 13, color: "#6B7280" }}>Please wait, do not close this page</p>
+          </div>
+        </div>
+      )}
       {/* ── ComponentHeader-style header (antd) ───────────────────────────── */}
       <div className="flex items-center justify-between flex-wrap gap-y-3 px-5 py-4 bg-white sticky top-0 z-10 border-b border-gray-200">
         <div className="flex items-center gap-4 min-w-0">
@@ -376,7 +397,7 @@ function BillPostingPage() {
               <div className="flex items-center gap-2 flex-shrink-0">
                 {data.erp?.bill_number && (
                   <>
-                    {/* Bill number badge — click to copy */}
+                    {/* Bill number / TxnID badge — click to copy */}
                     <button
                       type="button"
                       onClick={() => {
@@ -388,15 +409,24 @@ function BillPostingPage() {
                       <PaperClipOutlined />
                       {data.erp.bill_number}
                     </button>
-                    {/* Open Zoho Bills list */}
-                    <a
-                      href={data.erp?.zoho_url || "https://books.zoho.in"}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-white bg-green-600 hover:bg-green-700 transition-colors"
-                    >
-                      View in ERP ↗
-                    </a>
+                    {data.erp?.erp_type === "qbd" ? (
+                      <button
+                        type="button"
+                        onClick={() => setQbdModalOpen(true)}
+                        className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-white bg-green-600 hover:bg-green-700 transition-colors"
+                      >
+                        View in ERP ↗
+                      </button>
+                    ) : (
+                      <a
+                        href={data.erp?.zoho_url || "https://books.zoho.in"}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-white bg-green-600 hover:bg-green-700 transition-colors"
+                      >
+                        View in ERP ↗
+                      </a>
+                    )}
                   </>
                 )}
               </div>
@@ -436,6 +466,39 @@ function BillPostingPage() {
       </div>
 
       <RejectModal open={rejectOpen} onClose={() => setRejectOpen(false)} onConfirm={handleReject} stage="bill_posting" />
+
+      {/* QBD response modal */}
+      <Modal
+        open={qbdModalOpen}
+        onCancel={() => setQbdModalOpen(false)}
+        title="QuickBooks Desktop — Bill Created"
+        footer={<AntButton onClick={() => setQbdModalOpen(false)}>Close</AntButton>}
+        width={480}
+      >
+        <div className="flex flex-col gap-3 py-2">
+          <div className="flex items-center gap-2 p-3 rounded-lg" style={{ background: "#f0fdf4", border: "1px solid #bbf7d0" }}>
+            <CheckCircleOutlined style={{ color: "#16a34a", fontSize: 18 }} />
+            <span className="text-sm font-medium text-green-800">Bill successfully created in QuickBooks Desktop</span>
+          </div>
+          <table className="w-full text-sm" style={{ borderCollapse: "collapse" }}>
+            <tbody>
+              {[
+                ["TxnID", data.erp?.bill_id],
+                ["Bill / Ref Number", data.erp?.bill_number],
+                ["Vendor", data.vendor_name],
+                ["Total", data.bill_header ? `${data.bill_header.currency} ${data.bill_header.total?.toLocaleString()}` : "—"],
+                ["Posted at", data.erp?.posted_at ? new Date(data.erp.posted_at).toLocaleString() : "—"],
+              ].map(([label, value]) => (
+                <tr key={label as string} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                  <td className="py-2 pr-4 text-gray-500 font-medium w-36">{label}</td>
+                  <td className="py-2 text-gray-900 font-mono text-xs break-all">{value || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="text-xs text-gray-400 mt-1">Open your QuickBooks Desktop company file to view or edit this bill.</p>
+        </div>
+      </Modal>
 
       <Modal
         open={pdfOpen}

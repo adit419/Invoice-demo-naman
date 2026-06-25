@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     # Anthropic / Claude
     anthropic_api_key: str = ""
 
+    # QBWC bridge (QuickBooks Desktop integration)
+    qbwc_bridge_url: str = ""
+    qbwc_bridge_secret: str = ""
+    qbwc_bridge_tenant_id: str = ""
+
     # Gmail ingestion (svc-tools@neoflo.ai)
     gmail_enabled: bool = False
     gmail_client_id: str = ""

@@ -34,6 +34,8 @@ export interface BillHeader {
 }
 
 export interface BillPostingErp {
+  /** "zoho" | "qbd" */
+  erp_type?: string;
   bill_id?: string;
   bill_number?: string;
   zoho_reference?: string;
