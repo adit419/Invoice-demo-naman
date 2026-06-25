@@ -165,6 +165,30 @@ def _resolve_bill_line_items(
         }
         item.update(overrides.get(item_id, {}))
         items.append(item)
+
+    # Append fixture lines with no extraction counterpart (invoice_line_id: null),
+    # e.g. GST, freight charges added at the bill level.
+    for fi in fixture_items:
+        if fi.get("invoice_line_id") is not None:
+            continue
+        item_id = fi.get("id", f"bl_extra_{len(items)+1}")
+        item = {
+            "id": item_id,
+            "invoice_line_id": None,
+            "description": fi.get("description", ""),
+            "item_ref": fi.get("item_ref"),
+            "quantity": fi.get("quantity"),
+            "unit_price": fi.get("unit_price"),
+            "total": fi.get("total"),
+            "account_code": fi.get("account_code") or default_code,
+            "account_name": fi.get("account_name") or default_name,
+            "tax_type": fi.get("tax_type"),
+            "vat_tax_code": fi.get("vat_tax_code"),
+            "wht_tax_code": fi.get("wht_tax_code"),
+        }
+        item.update(overrides.get(item_id, {}))
+        items.append(item)
+
     return items
 
 
@@ -448,12 +472,14 @@ def _build_simulate_document(run_id, header: dict, line_items: list[dict]):
         )
 
     # VAT code enforcement — use fixture required_vat_code if set.
+    # Skip bill-level surcharge lines (invoice_line_id is None, e.g. GST, freight).
     required_vat_code = header.get("required_vat_code")
     if required_vat_code and status == "success":
         invalid_codes = [
             it.get("vat_tax_code")
             for it in line_items
-            if it.get("vat_tax_code") and it.get("vat_tax_code") != required_vat_code
+            if it.get("invoice_line_id") is not None
+            and it.get("vat_tax_code") and it.get("vat_tax_code") != required_vat_code
         ]
         if invalid_codes:
             status = "error"
@@ -633,12 +659,14 @@ async def post_bill_to_erp(invoice_id: str, current_user: CurrentUser):
     header = bp_fixture.get("bill_header", {})
 
     # Enforce required VAT code before posting.
+    # Skip bill-level surcharge lines (invoice_line_id is None, e.g. GST, freight).
     required_vat_code = header.get("required_vat_code")
     if required_vat_code:
         invalid = [
             it.get("vat_tax_code")
             for it in line_items
-            if it.get("vat_tax_code") and it.get("vat_tax_code") != required_vat_code
+            if it.get("invoice_line_id") is not None
+            and it.get("vat_tax_code") and it.get("vat_tax_code") != required_vat_code
         ]
         if invalid:
             vat_label = _VAT_CODE_LABELS.get(required_vat_code, required_vat_code)

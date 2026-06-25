@@ -1,6 +1,7 @@
 {
   "erp_type": "qbd",
   "bill_header": {
+    "vendor_id": "vendor_caterspot_01",
     "vendor_name": "CATERSPOT SINGAPORE PTE LTD",
     "qbd_vendor_ref": "CATERSPOT SINGAPORE PTE LTD",
     "bill_number": "INV-SG-202603-a7888",
@@ -9,11 +10,11 @@
     "reference": "PO-CAT-001",
     "currency": "SGD",
     "subtotal": 265.00,
-    "tax_amount": 0.00,
-    "total": 265.00,
+    "tax_amount": 23.85,
+    "total": 288.85,
     "wht": null,
-    "net_amount_after_wht": 265.00,
-    "required_vat_code": null
+    "net_amount_after_wht": 288.85,
+    "required_vat_code": "TX"
   },
   "line_items": [
     {
@@ -21,12 +22,12 @@
       "invoice_line_id": "48hewry8",
       "description": "Cupcakes with customised logo",
       "item_ref": "Cupcakes with customised logo",
-      "account_code": "",
-      "account_name": "",
+      "account_code": "6030",
+      "account_name": "Staff Welfare & Entertainment",
       "quantity": 30,
       "unit_price": 7.50,
-      "tax_type": null,
-      "vat_tax_code": null,
+      "tax_type": "GST 9%",
+      "vat_tax_code": "TX",
       "wht_tax_code": null,
       "total": 225.00
     },
@@ -35,14 +36,28 @@
       "invoice_line_id": "f3jzi1dk",
       "description": "Delivery",
       "item_ref": "Delivery",
-      "account_code": "",
-      "account_name": "",
+      "account_code": "6030",
+      "account_name": "Staff Welfare & Entertainment",
       "quantity": 1,
       "unit_price": 40.00,
+      "tax_type": "GST 9%",
+      "vat_tax_code": "TX",
+      "wht_tax_code": null,
+      "total": 40.00
+    },
+    {
+      "id": "bl_3",
+      "invoice_line_id": null,
+      "description": "GST 9%",
+      "item_ref": "GST Input Tax",
+      "account_code": "",
+      "account_name": "GST Input Tax",
+      "quantity": 1,
+      "unit_price": 23.85,
       "tax_type": null,
       "vat_tax_code": null,
       "wht_tax_code": null,
-      "total": 40.00
+      "total": 23.85
     }
   ]
 }
