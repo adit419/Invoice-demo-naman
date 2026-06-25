@@ -13,6 +13,7 @@ from ...db.collections import bills, email_log, executed_stages, invoices, pipel
 from ...services.fixtures import get_loader
 from ...services.invoice_state import get_invoice_schema
 from ...services.zoho_bill import post_bill as zoho_post_bill
+from ...services.qbd_bill import post_bill as qbd_post_bill
 from .stages import approve_stage, reject_stage
 
 router = APIRouter(tags=["bill_posting"])
@@ -149,6 +150,7 @@ def _resolve_bill_line_items(
             "id": item_id,
             "invoice_line_id": row_id,
             "description": inv.get("item_description") or src.get("description") or "",
+            "item_ref": src.get("item_ref"),
             "quantity": inv.get("quantity"),
             "unit_price": src.get("unit_price") or inv.get("unit_price"),
             "total": src.get("total") or inv.get("total_price_before_vat"),
@@ -163,6 +165,30 @@ def _resolve_bill_line_items(
         }
         item.update(overrides.get(item_id, {}))
         items.append(item)
+
+    # Append fixture lines with no extraction counterpart (invoice_line_id: null),
+    # e.g. GST, freight charges added at the bill level.
+    for fi in fixture_items:
+        if fi.get("invoice_line_id") is not None:
+            continue
+        item_id = fi.get("id", f"bl_extra_{len(items)+1}")
+        item = {
+            "id": item_id,
+            "invoice_line_id": None,
+            "description": fi.get("description", ""),
+            "item_ref": fi.get("item_ref"),
+            "quantity": fi.get("quantity"),
+            "unit_price": fi.get("unit_price"),
+            "total": fi.get("total"),
+            "account_code": fi.get("account_code") or default_code,
+            "account_name": fi.get("account_name") or default_name,
+            "tax_type": fi.get("tax_type"),
+            "vat_tax_code": fi.get("vat_tax_code"),
+            "wht_tax_code": fi.get("wht_tax_code"),
+        }
+        item.update(overrides.get(item_id, {}))
+        items.append(item)
+
     return items
 
 
@@ -199,8 +225,10 @@ async def get_bill_posting(invoice_id: str, current_user: CurrentUser):
 
     stage_doc = await executed_stages(db).find_one({"run_id": oid, "stage_slug": "bill_posting"}) or {}
 
-    # ERP / Zoho post result (only populated after a successful Post-to-ERP).
+    # ERP post result (only populated after a successful Post-to-ERP).
+    _default_erp_type = "qbd" if fixture_key == "CATERSPOT_QBDE" else "zoho"
     erp = {
+        "erp_type": saved.get("erp_type") or _default_erp_type,
         "bill_id": saved.get("bill_id", ""),
         "bill_number": saved.get("bill_number", ""),
         "zoho_reference": saved.get("zoho_reference", ""),
@@ -444,12 +472,14 @@ def _build_simulate_document(run_id, header: dict, line_items: list[dict]):
         )
 
     # VAT code enforcement — use fixture required_vat_code if set.
+    # Skip bill-level surcharge lines (invoice_line_id is None, e.g. GST, freight).
     required_vat_code = header.get("required_vat_code")
     if required_vat_code and status == "success":
         invalid_codes = [
             it.get("vat_tax_code")
             for it in line_items
-            if it.get("vat_tax_code") and it.get("vat_tax_code") != required_vat_code
+            if it.get("invoice_line_id") is not None
+            and it.get("vat_tax_code") and it.get("vat_tax_code") != required_vat_code
         ]
         if invalid_codes:
             status = "error"
@@ -629,12 +659,14 @@ async def post_bill_to_erp(invoice_id: str, current_user: CurrentUser):
     header = bp_fixture.get("bill_header", {})
 
     # Enforce required VAT code before posting.
+    # Skip bill-level surcharge lines (invoice_line_id is None, e.g. GST, freight).
     required_vat_code = header.get("required_vat_code")
     if required_vat_code:
         invalid = [
             it.get("vat_tax_code")
             for it in line_items
-            if it.get("vat_tax_code") and it.get("vat_tax_code") != required_vat_code
+            if it.get("invoice_line_id") is not None
+            and it.get("vat_tax_code") and it.get("vat_tax_code") != required_vat_code
         ]
         if invalid:
             vat_label = _VAT_CODE_LABELS.get(required_vat_code, required_vat_code)
@@ -675,47 +707,88 @@ async def post_bill_to_erp(invoice_id: str, current_user: CurrentUser):
     due_date = saved.get("due_date") or header.get("due_date", "")
     reference = header.get("reference", "")
     currency = _extract_field(invoice_schema, "currency") or header.get("currency", "")
+    erp_type = bp_fixture.get("erp_type") or ("qbd" if fixture_key == "CATERSPOT_QBDE" else "zoho")
 
     now = datetime.now(timezone.utc)
 
-    try:
-        zoho_result = await zoho_post_bill(
-            vendor_name=vendor_name,
-            bill_date=bill_date,
-            due_date=due_date,
-            reference_number=reference,
-            currency_code=currency,
-            tax_amount=float(header.get("tax_amount") or 0),
-            wht_amount=float(header.get("wht") or 0),
-            line_items=[
-                {
-                    "description": li.get("description", ""),
-                    "account_id": li.get("account_id"),
-                    "account_code": li.get("account_code", ""),
-                    "account_name": li.get("account_name", ""),
-                    "tax_id": li.get("tax_id"),
-                    "quantity": li.get("quantity", 1),
-                    "unit_price": li.get("unit_price", 0),
-                }
-                for li in line_items
-            ],
-        )
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Zoho Books error: {exc}") from exc
+    if erp_type == "qbd":
+        # Use the fixture's exact QB vendor name if provided; fall back to extracted name.
+        qbd_vendor_ref = header.get("qbd_vendor_ref") or vendor_name
+        try:
+            qbd_result = await qbd_post_bill(
+                vendor_name=qbd_vendor_ref,
+                bill_date=bill_date,
+                due_date=due_date,
+                reference_number=reference,
+                currency_code=currency,
+                fixture_key=fixture_key,
+                line_items=[
+                    {
+                        "item_ref": li.get("item_ref") or li.get("description", ""),
+                        "description": li.get("description", ""),
+                        "quantity": li.get("quantity", 1),
+                        "unit_price": li.get("unit_price", 0),
+                    }
+                    for li in line_items
+                ],
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"QB Desktop error: {exc}") from exc
 
-    erp_result = {
-        "run_id": oid,
-        "bill_id": zoho_result["bill_id"],
-        "bill_number": zoho_result["bill_number"],
-        "zoho_reference": zoho_result["zoho_reference"],
-        "zoho_url": zoho_result.get("zoho_url", ""),
-        "status": "posted",
-        "posted_at": now,
-        "notification_email": "",
-        "vendor_name": vendor_name,
-        "total": header.get("total", 0),
-        "currency": header.get("currency", ""),
-    }
+        erp_result = {
+            "run_id": oid,
+            "erp_type": "qbd",
+            "bill_id": qbd_result["bill_id"],
+            "bill_number": qbd_result["bill_number"],
+            "zoho_reference": qbd_result.get("ref_number", reference),
+            "zoho_url": "",
+            "status": "posted",
+            "posted_at": now,
+            "notification_email": "",
+            "vendor_name": vendor_name,
+            "total": header.get("total", 0),
+            "currency": header.get("currency", ""),
+        }
+    else:
+        try:
+            zoho_result = await zoho_post_bill(
+                vendor_name=vendor_name,
+                bill_date=bill_date,
+                due_date=due_date,
+                reference_number=reference,
+                currency_code=currency,
+                tax_amount=float(header.get("tax_amount") or 0),
+                wht_amount=float(header.get("wht") or 0),
+                line_items=[
+                    {
+                        "description": li.get("description", ""),
+                        "account_id": li.get("account_id"),
+                        "account_code": li.get("account_code", ""),
+                        "account_name": li.get("account_name", ""),
+                        "tax_id": li.get("tax_id"),
+                        "quantity": li.get("quantity", 1),
+                        "unit_price": li.get("unit_price", 0),
+                    }
+                    for li in line_items
+                ],
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"Zoho Books error: {exc}") from exc
+
+        erp_result = {
+            "run_id": oid,
+            "erp_type": "zoho",
+            "bill_id": zoho_result["bill_id"],
+            "bill_number": zoho_result["bill_number"],
+            "zoho_reference": zoho_result["zoho_reference"],
+            "zoho_url": zoho_result.get("zoho_url", ""),
+            "status": "posted",
+            "posted_at": now,
+            "notification_email": "",
+            "vendor_name": vendor_name,
+            "total": header.get("total", 0),
+            "currency": header.get("currency", ""),
+        }
 
     await bills(db).update_one(
         {"run_id": oid},
@@ -723,12 +796,13 @@ async def post_bill_to_erp(invoice_id: str, current_user: CurrentUser):
         upsert=True,
     )
 
+    _erp_label = "QB Desktop" if erp_type == "qbd" else "Zoho Books"
     await email_log(db).insert_one({
         "run_id": oid,
         "invoice_id": None,
         "to": "",
-        "subject": f"Invoice {erp_result['bill_number']} posted to Zoho Books",
-        "body": f"Bill {erp_result['bill_number']} has been posted. Zoho reference: {erp_result['zoho_reference']}.",
+        "subject": f"Invoice {erp_result['bill_number']} posted to {_erp_label}",
+        "body": f"Bill {erp_result['bill_number']} has been posted to {_erp_label}. Reference: {erp_result['zoho_reference']}.",
         "status": "sent",
         "sent_at": now,
         "created_at": now,

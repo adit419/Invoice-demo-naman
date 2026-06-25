@@ -1,0 +1,12 @@
+{
+  "erp_type": "qbd",
+  "bill_id": "8327-1234567890123",
+  "bill_number": "INV-SG-202603-a7888",
+  "ref_number": "PO-CAT-001",
+  "vendor_name": "CATERSPOT SINGAPORE PTE LTD",
+  "status": "OPEN",
+  "total_amount": 288.85,
+  "currency": "SGD",
+  "date": "2026-06-08",
+  "due_date": "2026-08-08"
+}

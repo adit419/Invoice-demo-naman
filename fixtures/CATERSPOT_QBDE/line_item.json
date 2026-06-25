@@ -1,0 +1,81 @@
+{
+"matching_method": "ai",
+"match_type": "3-way",
+"base_document": "invoice",
+"summary": {
+    "total_items": 2,
+    "perfect_matches": 2,
+    "probable_matches": 0,
+    "no_matches": 0
+},
+"results": [
+    {
+    "id": 1,
+    "invoice_line_id": "48hewry8",
+    "match_status": "perfect",
+    "result_data": {
+        "matched_row_ids": [
+        1
+        ],
+        "po": [
+        "6TY7Z"
+        ],
+        "grn": [
+        "DJT7T"
+        ],
+        "confidence": 1
+    },
+    "matching_method": "ai",
+    "matched_by": "ai",
+    "reasoning": "Searched for products matching 'Cupcakes with customised logo' in merged table and found 1 candidate row (id=1). Called evaluate_match tool with candidate. Tool returned perfect match with row ID [1] as the invoice quantity (30) matches exactly with both PO and GRN quantities (30 each), and the invoice line_total (225) exactly matches the calculated totals with 0% difference, well within the ±1.0% threshold.",
+    "created_at": "2026-06-07T11:51:37"
+    },
+    {
+    "id": 2,
+    "invoice_line_id": "f3jzi1dk",
+    "match_status": "perfect",
+    "result_data": {
+        "matched_row_ids": [
+        2
+        ],
+        "po": [
+        "KT0IX"
+        ],
+        "grn": [
+        "LKQRS"
+        ],
+        "confidence": 1
+    },
+    "matching_method": "ai",
+    "matched_by": "ai",
+    "reasoning": "Searched for products matching 'Delivery' in merged table and found 1 candidate row (id=2). Called evaluate_match tool with candidate. Tool returned perfect match with row ID [2] as the invoice quantity (1) matches exactly with both PO and GRN quantities (1 each), and the invoice line_total (40) exactly matches the calculated totals with 0% difference, well within the ±1.0% threshold.",
+    "created_at": "2026-06-07T11:51:48"
+    }
+],
+"ai_metadata": {
+    "total_cost_usd": 0.1074,
+    "total_time_ms": 27470,
+    "wall_clock_time_ms": 30675,
+    "items_processed": 2,
+    "avg_cost_per_item_usd": 0.0537,
+    "avg_time_per_item_ms": 13735,
+    "compaction": {
+    "count": 0,
+    "total_cost_usd": 0,
+    "total_time_ms": 0,
+    "avg_cost_per_compaction_usd": 0,
+    "avg_time_per_compaction_ms": 0
+    },
+    "processing_only": {
+    "cost_usd": 0.1074,
+    "time_ms": 27470
+    }
+},
+"system_metadata": null,
+"compaction_mode": "batch",
+"batch_size": 10,
+"po_numbers": [
+    "PO-00069"
+],
+"error": null
+}
