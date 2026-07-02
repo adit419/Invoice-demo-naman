@@ -39,6 +39,15 @@ class Settings(BaseSettings):
     gmail_target_email: str = "svc-tools@neoflo.ai"
     gmail_poll_interval: int = 30  # seconds
 
+    # Dedicated pricing mailbox (finance-pricing@neoflo.ai) — BD emails pricing
+    # changes here; the claim engine polls, extracts the change with Claude and
+    # drops it into the maker-checker approval queue. Reuses gmail_client_id /
+    # gmail_client_secret (same OAuth app); only the refresh token differs.
+    pricing_gmail_enabled: bool = False
+    pricing_gmail_refresh_token: str = ""
+    pricing_gmail_target_email: str = "finance-pricing@neoflo.ai"
+    pricing_gmail_poll_interval: int = 60  # seconds
+
     class Config:
         env_file = str(_ENV_FILE)
         extra = "ignore"
