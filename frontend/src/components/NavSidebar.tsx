@@ -361,7 +361,7 @@ interface NavSidebarProps {
 const NAV_CONFIG_KEY = 'nav_view_config';
 // Bump this whenever the default nav order changes so stale localStorage
 // configs get wiped and reset to the new default ordering.
-const NAV_CONFIG_VERSION = 13;
+const NAV_CONFIG_VERSION = 14;
 
 const NAV_CONFIG_VERSION_KEY = 'nav_view_config_version';
 

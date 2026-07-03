@@ -547,7 +547,7 @@ async def accept_invite(token: str, body: AcceptInviteRequest):
 
 # ── GET /settings/role-permissions ──────────────────────────────────────────────
 
-_ALL_PAGES = ["dashboard", "reporting", "arForecast", "cashApplication", "financeOS", "askNeoflo", "vendorOnboarding"]
+_ALL_PAGES = ["dashboard", "reporting", "arForecast", "cashApplication", "cashAppB2B", "claimEngine", "financeOS", "askNeoflo", "vendorOnboarding"]
 
 _DEFAULT_ROLE_PERMS: dict[str, list[str]] = {
     "reviewer": list(_ALL_PAGES),

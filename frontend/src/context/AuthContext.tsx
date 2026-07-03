@@ -114,7 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Default nav: show all modules except Freight and Driver Onboarding
     const DEFAULT_NAV_FILTER = [
       "dashboard", "reporting", "arForecast", "cashApplication",
-      "askNeoflo", "vendorOnboarding", "financeOS",
+      "claimEngine", "askNeoflo", "vendorOnboarding", "financeOS",
     ];
     localStorage.setItem("nav_module_filter", JSON.stringify(DEFAULT_NAV_FILTER));
   }, [setPreviewRole]);

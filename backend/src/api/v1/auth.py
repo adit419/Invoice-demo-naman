@@ -21,7 +21,7 @@ from pydantic import BaseModel
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 _MANAGER_ROLES = {"tenant_admin", "workspace_admin"}
-_ALL_PAGES = ["dashboard", "reporting", "arForecast", "cashApplication"]
+_ALL_PAGES = ["dashboard", "reporting", "arForecast", "cashApplication", "claimEngine", "financeOS", "askNeoflo", "vendorOnboarding"]
 
 
 def _hash_password(plain: str) -> str:
