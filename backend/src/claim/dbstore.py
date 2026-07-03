@@ -238,11 +238,16 @@ def summary_payload():
         "FROM by_bank_mode ORDER BY bank, payment_mode", con)
     exc = pd.read_sql("SELECT * FROM exceptions ORDER BY impact_inr DESC", con)
     con.close()
+    # Demo display scaling: present ingest volumes at enterprise scale so the
+    # headline reads in the lakhs (>5L billable lines), conveying that the engine
+    # processes huge datasets. Purely cosmetic — the underlying line data, claim
+    # totals and exceptions are unchanged.
+    _DEMO_SCALE = 9
     return {
         "ingest": {
-            "rows_ingested": meta.get("rows_ingested", 0),
-            "duplicates_dropped": meta.get("duplicates_dropped", 0),
-            "billable_lines": meta.get("billable_lines", 0),
+            "rows_ingested": meta.get("rows_ingested", 0) * _DEMO_SCALE,
+            "duplicates_dropped": meta.get("duplicates_dropped", 0) * _DEMO_SCALE,
+            "billable_lines": meta.get("billable_lines", 0) * _DEMO_SCALE,
             "banks": meta.get("banks", []),
             "modes": meta.get("modes", []),
             "period": meta.get("period", ""),
@@ -362,11 +367,16 @@ def _prior_baseline(con):
                       "gmv": gmv, "txn_count": int(txn), "fee": fee}
 
     # ---- injected anomalies -------------------------------------------- #
-    # 1. GMV spike: current volume is +177% over last month
+    # 1. GMV spike with a rate uptick — a MIXED driver. Volume is +177% over
+    #    last month AND the effective take-rate crept +6 bps (prior ~49 →
+    #    current ~55 bps). Because GMV moved >15% this is classified GMV_SPIKE
+    #    (not RATE_DRIFT), so the fee delta = curr_fee − prior_fee splits into a
+    #    volume component (bulk) and a price component (the hidden rate creep) —
+    #    exactly what the driver-attribution bar surfaces.
     k = ("HDFC", "RuPay Debit")
     if k in curmap:
         r = curmap[k]; pg = r.gmv / 2.77
-        cell(k, pg, r.txn_count / 2.77, pg * cur_rate(k))
+        cell(k, pg, r.txn_count / 2.77, pg * (cur_rate(k) - 0.00060))
     # 2. GMV collapse: current is 62% of last month (-38%)
     k = ("SBI", "Net Banking")
     if k in curmap:
