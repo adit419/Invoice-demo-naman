@@ -34,6 +34,7 @@ from .api.v1 import workflow_settings as workflow_settings_router
 from .api.v1 import pipeline_nav as pipeline_nav_router
 from .api.v1 import settings as settings_router
 from .cash.router import router as cash_router, startup as cash_startup
+from .claim.router import router as claim_router, startup as claim_startup
 
 
 @asynccontextmanager
@@ -63,9 +64,20 @@ async def lifespan(app: FastAPI):
     else:
         log.warning("Gmail poller NOT started — missing one of: gmail_enabled / client_id / refresh_token")
 
+    # Start the dedicated pricing-mailbox poller (finance-pricing@neoflo.ai) if configured
+    if _cfg.pricing_gmail_enabled and _cfg.gmail_client_id and _cfg.pricing_gmail_refresh_token:
+        from .workers.pricing_poller import pricing_poll_loop
+        asyncio.create_task(pricing_poll_loop())
+        log.info("Pricing mailbox poller task scheduled (%s)", _cfg.pricing_gmail_target_email)
+    else:
+        log.info("Pricing mailbox poller NOT started — set pricing_gmail_enabled + pricing_gmail_refresh_token to enable (composer fallback still works)")
+
     # Initialize Cash Application module
     import asyncio as _asyncio
     await _asyncio.get_event_loop().run_in_executor(None, cash_startup)
+
+    # Initialize Pricing & Claims module (build SQLite store + warm inbox cache)
+    await _asyncio.get_event_loop().run_in_executor(None, claim_startup)
 
     yield
     await close_db()
@@ -105,6 +117,7 @@ app.include_router(workflow_settings_router.router, prefix="/api/v1")
 app.include_router(pipeline_nav_router.router, prefix="/api/v1")
 app.include_router(settings_router.router, prefix="/api/v1")
 app.include_router(cash_router, prefix="/cash-api")
+app.include_router(claim_router, prefix="/claim-api")
 
 
 @app.get("/health")

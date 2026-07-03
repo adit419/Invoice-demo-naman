@@ -101,6 +101,15 @@ function IconCashB2B() {
   );
 }
 
+function IconClaimEngine() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+      <path d="M9 1.5 8 3l-1.7-.6-.4 1.8-1.8.4.6 1.7L3.5 9l1.2 1.3-.6 1.7 1.8.4.4 1.8L8 15l1 1.5 1-1.5 1.7.6.4-1.8 1.8-.4-.6-1.7L14.5 9l-1.2-1.3.6-1.7-1.8-.4-.4-1.8L10 3z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+      <path d="M6.8 9.2 8.2 10.6 11.2 7.4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function IconSwitch() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -352,7 +361,7 @@ interface NavSidebarProps {
 const NAV_CONFIG_KEY = 'nav_view_config';
 // Bump this whenever the default nav order changes so stale localStorage
 // configs get wiped and reset to the new default ordering.
-const NAV_CONFIG_VERSION = 12;
+const NAV_CONFIG_VERSION = 13;
 
 const NAV_CONFIG_VERSION_KEY = 'nav_view_config_version';
 
@@ -364,6 +373,7 @@ const DEFAULT_NAV_CONFIG: NavItemConfig[] = [
   { key: 'arForecast',          label: 'AR Forecast'            },
   { key: 'cashApplication',     label: 'Cash Application'       },
   { key: 'cashAppB2B',          label: 'Cash App B2B'           },
+  { key: 'claimEngine',         label: 'Pricing & Claims'       },
   { key: 'freight',             label: 'Freight'                },
   { key: 'askNeoflo',           label: 'Ask Neo'                },
   { key: 'vendorOnboarding',    label: 'Partner Onboarding' },
@@ -377,6 +387,7 @@ const NAV_HREF: Record<string, string> = {
   arForecast:        '/forecasting',
   cashApplication:   '/cash-app-v2',
   cashAppB2B:        '/cash-app-b2b',
+  claimEngine:       '/claim-engine',
   financeOS:         '/finance-os',
   askNeoflo:         '/ask-neoflo',
   vendorOnboarding:  '/vendor-onboarding',
@@ -390,6 +401,7 @@ const NAV_ICON: Record<string, React.ReactNode> = {
   arForecast:        <IconForecast />,
   cashApplication:   <IconCash />,
   cashAppB2B:        <IconCashB2B />,
+  claimEngine:       <IconClaimEngine />,
   financeOS:         <IconFinanceOS />,
   askNeoflo:         <IconAskNeoflo />,
   vendorOnboarding:  <IconVendorOnboarding />,
@@ -423,6 +435,18 @@ const CASH_APP_B2B_CHILDREN = [
   { label: "Apply Cash",          href: "/cash-app-b2b#/workspace",  dot: "#10b981" },
   { label: "Posted Collections",  href: "/cash-app-b2b#/applied",    dot: "#f59e0b" },
   { label: "Customer 360",        href: "/cash-app-b2b#/customers",  dot: "#8b5cf6" },
+];
+
+// Pricing & Claims sub-sections — drive the embedded claim engine via the hash
+const CLAIM_ENGINE_CHILDREN = [
+  { label: "Ingest",                 href: "/claim-engine#/ingest",     dot: "#3b82f6" },
+  { label: "Claim worktable",        href: "/claim-engine#/worktable",  dot: "#8b5cf6" },
+  { label: "Pricing reconciliation", href: "/claim-engine#/exceptions", dot: "#f59e0b" },
+  { label: "Claim summary",          href: "/claim-engine#/summary",    dot: "#10b981" },
+  { label: "Commercials inbox",      href: "/claim-engine#/inbox",      dot: "#14b8a6" },
+  { label: "Anomaly monitor",        href: "/claim-engine#/anomalies",  dot: "#ef4444" },
+  { label: "Pricing master",         href: "/claim-engine#/pricing",    dot: "#0ea5e9" },
+  { label: "Approval queue",         href: "/claim-engine#/approvals",  dot: "#a855f7" },
 ];
 
 // Cash Application V2 sub-sections
@@ -496,6 +520,10 @@ export function NavSidebar({ collapsed, onCollapse }: NavSidebarProps) {
   const isOnCashAppB2B = router.pathname.startsWith("/cash-app-b2b");
   const [cashAppB2BOpen, setCashAppB2BOpen] = useState(false);
   useEffect(() => { if (isOnCashAppB2B) setCashAppB2BOpen(true); }, [isOnCashAppB2B]);
+
+  const isOnClaimEngine = router.pathname.startsWith("/claim-engine");
+  const [claimEngineOpen, setClaimEngineOpen] = useState(false);
+  useEffect(() => { if (isOnClaimEngine) setClaimEngineOpen(true); }, [isOnClaimEngine]);
 
   // Auto-expand when user navigates to any Vendor Onboarding route
   useEffect(() => { if (isOnVendorOnboarding) setVendorOnboardingOpen(true); }, [isOnVendorOnboarding]);
@@ -782,6 +810,68 @@ export function NavSidebar({ collapsed, onCollapse }: NavSidebarProps) {
                         const childActive = child.href === "/freight"
                           ? router.pathname === "/freight"
                           : router.pathname.startsWith(child.href);
+                        return (
+                          <Link key={child.href} href={child.href}
+                            style={{
+                              display: "flex", alignItems: "center", gap: 10,
+                              padding: "7px 12px 7px 36px", borderRadius: 7,
+                              color: childActive ? "#fff" : "rgba(255,255,255,0.6)",
+                              fontSize: 13, fontWeight: childActive ? 500 : 400,
+                              textDecoration: "none",
+                              background: childActive ? "rgba(255,255,255,0.1)" : "transparent",
+                              transition: "background 0.13s, color 0.13s",
+                            }}
+                            onMouseEnter={e => { if (!childActive) { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(255,255,255,0.06)"; (e.currentTarget as HTMLAnchorElement).style.color = "#fff"; } }}
+                            onMouseLeave={e => { if (!childActive) { (e.currentTarget as HTMLAnchorElement).style.background = "transparent"; (e.currentTarget as HTMLAnchorElement).style.color = "rgba(255,255,255,0.6)"; } }}
+                          >
+                            <span style={{ width: 6, height: 6, borderRadius: "50%", background: childActive ? child.dot : "rgba(255,255,255,0.25)", flexShrink: 0 }} />
+                            <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{child.label}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
+            if (item.pageKey === "claimEngine") {
+              const active = isOnClaimEngine;
+              return (
+                <div key="claimEngine">
+                  <button
+                    onClick={() => setClaimEngineOpen(o => !o)}
+                    title={collapsed ? "Pricing & Claims" : undefined}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 12,
+                      width: collapsed ? 40 : "calc(100% - 16px)",
+                      height: collapsed ? 40 : "auto",
+                      margin: collapsed ? "2px auto" : "2px 8px",
+                      padding: collapsed ? 0 : "10px 12px",
+                      justifyContent: collapsed ? "center" : "flex-start",
+                      background: active ? ACTIVE_BG : "transparent",
+                      borderRadius: 8, color: "#fff", fontSize: 14, fontWeight: 400,
+                      border: "none", cursor: "pointer", transition: "background 0.15s", textAlign: "left",
+                    }}
+                    onMouseEnter={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.08)"; }}
+                    onMouseLeave={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
+                  >
+                    <span style={{ flexShrink: 0 }}>{item.icon}</span>
+                    {!collapsed && (
+                      <>
+                        <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.label}</span>
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"
+                          style={{ flexShrink: 0, transition: "transform 0.18s", transform: claimEngineOpen ? "rotate(180deg)" : "rotate(0deg)" }}>
+                          <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </>
+                    )}
+                  </button>
+                  {claimEngineOpen && !collapsed && (
+                    <div style={{ marginLeft: 8, marginRight: 8, marginBottom: 4 }}>
+                      {CLAIM_ENGINE_CHILDREN.map(child => {
+                        const childActive = router.asPath === child.href
+                          || (child.href.endsWith("#/ingest") && router.asPath === "/claim-engine");
                         return (
                           <Link key={child.href} href={child.href}
                             style={{
