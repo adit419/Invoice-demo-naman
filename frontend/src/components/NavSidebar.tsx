@@ -444,7 +444,7 @@ const CLAIM_ENGINE_CHILDREN = [
   { label: "Pricing reconciliation", href: "/claim-engine#/exceptions", dot: "#f59e0b" },
   { label: "Claim summary",          href: "/claim-engine#/summary",    dot: "#10b981" },
   { label: "Commercials inbox",      href: "/claim-engine#/inbox",      dot: "#14b8a6" },
-  { label: "Analytics monitor",      href: "/claim-engine#/anomalies",  dot: "#ef4444" },
+  { label: "Analytics dashboard",    href: "/claim-engine#/anomalies",  dot: "#ef4444" },
   { label: "Pricing master",         href: "/claim-engine#/pricing",    dot: "#0ea5e9" },
   { label: "Approval queue",         href: "/claim-engine#/approvals",  dot: "#a855f7" },
 ];
