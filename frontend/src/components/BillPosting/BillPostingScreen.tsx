@@ -70,7 +70,11 @@ export function BillPostingScreen({
         <div className="px-5 pb-5 pt-5">
           <h3 className="text-sm font-bold text-gray-800 mb-3">Line item</h3>
           <BillPostingTable
-            lineItems={data.line_items ?? []}
+            lineItems={
+              data.erp?.erp_type === "qbd"
+                ? (data.line_items ?? []).filter((li) => li.invoice_line_id != null)
+                : (data.line_items ?? [])
+            }
             lineEdits={lineEdits}
             isEditMode={isEditMode}
             isVendorSubjectToWht={isVendorSubjectToWht}

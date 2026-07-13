@@ -5,6 +5,8 @@
  */
 export interface BillLineItem {
   id: string;
+  /** Null for bill-level surcharge lines (e.g. QBD's manually-added GST line) with no extracted invoice line counterpart. */
+  invoice_line_id?: string | null;
   description: string;
   quantity: number;
   unit_price: number;
