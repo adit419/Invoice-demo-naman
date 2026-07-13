@@ -366,7 +366,13 @@ def _build_simulate_document(run_id, header: dict, line_items: list[dict]):
     # Expense / GR-IR debit — one posting line per invoice line item.
     # tax_code: use the SAP VAT code the user selected; drop the raw fixture
     # "tax_type" string (e.g. "VAT 12%") — it is not a valid SAP code.
+    # Skip bill-level surcharge lines (invoice_line_id is None, e.g. QBD's
+    # manually-injected GST line) -- their tax effect is already captured by
+    # the "Input VAT (recoverable)" row below, which reads header.tax_amount
+    # directly. Including both double-counts the same tax amount.
     for it in line_items:
+        if it.get("invoice_line_id") is None:
+            continue
         amount = it.get("total")
         if amount is None:
             amount = float(it.get("quantity") or 0) * float(it.get("unit_price") or 0)
