@@ -1,0 +1,176 @@
+{
+  "recommended": {
+    "po_number": "PO-00069",
+    "vendor_name": "CATERSPOT SINGAPORE PTE LTD",
+    "total_amount": 288.85,
+    "currency": "SGD",
+    "order_date": null,
+    "status": null,
+    "source": "fixture_metadata_validation",
+    "score": 1.0,
+    "breakdown": [
+      {
+        "criterion": "vendor_name",
+        "score": 1.0,
+        "detail": "vendor \"CATERSPOT SINGAPORE PTE LTD\" vs \"CATERSPOT SINGAPORE PTE LTD\""
+      },
+      {
+        "criterion": "total_amount",
+        "score": 1.0,
+        "detail": "amount 288.85 vs invoice 288.85"
+      },
+      {
+        "criterion": "currency",
+        "score": 1.0,
+        "detail": "currency SGD vs SGD"
+      }
+    ]
+  },
+  "candidates": [
+    {
+      "po_number": "PO-00069",
+      "vendor_name": "CATERSPOT SINGAPORE PTE LTD",
+      "total_amount": 288.85,
+      "currency": "SGD",
+      "order_date": null,
+      "status": null,
+      "source": "fixture_metadata_validation",
+      "score": 1.0,
+      "breakdown": [
+        {
+          "criterion": "vendor_name",
+          "score": 1.0,
+          "detail": "vendor \"CATERSPOT SINGAPORE PTE LTD\" vs \"CATERSPOT SINGAPORE PTE LTD\""
+        },
+        {
+          "criterion": "total_amount",
+          "score": 1.0,
+          "detail": "amount 288.85 vs invoice 288.85"
+        },
+        {
+          "criterion": "currency",
+          "score": 1.0,
+          "detail": "currency SGD vs SGD"
+        }
+      ]
+    },
+    {
+      "po_number": "PO-00068",
+      "vendor_name": "PROGRESSIVE CARGO & SERVICES SDN BHD",
+      "total_amount": 302801.26,
+      "currency": null,
+      "order_date": "2026-05-01",
+      "status": "received",
+      "source": "fixture_po",
+      "score": 0.312,
+      "breakdown": [
+        {
+          "criterion": "vendor_name",
+          "score": 0.328,
+          "detail": "vendor \"PROGRESSIVE CARGO & SERVICES SDN BHD\" vs \"CATERSPOT SINGAPORE PTE LTD\""
+        },
+        {
+          "criterion": "total_amount",
+          "score": 0.0,
+          "detail": "amount 302,801.26 vs invoice 288.85"
+        },
+        {
+          "criterion": "dates",
+          "score": 0.896,
+          "detail": "PO date 2026-05-01 vs invoice dates (38d apart)"
+        }
+      ]
+    },
+    {
+      "po_number": "PO-00064",
+      "vendor_name": "NIKE SALES (MALAYSIA) (USD)",
+      "total_amount": 155089.8,
+      "currency": "USD",
+      "order_date": null,
+      "status": null,
+      "source": "fixture_metadata_validation",
+      "score": 0.132,
+      "breakdown": [
+        {
+          "criterion": "vendor_name",
+          "score": 0.28,
+          "detail": "vendor \"NIKE SALES (MALAYSIA) (USD)\" vs \"CATERSPOT SINGAPORE PTE LTD\""
+        },
+        {
+          "criterion": "total_amount",
+          "score": 0.0,
+          "detail": "amount 155,089.80 vs invoice 288.85"
+        },
+        {
+          "criterion": "currency",
+          "score": 0.0,
+          "detail": "currency USD vs SGD"
+        }
+      ]
+    },
+    {
+      "po_number": "PO-00067",
+      "vendor_name": "PT Nau Corp Indonesia",
+      "total_amount": 10101000.0,
+      "currency": "IDR",
+      "order_date": null,
+      "status": null,
+      "source": "fixture_metadata_validation",
+      "score": 0.118,
+      "breakdown": [
+        {
+          "criterion": "vendor_name",
+          "score": 0.25,
+          "detail": "vendor \"PT Nau Corp Indonesia\" vs \"CATERSPOT SINGAPORE PTE LTD\""
+        },
+        {
+          "criterion": "total_amount",
+          "score": 0.0,
+          "detail": "amount 10,101,000.00 vs invoice 288.85"
+        },
+        {
+          "criterion": "currency",
+          "score": 0.0,
+          "detail": "currency IDR vs SGD"
+        }
+      ]
+    },
+    {
+      "po_number": "PO-00060",
+      "vendor_name": "YBM YELLOW BRICK MEDIA GROUP INC.",
+      "total_amount": 785280.72,
+      "currency": "PHP",
+      "order_date": null,
+      "status": null,
+      "source": "fixture_metadata_validation",
+      "score": 0.112,
+      "breakdown": [
+        {
+          "criterion": "vendor_name",
+          "score": 0.237,
+          "detail": "vendor \"YBM YELLOW BRICK MEDIA GROUP INC.\" vs \"CATERSPOT SINGAPORE PTE LTD\""
+        },
+        {
+          "criterion": "total_amount",
+          "score": 0.0,
+          "detail": "amount 785,280.72 vs invoice 288.85"
+        },
+        {
+          "criterion": "currency",
+          "score": 0.0,
+          "detail": "currency PHP vs SGD"
+        }
+      ]
+    }
+  ],
+  "candidates_considered": 7,
+  "invoice_fields": {
+    "po_number": null,
+    "vendor_name": "CATERSPOT SINGAPORE PTE LTD",
+    "total_amount": 288.85,
+    "currency": "SGD",
+    "invoice_date": "2026-06-08",
+    "due_date": "2026-08-08"
+  },
+  "generated_at": "2026-07-14T18:13:25.807837+00:00"
+}

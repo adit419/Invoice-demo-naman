@@ -19,7 +19,11 @@ from ...auth.deps import CurrentUser
 from ...database import get_db
 from ...db.collections import invoices, pipeline_runs, po_recommendations
 from ...services.invoice_state import get_invoice_state
-from ...services.po_recommendation import build_recommendation
+from ...services.po_recommendation import (
+    build_recommendation,
+    load_saved_recommendation,
+    save_recommendation_to_fixture,
+)
 from ._common import _envelope, _extract_field, _oid
 
 router = APIRouter(tags=["po_recommendation"])
@@ -40,6 +44,7 @@ def _public(doc: dict) -> dict:
         "candidates": doc.get("candidates", []),
         "candidates_considered": doc.get("candidates_considered", 0),
         "invoice_fields": doc.get("invoice_fields", {}),
+        "recommendation_source": doc.get("recommendation_source"),
         "generated_at": _iso(doc.get("generated_at")),
         "applied_at": _iso(doc.get("applied_at")),
     }
@@ -97,7 +102,17 @@ async def get_po_recommendation(invoice_id: str, current_user: CurrentUser):
             "current_po_number": current_po,
         })
 
-    result = await build_recommendation(state["invoice_schema"])
+    # Durable value lives in the fixture sidecar (survives the in-memory DB):
+    # reuse fixtures/<KEY>/po_recommendation.json when present, otherwise
+    # compute once and persist it there for every future run of this scenario.
+    fixture_key = run.get("fixture_key", "")
+    result = load_saved_recommendation(fixture_key)
+    source = "fixture"
+    if result is None:
+        result = await build_recommendation(state["invoice_schema"])
+        save_recommendation_to_fixture(fixture_key, result)
+        source = "computed"
+
     now = datetime.now(timezone.utc)
     applied = result["recommended"] is not None
     if applied:
@@ -108,9 +123,10 @@ async def get_po_recommendation(invoice_id: str, current_user: CurrentUser):
         "run_id": oid,
         "status": "applied" if applied else "no_match",
         "recommended": result["recommended"],
-        "candidates": result["candidates"],
-        "candidates_considered": result["candidates_considered"],
-        "invoice_fields": result["invoice_fields"],
+        "candidates": result.get("candidates", []),
+        "candidates_considered": result.get("candidates_considered", 0),
+        "invoice_fields": result.get("invoice_fields", {}),
+        "recommendation_source": source,
         "generated_at": now,
         "applied_at": now if applied else None,
     }

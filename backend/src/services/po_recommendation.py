@@ -15,10 +15,12 @@ redistributed across the applicable scorers. Add a `(name, weight, fn)` tuple
 to SCORERS to incorporate a new criterion.
 """
 import base64
+import json
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from difflib import SequenceMatcher
+from pathlib import Path
 from typing import Any, Callable, Optional
 
 import httpx
@@ -309,6 +311,47 @@ def _serializable(cand: dict) -> dict:
     if isinstance(out.get("order_date"), datetime):
         out["order_date"] = out["order_date"].date().isoformat()
     return out
+
+
+# ── Fixture persistence ───────────────────────────────────────────────────────
+# The in-memory DB is wiped on every restart, so the computed recommendation is
+# persisted as a fixture sidecar (fixtures/<KEY>/po_recommendation.json) —
+# the same durable layer the rest of the demo treats as source of truth. New
+# runs of a scenario reuse the saved value instead of recomputing.
+
+def _fixture_rec_path(fixture_key: str) -> Path:
+    return Path(get_loader()._root) / fixture_key / "po_recommendation.json"
+
+
+def load_saved_recommendation(fixture_key: str) -> Optional[dict]:
+    path = _fixture_rec_path(fixture_key)
+    if not path.exists():
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            saved = json.load(fh)
+    except (OSError, ValueError):
+        logger.warning("Unreadable po_recommendation.json for %s — recomputing", fixture_key)
+        return None
+    if not isinstance(saved, dict) or "recommended" not in saved:
+        return None
+    return saved
+
+
+def save_recommendation_to_fixture(fixture_key: str, result: dict) -> None:
+    path = _fixture_rec_path(fixture_key)
+    if not path.parent.is_dir():
+        # Unknown/foreign fixture key — nothing durable to write into.
+        return
+    payload = {
+        **result,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(payload, fh, indent=2, default=str)
+    except OSError:
+        logger.warning("Could not write po_recommendation.json for %s", fixture_key, exc_info=True)
 
 
 # ── Recommendation entrypoint ─────────────────────────────────────────────────
