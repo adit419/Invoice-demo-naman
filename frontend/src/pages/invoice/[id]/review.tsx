@@ -14,6 +14,8 @@ import { SourceViewerToolbar, ZOOM_MIN, ZOOM_MAX, ZOOM_STEP } from "@/components
 import { StageTransitionOverlay } from "@/components/StageTransitionOverlay";
 import { usePipelineCompleted } from "@/hooks/usePipelineCompleted";
 import { ExtractionEditHistory } from "@/components/ExtractionEditHistory";
+import NeoAiSuggestionBanner, { AiSparkleIcon, AI_VALUE_STYLE } from "@/components/NeoAiSuggestionBanner";
+import type { PoRecommendation } from "@/services/stages";
 
 const PdfViewer = dynamic(
   () => import("@/components/PdfViewer").then(m => m.PdfViewer),
@@ -94,8 +96,14 @@ const BASE = envConfig.BE_BASE_URL;
 
 const LOW_CONF = 0.85;
 
+// Acronyms rendered uppercase per the Figma field labels ("PO Number",
+// "Vendor Tax ID", "VAT/GST").
+const LABEL_ACRONYMS = new Set(["po", "vat", "gst", "wht", "id", "swift"]);
+
 function fieldLabel(f: string) {
-  return f.split("_").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+  return f.split("_")
+    .map(w => LABEL_ACRONYMS.has(w) ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
 }
 
 function avgLineConf(item: BboxLineItem): number {
@@ -159,6 +167,11 @@ function ReviewPage() {
   // red. Falls back to LOW_CONF when no tolerance is configured.
   const [confThreshMeta, setConfThreshMeta] = useState<Record<string, number>>({});
   const [confThreshLine, setConfThreshLine] = useState<Record<string, number>>({});
+  // AI PO recommendation — only populated when extraction found no PO number
+  // (backend returns applicable:false otherwise, leaving the flow untouched).
+  // When the backend applies a suggestion it fills po_number server-side; the
+  // user overrides it by editing the field like any other value.
+  const [poRec, setPoRec] = useState<PoRecommendation | null>(null);
 
   useEffect(() => { setToken(localStorage.getItem("access_token")); }, []);
 
@@ -221,6 +234,30 @@ function ReviewPage() {
   }, [id]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // Fetch the AI PO recommendation once the extraction data is available.
+  // When the backend applies a suggestion it writes po_number server-side,
+  // so re-fetch the extraction data to show the filled value.
+  const hasData = !!data;
+  useEffect(() => {
+    if (!id || !hasData) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const rec = await stagesService.getPoRecommendation(id);
+        if (cancelled) return;
+        setPoRec(rec);
+        if (rec.applicable && rec.status === "applied") {
+          setHasEditHistory(true);
+          await loadData();
+        }
+      } catch {
+        if (!cancelled) setPoRec(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, hasData]);
 
   // Derive activeBbox from activeKey + activeTab (with padding for visibility)
   const activeBbox: ActiveBbox | null = (() => {
@@ -379,6 +416,16 @@ function ReviewPage() {
   const bboxLineMap: Record<string, BboxLineItem> = {};
   data.bbox_schema.line_items.forEach(b => { bboxLineMap[b.row_id] = b; });
 
+  // AI-filled PO treatment (Figma "AI Suggestion"): banner + sparkle/italic
+  // value while the field still holds Neo AI's suggestion. Editing the field
+  // to a different value reverts it to a normal user-entered cell.
+  const effectivePoNumber = String(edits["po_number"] ?? metaMap["po_number"] ?? "").trim();
+  const aiFilledPo =
+    poRec?.applicable && poRec.status === "applied" && poRec.recommended
+      ? poRec.recommended.po_number
+      : null;
+  const showAiBanner = !!aiFilledPo && effectivePoNumber === aiFilledPo;
+
   const pdfUrl = `${BASE}/api/v1/invoices/${id}/file`;
   const invoiceDate = metaMap["invoice_date"];
   const invoiceNumber = data.invoice_number ?? metaMap["invoice_number"];
@@ -399,10 +446,10 @@ function ReviewPage() {
             </svg>
           </Link>
           <div className="min-w-0">
-            <h1 className="font-semibold leading-tight" style={{ fontSize: 16, color: "#1e293b" }}>
-              Extraction
+            <h1 className="font-semibold leading-tight" style={{ fontSize: 17, color: "#101828" }}>
+              Invoice Extraction
             </h1>
-            <div className="flex items-center gap-1.5 mt-0.5 text-xs flex-wrap" style={{ color: "#64748b" }}>
+            <div className="flex items-center gap-1.5 mt-0.5 text-xs flex-wrap" style={{ color: "#83878B" }}>
               <span className="flex items-center gap-1">
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                   <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.2" />
@@ -412,7 +459,7 @@ function ReviewPage() {
               </span>
               {invoiceNumber && <>
                 <span>|</span>
-                <span className="flex items-center gap-1">
+                <span className="flex items-center gap-1" style={{ color: "#477DEA" }}>
                   <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                     <rect x="1.5" y="1" width="9" height="10" rx="1" stroke="currentColor" strokeWidth="1.2" />
                     <path d="M4 4h4M4 7h2.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
@@ -450,18 +497,27 @@ function ReviewPage() {
               <button
                 onClick={() => setRejectOpen(true)}
                 disabled={approving}
-                className="px-4 py-1.5 text-sm font-medium rounded border transition-colors disabled:opacity-50"
-                style={{ color: "#f87171", borderColor: "#f87171", background: "transparent" }}
+                className="px-5 py-1.5 text-sm font-medium transition-colors disabled:opacity-50"
+                style={{ color: "#FF4D4F", border: "1px solid #FF4D4F", borderRadius: 8, background: "#ffffff" }}
+                onMouseEnter={e => (e.currentTarget.style.background = "#FFF5F5")}
+                onMouseLeave={e => (e.currentTarget.style.background = "#ffffff")}
               >
                 Reject
               </button>
               <button
                 onClick={handleApprove}
                 disabled={approving}
-                className="px-4 py-1.5 text-sm font-medium rounded transition-colors disabled:opacity-70"
-                style={{ background: "#3b82f6", color: "#ffffff", border: "none" }}
+                className="inline-flex items-center gap-1.5 px-5 py-1.5 text-sm font-medium transition-colors disabled:opacity-70"
+                style={{ background: "#1876FF", color: "#ffffff", border: "none", borderRadius: 8 }}
+                onMouseEnter={e => (e.currentTarget.style.background = "#0F65E3")}
+                onMouseLeave={e => (e.currentTarget.style.background = "#1876FF")}
               >
                 {approving ? "Confirming…" : "Confirm Extraction"}
+                {!approving && (
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                    <path d="M2.5 7h9M8 3.5 11.5 7 8 10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
               </button>
             </>
           ) : !isActionable ? (
@@ -580,7 +636,7 @@ function ReviewPage() {
           </div>
 
           {/* Tabs (mirrors invoice-validator-fe AntD Tabs with rounded count badges) */}
-          <div className="shrink-0 flex border-b px-5" style={{ borderColor: "#e6e6e6" }}>
+          <div className="shrink-0 flex border-b px-5" style={{ borderColor: "#EBEDF0" }}>
             {(["metadata", "line_items"] as const).map(tab => {
               const count = tab === "metadata"
                 ? data.invoice_schema.metadata.length
@@ -597,8 +653,8 @@ function ReviewPage() {
                     marginRight: 24,
                     fontSize: 14,
                     fontWeight: 500,
-                    color: isActive ? "#1677FF" : "#4B5563",
-                    borderBottom: `2px solid ${isActive ? "#1677FF" : "transparent"}`,
+                    color: isActive ? "#1876FF" : "#585C65",
+                    borderBottom: `2px solid ${isActive ? "#1876FF" : "transparent"}`,
                     background: "transparent",
                     cursor: "pointer",
                   }}
@@ -610,8 +666,8 @@ function ReviewPage() {
                       borderRadius: 4,
                       fontSize: 13,
                       fontWeight: 500,
-                      background: isActive ? "#DBEAFE" : "#E5E7EB",
-                      color: isActive ? "#2563EB" : "#4B5563",
+                      background: isActive ? "#E8F1FF" : "#EEF0F3",
+                      color: isActive ? "#1876FF" : "#585C65",
                       lineHeight: "18px",
                     }}
                   >
@@ -625,30 +681,33 @@ function ReviewPage() {
           {/* Table */}
           <div className="flex-1 overflow-y-auto px-5 py-4">
 
+            {activeTab === "metadata" && showAiBanner && <NeoAiSuggestionBanner />}
+
             {activeTab === "metadata" && (
-              <div style={{ border: "1px solid #E6E6E6", borderRadius: 4, overflow: "hidden", background: "#ffffff" }}>
+              <div style={{ border: "1px solid #E9EAEC", borderRadius: 8, overflow: "hidden", background: "#ffffff" }}>
                 <table className="w-full text-sm" style={{ borderCollapse: "collapse", tableLayout: "fixed" }}>
                   <thead className="sticky top-0 z-10">
                     <tr>
                       <th
                         style={{
-                          textAlign: "left",  fontSize: "0.8rem", fontWeight: 600,
-                          padding:"4px 8px",
-                          lineHeight:"20px",
-                          backgroundColor: "#f6f3f4",
-                           border: "1px solid #e5e7eb",
-                          width: "42%",
+                          textAlign: "left", fontSize: 13, fontWeight: 500, color: "#414651",
+                          padding: "10px 14px",
+                          lineHeight: "20px",
+                          backgroundColor: "#F4F4F4",
+                          borderBottom: "1px solid #EBEDF0",
+                          borderRight: "1px solid #EBEDF0",
+                          width: "32%",
                         }}
                       >
                         Field
                       </th>
                       <th
                         style={{
-                          textAlign: "left", fontSize: "0.8rem", fontWeight: 600,
-                          padding:"4px 8px",
-                          lineHeight:"20px",
-                            backgroundColor: "#f6f3f4",
-                            border: "1px solid #e5e7eb",
+                          textAlign: "left", fontSize: 13, fontWeight: 500, color: "#414651",
+                          padding: "10px 14px",
+                          lineHeight: "20px",
+                          backgroundColor: "#F4F4F4",
+                          borderBottom: "1px solid #EBEDF0",
                         }}
                       >
                         Value
@@ -670,8 +729,11 @@ function ReviewPage() {
                     // Threshold = configured Tolerance (%) for this field, else LOW_CONF.
                     const confThreshold = confThreshMeta[field.field] ?? LOW_CONF;
                     const lowConfidence = !isEmpty && conf > 0 && conf < confThreshold;
-                    const cellBg = isEmpty ? "#FEF3C7" : lowConfidence ? "#FFF0F0" : "transparent";
-                    const leftBarColor = isEmpty ? "#F59E0B" : lowConfidence ? "#C10008" : null;
+                    // Neo AI-filled value (Figma AI Suggestion treatment):
+                    // sparkle + italic blue, no empty/low-confidence flags.
+                    const isAiFilled = field.field === "po_number" && !!aiFilledPo && value === aiFilledPo;
+                    const cellBg = isAiFilled ? "transparent" : isEmpty ? "#FEF3C7" : lowConfidence ? "#FFF0F0" : "transparent";
+                    const leftBarColor = isAiFilled ? null : isEmpty ? "#F59E0B" : lowConfidence ? "#C10008" : null;
                     const isActive = activeKey === field.field;
 
                       return (
@@ -679,57 +741,61 @@ function ReviewPage() {
                           key={field.field}
                           onClick={() => setActiveKey(isActive ? null : field.field)}
                           style={{
-                            borderBottom: "1px solid #E6E6E6",
-                            background: isActive ? "rgba(22,118,255,0.06)" : undefined,
+                            borderBottom: "1px solid #EBEDF0",
+                            background: isActive ? "rgba(24,118,255,0.06)" : undefined,
                             cursor: "pointer",
-                            
                           }}
                           onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = "#FAFAFA"; }}
                           onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = ""; }}
                         >
                         <td
                           style={{
-                            textAlign: "left",  fontSize: "0.8rem",
+                            textAlign: "left", fontSize: 13, color: "#414651",
                             boxShadow: leftBarColor ? `inset 3px 0 0 ${leftBarColor}` : undefined,
-                            padding:"4px 8px",
-                            lineHeight:"20px",
-                            backgroundColor: "#f6f3f4",
-                            border: "1px solid #e5e7eb",
-                            width: "42%",
+                            padding: "10px 14px",
+                            lineHeight: "20px",
+                            backgroundColor: "#F4F4F4",
+                            borderRight: "1px solid #EBEDF0",
+                            width: "32%",
                           }}
                         >
-
-                          
                           {fieldLabel(field.field)}
                           {isRequired && (
-                            <span style={{ color: "#C10008", fontWeight: 700, marginLeft: 2 }}>*</span>
+                            <span style={{ color: "#E02D3C", fontWeight: 600, marginLeft: 3 }}>*</span>
                           )}
                         </td>
                         <td
                           style={{
-                            textAlign: "left",  fontSize: "0.8rem",
-                            padding:"4px 8px",
-                            lineHeight:"20px",
-                            border: "1px solid #e5e7eb",
+                            textAlign: "left", fontSize: 13, color: "#414651",
+                            padding: "10px 14px",
+                            lineHeight: "20px",
                             background: cellBg,
                           }}
                         >
                           {isEditable ? (
-                            <input
-                              className="w-full focus:outline-none"
-                              style={{
-                                fontSize: "0.8rem", lineHeight: "20px",
-                                padding: 0, background: "transparent",
-                                border: "none", color: "#414651",
-                                width: "100%",
-                              }}
-                              value={edits[field.field] ?? value}
-                              onChange={e => setEdits(prev => ({ ...prev, [field.field]: e.target.value }))}
-                              onClick={e => { e.stopPropagation(); setActiveKey(field.field); }}
-                              onKeyDown={e => { if (e.key === "Enter") void saveMetaField(field.field, edits[field.field] ?? value); }}
-                            />
+                            <span className="flex items-center gap-1.5 w-full">
+                              {isAiFilled && <AiSparkleIcon size={15} />}
+                              <input
+                                className="w-full focus:outline-none"
+                                style={{
+                                  fontSize: 13, lineHeight: "20px",
+                                  padding: 0, background: "transparent",
+                                  border: "none",
+                                  color: isAiFilled ? AI_VALUE_STYLE.color : "#414651",
+                                  fontStyle: isAiFilled ? AI_VALUE_STYLE.fontStyle : undefined,
+                                  width: "100%",
+                                }}
+                                value={edits[field.field] ?? value}
+                                onChange={e => setEdits(prev => ({ ...prev, [field.field]: e.target.value }))}
+                                onClick={e => { e.stopPropagation(); setActiveKey(field.field); }}
+                                onKeyDown={e => { if (e.key === "Enter") void saveMetaField(field.field, edits[field.field] ?? value); }}
+                              />
+                            </span>
                           ) : (
-                            value || ""
+                            <span className="flex items-center gap-1.5">
+                              {isAiFilled && <AiSparkleIcon size={15} />}
+                              <span style={isAiFilled ? AI_VALUE_STYLE : undefined}>{value || ""}</span>
+                            </span>
                           )}
                         </td>
                       </tr>
@@ -741,7 +807,7 @@ function ReviewPage() {
             )}
 
             {activeTab === "line_items" && (
-              <div style={{ border: "1px solid #E6E6E6", borderRadius: 8, overflow: "hidden", background: "#ffffff" }}>
+              <div style={{ border: "1px solid #E9EAEC", borderRadius: 8, overflow: "hidden", background: "#ffffff" }}>
                 <div className="overflow-x-auto">
                   <table className="text-sm" style={{ borderCollapse: "collapse", tableLayout: "auto", width: "100%", minWidth: 700 }}>
                     <thead className="sticky top-0 z-10">
@@ -759,12 +825,13 @@ function ReviewPage() {
                           key={h.label}
                           style={{
                             textAlign: h.align,
-                            padding: "4px 8px",
-                            fontSize: ".875rem",
-                            fontWeight: 600,
-                            lineHeight:"20px",
-                            backgroundColor: "#f6f3f4",
-                            border: "1px solid #d1d5dc",
+                            padding: "8px 12px",
+                            fontSize: 13,
+                            fontWeight: 500,
+                            color: "#414651",
+                            lineHeight: "20px",
+                            backgroundColor: "#F4F4F4",
+                            border: "1px solid #EBEDF0",
                             whiteSpace: "nowrap",
                             width: h.width,
                           }}
@@ -835,11 +902,11 @@ function ReviewPage() {
                           {/* Row # — left bar if any cell in the row has issues */}
                           <td
                             style={{
-                              padding: "4px 8px",
+                              padding: "8px 12px",
                               textAlign:"center",
-                              fontSize: 14,
-                              backgroundColor:"#f3f4f6",
-                              border: "1px solid #d1d5db",
+                              fontSize: 13,
+                              backgroundColor:"#F4F4F4",
+                              border: "1px solid #EBEDF0",
                               color: "#717680",
                               boxShadow: rowHasIssue
                                 ? `inset 3px 0 0 ${visibleCells.some(c => cellStyleFor(c.raw, c.conf, c.field).lowConf) ? "#C10008" : "#F59E0B"}`
@@ -857,8 +924,9 @@ function ReviewPage() {
                                 key={c.field}
                                 title={c.field !== "item_description" && typeof c.display === "string" ? c.display : undefined}
                                 style={{
-                                  padding: "4px 8px",
+                                  padding: "8px 12px",
                                   textAlign: c.align ?? "left",
+                                  fontSize: 13,
                                   color: "#414651",
                                   background: s.bg,
                                   // Ensure the description column doesn't collapse on narrow
@@ -869,7 +937,7 @@ function ReviewPage() {
                                   whiteSpace: c.isNum ? "nowrap" : (c.field === "item_description" ? "normal" : "nowrap"),
                                   wordBreak: c.field === "item_description" ? "break-word" : undefined,
                                   fontVariantNumeric: c.isNum ? "tabular-nums" : undefined,
-                                  border: "1px solid #d1d5db",
+                                  border: "1px solid #EBEDF0",
                                 }}
                                 onClick={e => { if (isEditable) { e.stopPropagation(); setActiveKey(li.row_id); } }}
                               >

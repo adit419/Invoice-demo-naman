@@ -1,0 +1,190 @@
+[
+  {
+    "fields": [
+      {
+        "field_name": "vendor_name",
+        "display_name": "Vendor Legal Entity",
+        "type": "string",
+        "required": true,
+        "match_status": "match",
+        "values": {
+          "invoice": [
+            {
+              "document_id": "INV-SG-202603-a7888",
+              "value": "CATERSPOT SINGAPORE PTE LTD"
+            }
+          ],
+          "po": [
+            {
+              "document_id": "PO-00069",
+              "value": "CATERSPOT SINGAPORE PTE LTD"
+            }
+          ]
+        },
+        "is_acknowledged": false,
+        "acknowledged_by": null,
+        "acknowledged_at": null
+      },
+      {
+        "field_name": "vendor_vat_id",
+        "display_name": "Vendor VAT ID",
+        "type": "string",
+        "required": false,
+        "match_status": "mismatch",
+        "values": {
+          "invoice": [
+            {
+              "document_id": "INV-SG-202603-a7888",
+              "value": "201609103Z"
+            }
+          ],
+          "po": [
+            {
+              "document_id": "PO-00069",
+              "value": "27HGFDX5678K1Z2"
+            }
+          ]
+        },
+        "is_acknowledged": false,
+        "acknowledged_by": null,
+        "acknowledged_at": null
+      },
+      {
+        "field_name": "vendor_address",
+        "display_name": "Vendor Address",
+        "type": "string",
+        "required": false,
+        "match_status": "match",
+        "values": {
+          "invoice": [
+            {
+              "document_id": "INV-SG-202603-a7888",
+              "value": "160 Robinson Road, #14-04, Singapore Business Federation Centre, Singapore 068914"
+            }
+          ],
+          "po": [
+            {
+              "document_id": "PO-00069",
+              "value": "160 Robinson Road\n#14-04\nSingapore Business, Federation Centre\nSingapore 068914, Singapore"
+            }
+          ]
+        },
+        "is_acknowledged": false,
+        "acknowledged_by": null,
+        "acknowledged_at": null
+      },
+      {
+        "field_name": "vendor_bank_name",
+        "display_name": "Vendor Bank Name",
+        "type": "string",
+        "required": false,
+        "match_status": "mismatch",
+        "values": {
+          "invoice": [
+            {
+              "document_id": "INV-SG-202603-a7888",
+              "value": "DBS"
+            }
+          ],
+          "po": [
+            {
+              "document_id": "PO-00069",
+              "value": null
+            }
+          ]
+        },
+        "is_acknowledged": false,
+        "acknowledged_by": null,
+        "acknowledged_at": null
+      },
+      {
+        "field_name": "vendor_bank_account_number",
+        "display_name": "Vendor Bank Account Number",
+        "type": "string",
+        "required": false,
+        "match_status": "mismatch",
+        "values": {
+          "invoice": [
+            {
+              "document_id": "INV-SG-202603-a7888",
+              "value": "2889035621"
+            }
+          ],
+          "po": [
+            {
+              "document_id": "PO-00069",
+              "value": null
+            }
+          ]
+        },
+        "is_acknowledged": false,
+        "acknowledged_by": null,
+        "acknowledged_at": null
+      },
+      {
+        "field_name": "vendor_bank_account_name",
+        "display_name": "Vendor Bank Account Name",
+        "type": "string",
+        "required": false,
+        "match_status": "mismatch",
+        "values": {
+          "invoice": [
+            {
+              "document_id": "INV-SG-202603-a7888",
+              "value": "Caterspot Singapore Pte Ltd"
+            }
+          ],
+          "po": [
+            {
+              "document_id": "PO-00069",
+              "value": null
+            }
+          ]
+        },
+        "is_acknowledged": false,
+        "acknowledged_by": null,
+        "acknowledged_at": null
+      },
+      {
+        "field_name": "vendor_bank_swift",
+        "display_name": "Vendor Bank SWIFT",
+        "type": "string",
+        "required": false,
+        "match_status": "mismatch",
+        "values": {
+          "invoice": [
+            {
+              "document_id": "INV-SG-202603-a7888",
+              "value": "DBSSSGSG"
+            }
+          ],
+          "po": [
+            {
+              "document_id": "PO-00069",
+              "value": null
+            }
+          ]
+        },
+        "is_acknowledged": false,
+        "acknowledged_by": null,
+        "acknowledged_at": null
+      }
+    ],
+    "summary": {
+      "total_fields": 7,
+      "matched": 2,
+      "mismatched": 5,
+      "missing_required": 0,
+      "missing": 0,
+      "match_percentage": 28.57,
+      "document_types": [
+        "invoice",
+        "po"
+      ],
+      "validation_result": "fail"
+    },
+    "required_missing_fields": [],
+    "error_message": null,
+    "error_code": null
+  }
+]

@@ -5,6 +5,7 @@ from typing import Optional
 from bson import ObjectId
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 
 from ...auth.deps import CurrentUser
 from ...database import get_db
@@ -184,6 +185,178 @@ async def upload_invoice(
             {"_id": run_id},
             {"$set": {"local_file_path": str(local_path)}},
         )
+
+    inv_result = await invoices(db).insert_one({
+        "run_id": run_id,
+        "vendor_name": vendor_name,
+        "invoice_number": invoice_number,
+        "currency": currency,
+        "total_amount": total_amount,
+        "status": "in_progress",
+        "fixture_key": bundle.key,
+        "invoice_schema": ext.get("invoice_schema", {}),
+        "bbox_schema": ext.get("bbox_schema", {}),
+        "created_at": now,
+        "updated_at": now,
+    })
+
+    await bboxes(db).insert_one({
+        "run_id": run_id,
+        "bbox_schema": ext.get("bbox_schema", {}),
+        "created_at": now,
+    })
+
+    # Stage lifecycle records — ingestion completed, extraction in_review (tasks done by AI)
+    await executed_stages(db).insert_one({
+        "run_id": run_id,
+        "stage_slug": "ingestion",
+        "status": "completed",
+        "started_at": now,
+        "completed_at": now,
+        "approved_by": None,
+        "approved_at": None,
+    })
+    await executed_stages(db).insert_one({
+        "run_id": run_id,
+        "stage_slug": "extraction",
+        "status": "in_review",
+        "started_at": now,
+        "completed_at": None,
+        "approved_by": None,
+        "approved_at": None,
+    })
+    # Remaining stages at start
+    from .stages import STAGE_SEQUENCE
+    for slug in STAGE_SEQUENCE:
+        if slug not in ("ingestion", "extraction"):
+            await executed_stages(db).insert_one({
+                "run_id": run_id,
+                "stage_slug": slug,
+                "status": "start",
+                "started_at": None,
+                "completed_at": None,
+                "approved_by": None,
+                "approved_at": None,
+            })
+
+    # Trigger global STP in background if enabled
+    from .stp import get_global_stp, run_stp_for_pipeline
+    if await get_global_stp(db):
+        import asyncio
+        asyncio.create_task(run_stp_for_pipeline(run_id))
+
+    return _envelope(data=UploadResponse(
+        invoice_id=str(run_id),
+        fixture_key=bundle.key,
+        scenario=ScenarioChip(**scenario),
+    ).model_dump())
+
+
+# ── POST /api/v1/ingestion/trigger-upload ────────────────────────────────────
+
+class TriggerUploadRequest(BaseModel):
+    """Same payload as /ingestion/upload, but the file is referenced by name
+    instead of uploaded — the PDF served to the viewer is the resolved fixture
+    bundle's invoice.pdf (the existing fallback in GET /invoices/{id}/file)."""
+    file_name: str
+    email: Optional[str] = None
+    tag: Optional[str] = None
+
+
+@router.post("/ingestion/trigger-upload")
+async def trigger_upload_invoice(body: TriggerUploadRequest, current_user: CurrentUser):
+    # All authenticated roles can process items per PRD §3.2
+    if not body.file_name.strip():
+        raise HTTPException(status_code=422, detail="file_name is required")
+
+    if body.email and "@" not in body.email:
+        raise HTTPException(status_code=422, detail="Invalid notification email address")
+
+    db = get_db()
+    now = datetime.now(timezone.utc)
+    loader = get_loader()
+
+    file_name = body.file_name.strip()
+    bundle = loader.resolve(file_name)
+    ext = bundle.extraction
+    scenario = loader.scenario_display(bundle.key)
+
+    # No bytes are uploaded — report the bundled fixture PDF's size so the
+    # document record stays meaningful.
+    fixture_pdf = loader._root / bundle.key / "invoice.pdf"
+    file_size = fixture_pdf.stat().st_size if fixture_pdf.exists() else 0
+
+    # Resolve uploader's effective tenant (switched tenant takes precedence)
+    from bson import ObjectId as _OID
+    eff_tid = current_user.effective_tenant_id
+    uploader_tenant_oid = _OID(eff_tid) if eff_tid else None
+
+    # Ingestion chain: job → document → attachment
+    job_result = await jobs(db).insert_one({
+        "status": "processing",
+        "source": "manual",
+        "tenant_id": uploader_tenant_oid,
+        "created_at": now,
+        "updated_at": now,
+    })
+    job_id = job_result.inserted_id
+
+    doc_result = await documents(db).insert_one({
+        "job_id": job_id,
+        "file_name": file_name,
+        "file_size": file_size,
+        "content_type": "application/pdf",
+        "status": "processing",
+        "created_at": now,
+        "updated_at": now,
+    })
+    doc_id = doc_result.inserted_id
+
+    await attachments(db).insert_one({
+        "document_id": doc_id,
+        "file_name": file_name,
+        "file_size": file_size,
+        "content_type": "application/pdf",
+        "s3_key": None,
+        "created_at": now,
+    })
+
+    # Extract metadata from fixture
+    vendor_name = _extract_meta(ext, "vendor_name")
+    invoice_number = _extract_meta(ext, "invoice_number")
+    currency = _extract_meta(ext, "currency")
+    total_str = _extract_meta(ext, "total_amount")
+    try:
+        total_amount = float(str(total_str).replace(",", "")) if total_str else None
+    except (ValueError, AttributeError):
+        total_amount = None
+
+    # Create pipeline_run first (invoice references its _id as run_id).
+    # local_file_path stays None — GET /invoices/{id}/file falls back to the
+    # fixture bundle's invoice.pdf.
+    run_result = await pipeline_runs(db).insert_one({
+        "document_id": doc_id,
+        "pipeline_id": None,
+        "tenant_id": uploader_tenant_oid,
+        "status": "in_progress",
+        "current_stage": {
+            "slug": "extraction",
+            "display_name": "Extraction",
+            "status": "in_review",
+        },
+        "fixture_key": bundle.key,
+        "file_name": file_name,
+        "local_file_path": None,
+        "source": "manual",
+        # "sender" is the notification address slot the bill-posted email reads
+        # (same one the email-ingestion flow fills with the sender's address).
+        "source_meta": {"sender": body.email} if body.email else {},
+        "tag": body.tag,
+        "stp_enabled": False,
+        "created_at": now,
+        "updated_at": now,
+    })
+    run_id = run_result.inserted_id
 
     inv_result = await invoices(db).insert_one({
         "run_id": run_id,

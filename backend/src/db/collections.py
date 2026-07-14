@@ -56,6 +56,9 @@ def erp_cache(db: AsyncIOMotorDatabase):
 def field_acknowledgement_memory(db: AsyncIOMotorDatabase):
     return db["field_acknowledgement_memory"]
 
+def po_recommendations(db: AsyncIOMotorDatabase):
+    return db["po_recommendations"]
+
 
 # ── Tenants ──────────────────────────────────────────────────────────────────
 
@@ -152,6 +155,9 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
 
     # workflow_settings
     await workflow_settings(db).create_index([("section", ASCENDING)], unique=True)
+
+    # po_recommendations
+    await po_recommendations(db).create_index([("run_id", ASCENDING)], unique=True)
 
     # erp_cache
     await erp_cache(db).create_index([("run_id", ASCENDING)])
