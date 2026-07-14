@@ -7,7 +7,11 @@ import os
 from typing import List, Dict, Optional
 from contextlib import contextmanager
 
-DATABASE_PATH = os.path.join(os.path.dirname(__file__), 'o2c_data.db')
+# Overridable so deployments can persist the DB on a volume without
+# mounting over this package directory (which pins stale code)
+DATABASE_PATH = os.environ.get(
+    "CASH_DB_PATH", os.path.join(os.path.dirname(__file__), 'o2c_data.db')
+)
 
 
 @contextmanager

@@ -8,10 +8,14 @@ services:
       - "8001:8099"
     env_file:
       - ./backend/.env
+    environment:
+      CASH_DB_PATH: /app/data/o2c_data.db
     volumes:
       - ./fixtures:/fixtures
-      # Persist the SQLite cash DB across restarts
-      - cash_db:/app/src/cash
+      # Persist the SQLite cash DB across restarts. Mount a dedicated data
+      # dir, NOT /app/src/cash — mounting over the package dir freezes the
+      # code shipped in the image at whatever the volume first captured.
+      - cash_db:/app/data
 
   frontend:
     build:
