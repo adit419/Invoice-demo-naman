@@ -18,6 +18,7 @@ from .db.seeder import seed_pipeline
 from .api.v1 import auth as auth_router
 from .api.v1 import ingestion as ingestion_router
 from .api.v1 import extraction as extraction_router
+from .api.v1 import po_recommendation as po_recommendation_router
 from .api.v1 import vendor_validation as vendor_validation_router
 from .api.v1 import metadata_validation as metadata_validation_router
 from .api.v1 import fp_extraction as fp_extraction_router
@@ -101,6 +102,7 @@ app.add_middleware(
 app.include_router(auth_router.router, prefix="/api/v1")
 app.include_router(ingestion_router.router, prefix="/api/v1")
 app.include_router(extraction_router.router, prefix="/api/v1")
+app.include_router(po_recommendation_router.router, prefix="/api/v1")
 app.include_router(vendor_validation_router.router, prefix="/api/v1")
 app.include_router(metadata_validation_router.router, prefix="/api/v1")
 app.include_router(fp_extraction_router.router, prefix="/api/v1")

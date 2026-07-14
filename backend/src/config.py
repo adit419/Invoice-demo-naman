@@ -26,6 +26,13 @@ class Settings(BaseSettings):
     # Anthropic / Claude
     anthropic_api_key: str = ""
 
+    # erp-integration-service — live PO candidate lookup for the AI PO
+    # recommendation. When unset, candidates come from fixture PO sidecars
+    # (same demo-mode convention as the Zoho bill-posting fallback).
+    erp_integration_base_url: str = ""
+    erp_integration_secret: str = ""
+    erp_integration_tenant_id: str = ""
+
     # QBWC bridge (QuickBooks Desktop integration)
     qbwc_bridge_url: str = ""
     qbwc_bridge_secret: str = ""
