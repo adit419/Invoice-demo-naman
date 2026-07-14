@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Optional
 
 from bson import ObjectId
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 
 from ...auth.deps import CurrentUser
@@ -61,6 +61,7 @@ def _run_to_item(run: dict, doc: dict, inv: dict) -> InvoiceListItem:
         fixture_key=run.get("fixture_key", ""),
         percent_complete=percent_for_run(run),
         source=run.get("source", "manual"),
+        tag=run.get("tag"),
         stp_enabled=run.get("stp_enabled", False),
         created_at=run.get("created_at", datetime.now(timezone.utc)),
         updated_at=run.get("updated_at", datetime.now(timezone.utc)),
@@ -82,9 +83,14 @@ async def list_scenarios(current_user: CurrentUser):
 async def upload_invoice(
     current_user: CurrentUser,
     file: UploadFile = File(...),
+    email: Optional[str] = Form(None),
+    tag: Optional[str] = Form(None),
 ):
     # All authenticated roles can process items per PRD §3.2
     pass  # no role restriction needed
+
+    if email and "@" not in email:
+        raise HTTPException(status_code=422, detail="Invalid notification email address")
 
     db = get_db()
     now = datetime.now(timezone.utc)
@@ -159,7 +165,10 @@ async def upload_invoice(
         "file_name": file.filename,
         "local_file_path": None,  # filled in below after we know run_id
         "source": "manual",
-        "source_meta": {},
+        # "sender" is the notification address slot the bill-posted email reads
+        # (same one the email-ingestion flow fills with the sender's address).
+        "source_meta": {"sender": email} if email else {},
+        "tag": tag,
         "stp_enabled": False,
         "created_at": now,
         "updated_at": now,

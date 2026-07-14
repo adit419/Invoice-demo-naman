@@ -856,36 +856,37 @@ async def post_bill_to_erp(invoice_id: str, current_user: CurrentUser):
         {"$set": {"status": "completed", "updated_at": now}},
     )
 
-    # Send confirmation email to original sender for email-ingested invoices
+    # Send confirmation email whenever a notification address is present —
+    # the email sender for email-ingested invoices, or the optional `email`
+    # form param for manual uploads.
     notification_email = ""
-    if run.get("source") == "email":
-        sender_email = (run.get("source_meta") or {}).get("sender", "")
-        if sender_email:
-            notification_email = sender_email
-            try:
-                from ...services import gmail_client
-                from ...services.email_templates import bill_posted_html
-                posted_date = now.strftime("%d %b %Y")
-                total_fmt = f"{erp_result['total']:,.2f}" if erp_result.get("total") else "—"
-                html = bill_posted_html(
-                    invoice_number=erp_result.get("bill_number", ""),
-                    vendor_name=vendor_name,
-                    currency=erp_result.get("currency", ""),
-                    total_amount=total_fmt,
-                    posted_date=posted_date,
-                    zoho_reference=erp_result["zoho_reference"],
-                    zoho_url=erp_result.get("zoho_url", ""),
-                )
-                await gmail_client.send_html_email(
-                    to=sender_email,
-                    subject=f"Invoice {erp_result['bill_number']} Posted Successfully",
-                    html_body=html,
-                )
-            except Exception as exc:
-                import logging
-                logging.getLogger(__name__).exception(
-                    "Bill posting notification email failed to %s: %s", sender_email, exc
-                )
+    sender_email = (run.get("source_meta") or {}).get("sender", "")
+    if sender_email:
+        notification_email = sender_email
+        try:
+            from ...services import gmail_client
+            from ...services.email_templates import bill_posted_html
+            posted_date = now.strftime("%d %b %Y")
+            total_fmt = f"{erp_result['total']:,.2f}" if erp_result.get("total") else "—"
+            html = bill_posted_html(
+                invoice_number=erp_result.get("bill_number", ""),
+                vendor_name=vendor_name,
+                currency=erp_result.get("currency", ""),
+                total_amount=total_fmt,
+                posted_date=posted_date,
+                zoho_reference=erp_result["zoho_reference"],
+                zoho_url=erp_result.get("zoho_url", ""),
+            )
+            await gmail_client.send_html_email(
+                to=sender_email,
+                subject=f"Invoice {erp_result['bill_number']} Posted Successfully",
+                html_body=html,
+            )
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).exception(
+                "Bill posting notification email failed to %s: %s", sender_email, exc
+            )
 
     return _envelope(data={
         "zoho_reference": erp_result["zoho_reference"],

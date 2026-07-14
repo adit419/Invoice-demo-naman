@@ -63,6 +63,7 @@ class InvoiceListItem(BaseModel):
     fixture_key: str
     percent_complete: int
     source: str = "manual"
+    tag: Optional[str] = None
     stp_enabled: bool = False
     created_at: datetime
     updated_at: datetime

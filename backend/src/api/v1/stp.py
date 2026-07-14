@@ -222,32 +222,33 @@ async def _auto_post_bill(db, run_id: ObjectId) -> dict:
         payload={"zoho_reference": erp_result["zoho_reference"]},
     )
 
-    # Send confirmation email if invoice was email-ingested
+    # Send confirmation email whenever a notification address is present —
+    # the email sender for email-ingested invoices, or the optional `email`
+    # form param for manual uploads.
     run_fresh = await pipeline_runs(db).find_one({"_id": run_id}) or {}
-    if run_fresh.get("source") == "email":
-        sender_email = (run_fresh.get("source_meta") or {}).get("sender", "")
-        if sender_email:
-            try:
-                from ...services import gmail_client
-                from ...services.email_templates import bill_posted_html
-                posted_date = now.strftime("%d %b %Y")
-                total_fmt = f"{erp_result['total']:,.2f}" if erp_result.get("total") else "—"
-                html = bill_posted_html(
-                    invoice_number=erp_result.get("bill_number", ""),
-                    vendor_name=vendor_name,
-                    currency=erp_result.get("currency", ""),
-                    total_amount=total_fmt,
-                    posted_date=posted_date,
-                    zoho_reference=erp_result["zoho_reference"],
-                    zoho_url=erp_result.get("zoho_url", ""),
-                )
-                await gmail_client.send_html_email(
-                    to=sender_email,
-                    subject=f"Invoice {erp_result['bill_number']} Posted Successfully",
-                    html_body=html,
-                )
-            except Exception:
-                logger.exception("STP bill-posted notification email failed")
+    sender_email = (run_fresh.get("source_meta") or {}).get("sender", "")
+    if sender_email:
+        try:
+            from ...services import gmail_client
+            from ...services.email_templates import bill_posted_html
+            posted_date = now.strftime("%d %b %Y")
+            total_fmt = f"{erp_result['total']:,.2f}" if erp_result.get("total") else "—"
+            html = bill_posted_html(
+                invoice_number=erp_result.get("bill_number", ""),
+                vendor_name=vendor_name,
+                currency=erp_result.get("currency", ""),
+                total_amount=total_fmt,
+                posted_date=posted_date,
+                zoho_reference=erp_result["zoho_reference"],
+                zoho_url=erp_result.get("zoho_url", ""),
+            )
+            await gmail_client.send_html_email(
+                to=sender_email,
+                subject=f"Invoice {erp_result['bill_number']} Posted Successfully",
+                html_body=html,
+            )
+        except Exception:
+            logger.exception("STP bill-posted notification email failed")
 
     return erp_result
 
