@@ -47,7 +47,7 @@ import {
   LinkOff as MissingIcon,
 } from '@mui/icons-material';
 import { DataGrid } from '@mui/x-data-grid';
-import axios from 'axios';
+import { cashApi } from '@/services/cashApi';
 
 interface Props {
   selectedClient: { id: string; name: string } | null;
@@ -89,7 +89,7 @@ function CashExceptions({ selectedClient }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const response = await axios.get(`/cash-api/exceptions/${selectedClient.id}`);
+      const response = await cashApi.get(`/cash-api/exceptions/${selectedClient.id}`);
       setExceptions(response.data);
     } catch (err) {
       console.error('Error fetching exceptions:', err);
@@ -103,7 +103,7 @@ function CashExceptions({ selectedClient }: Props) {
     if (!selectedClient) return;
     setLoadingSuggestions(true);
     try {
-      const response = await axios.get(
+      const response = await cashApi.get(
         `/cash-api/exceptions/${selectedClient.id}/${transactionId}/suggestions`
       );
       setSuggestions(response.data);
@@ -120,7 +120,7 @@ function CashExceptions({ selectedClient }: Props) {
     setLoadingAI(true);
     setAiSuggestions(null);
     try {
-      const response = await axios.get(
+      const response = await cashApi.get(
         `/cash-api/ai/suggestions/${selectedClient.id}/${transactionId}`
       );
       setAiSuggestions(response.data);
@@ -151,7 +151,7 @@ function CashExceptions({ selectedClient }: Props) {
     };
 
     try {
-      const response = await axios.post(
+      const response = await cashApi.post(
         `/cash-api/exceptions/${selectedClient.id}/${selectedRow.transaction_id}/action`,
         {
           action: actionMapping[actionDialog.type!],

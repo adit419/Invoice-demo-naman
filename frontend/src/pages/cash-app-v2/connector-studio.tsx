@@ -4,6 +4,7 @@
 
 import React from 'react'
 import Head from 'next/head'
+import { withAuthGuard } from '@/components/AuthGuard'
 import { CashAppLayout } from '@/cash-app-v2/components/layout/CashAppLayout'
 import ConnectorStudio from '@/cash-app-v2/screens/ConnectorStudio'
 
@@ -23,4 +24,4 @@ const ConnectorStudioPage: React.FC = () => {
   )
 }
 
-export default ConnectorStudioPage
+export default withAuthGuard(ConnectorStudioPage)

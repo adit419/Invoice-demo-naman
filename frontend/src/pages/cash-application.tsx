@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { withAuthGuard } from '@/components/AuthGuard';
 import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
-import axios from 'axios';
+import { cashApi } from '@/services/cashApi';
 import dynamic from 'next/dynamic';
 
 const CashDashboard = dynamic(() => import('@/components/cash/CashDashboard'), { ssr: false });
@@ -32,7 +32,7 @@ function CashApplicationPage() {
   const [loadingClients, setLoadingClients] = useState(true);
 
   useEffect(() => {
-    axios
+    cashApi
       .get('/cash-api/clients')
       .then(r => {
         setClients(r.data);

@@ -7,7 +7,7 @@ import json
 import os
 from typing import List, Dict
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from .models import (
     Client, DashboardStats, Transaction, SuggestedMatch,
@@ -18,9 +18,11 @@ from .matching import MatchingEngine, parse_amount
 from .three_way_matching import ThreeWayMatchingEngine, load_payment_gateway_data
 from . import database as db
 from . import ai_matching
+from ..auth.deps import get_current_user
 from ..config import settings
 
-router = APIRouter()
+# All /cash-api routes require a valid Bearer token, same as /api/v1 routes
+router = APIRouter(dependencies=[Depends(get_current_user)])
 
 # Initialise AI client as soon as the router loads so the key from .env is used
 if settings.anthropic_api_key:

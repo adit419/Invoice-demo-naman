@@ -4,6 +4,7 @@
 
 import React from 'react'
 import Head from 'next/head'
+import { withAuthGuard } from '@/components/AuthGuard'
 import { CashAppLayout } from '@/cash-app-v2/components/layout/CashAppLayout'
 
 const ReversalsTrackerPage: React.FC = () => {
@@ -24,4 +25,4 @@ const ReversalsTrackerPage: React.FC = () => {
   )
 }
 
-export default ReversalsTrackerPage
+export default withAuthGuard(ReversalsTrackerPage)

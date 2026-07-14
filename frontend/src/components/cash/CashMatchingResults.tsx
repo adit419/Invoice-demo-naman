@@ -36,7 +36,7 @@ import {
   Payment as GatewayIcon,
 } from '@mui/icons-material';
 import { DataGrid } from '@mui/x-data-grid';
-import axios from 'axios';
+import { cashApi } from '@/services/cashApi';
 import ThreeWayComparison from './ThreeWayComparison';
 
 interface Props {
@@ -68,7 +68,7 @@ function CashMatchingResults({ selectedClient }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const response = await axios.get(`/cash-api/matches/${selectedClient.id}`);
+      const response = await cashApi.get(`/cash-api/matches/${selectedClient.id}`);
       setMatches(response.data);
     } catch (err) {
       console.error('Error fetching matches:', err);
@@ -82,7 +82,7 @@ function CashMatchingResults({ selectedClient }: Props) {
     if (!selectedClient) return;
     setLoadingDetails(true);
     try {
-      const response = await axios.get(
+      const response = await cashApi.get(
         `/cash-api/transaction/${selectedClient.id}/${transactionId}/details`
       );
       setTransactionDetails(response.data);
