@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react'
 import Head from 'next/head'
 import { useRouter } from 'next/router'
+import { withAuthGuard } from '@/components/AuthGuard'
 import { Dashboard } from '@/cash-app-v2/screens/Dashboard'
 import { ExceptionWorkspace } from '@/cash-app-v2/screens/ExceptionWorkspace'
 import { SettlementExplorer } from '@/cash-app-v2/screens/SettlementExplorer'
@@ -98,4 +99,4 @@ const CashApplicationV2Page: React.FC = () => {
   )
 }
 
-export default CashApplicationV2Page
+export default withAuthGuard(CashApplicationV2Page)

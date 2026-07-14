@@ -31,7 +31,7 @@ import {
   Delete as DeleteIcon,
 } from '@mui/icons-material';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
-import axios from 'axios';
+import { cashApi } from '@/services/cashApi';
 import StatsCard from './StatsCard';
 
 interface Props {
@@ -78,7 +78,7 @@ function CashDashboard({ selectedClient, onNavigate }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const response = await axios.get(`/cash-api/dashboard/${selectedClient.id}`);
+      const response = await cashApi.get(`/cash-api/dashboard/${selectedClient.id}`);
       setStats(response.data);
     } catch (err) {
       console.error('Error fetching dashboard:', err);
@@ -92,7 +92,7 @@ function CashDashboard({ selectedClient, onNavigate }: Props) {
     if (!selectedClient) return;
     setRunningMatch(true);
     try {
-      const response = await axios.post(`/cash-api/run-matching/${selectedClient.id}`);
+      const response = await cashApi.post(`/cash-api/run-matching/${selectedClient.id}`);
       setStats({
         ...response.data.stats,
         total_amount: stats?.total_amount || 0,

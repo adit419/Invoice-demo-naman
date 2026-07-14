@@ -1,8 +1,9 @@
 import Head from "next/head";
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/router";
+import { withAuthGuard } from "@/components/AuthGuard";
 
-export default function CashAppB2B() {
+function CashAppB2B() {
   const router = useRouter();
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -32,3 +33,5 @@ export default function CashAppB2B() {
     </>
   );
 }
+
+export default withAuthGuard(CashAppB2B);

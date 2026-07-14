@@ -4,6 +4,7 @@
 
 import React from 'react'
 import Head from 'next/head'
+import { withAuthGuard } from '@/components/AuthGuard'
 import { CashAppLayout } from '@/cash-app-v2/components/layout/CashAppLayout'
 
 const ReportsAndClosePage: React.FC = () => {
@@ -24,4 +25,4 @@ const ReportsAndClosePage: React.FC = () => {
   )
 }
 
-export default ReportsAndClosePage
+export default withAuthGuard(ReportsAndClosePage)
