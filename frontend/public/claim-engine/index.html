@@ -10,6 +10,29 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
+    <script>
+      // /claim-api is authenticated (same policy as the other modules). This
+      // embedded SPA is served same-origin inside the host app's iframe, so it
+      // can read the host session token and attach it to every API request.
+      (function () {
+        var origFetch = window.fetch.bind(window);
+        window.fetch = function (input, init) {
+          try {
+            var url = typeof input === "string" ? input : (input && input.url) || "";
+            if (url.indexOf("/claim-api") !== -1) {
+              var token = window.localStorage.getItem("access_token");
+              if (token) {
+                init = init || {};
+                var headers = new Headers(init.headers || (typeof input === "object" && input.headers) || {});
+                if (!headers.has("Authorization")) headers.set("Authorization", "Bearer " + token);
+                init.headers = headers;
+              }
+            }
+          } catch (e) { /* fall through to unauthenticated request */ }
+          return origFetch(input, init);
+        };
+      })();
+    </script>
     <script type="module" crossorigin src="/claim-engine/assets/index-BW9XAJLY.js"></script>
     <link rel="stylesheet" crossorigin href="/claim-engine/assets/index-tvkbf1Mg.css">
   </head>

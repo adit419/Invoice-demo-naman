@@ -277,29 +277,44 @@ function MetadataAntdTable({
     // Use raw field.match_status (not effectiveStatus) as the outer gate so that
     // already-acknowledged fields (effectiveStatus="acknowledged") still enter the
     // badge branch rather than rendering nothing.
+    // Figma (P2P-Flow, Faktur Pajak ACK states): an unhandled mismatch shows a
+    // compact "ACK" chip at the right end of the Invoice cell; once the user
+    // acknowledges, the chip becomes a green circular check (click to revert).
     const acknowledgeUI = field.required && field.match_status === "mismatch" ? (
       isAcknowledged && !isSystemAcknowledged ? (
-        <span
+        <button
+          type="button"
+          onClick={canEdit && !isCompleted ? () => onUnacknowledge(fieldName) : undefined}
+          title="Acknowledged — click to revert"
           style={{
-            display: "inline-flex", alignItems: "center", gap: 4,
-            padding: "2px 10px", borderRadius: 9999,
-            border: "1px solid #86EFAC", background: "#F0FDF4", color: "#16A34A",
-            fontSize: 13, fontWeight: 500, cursor: "default",
-            flexShrink: 0, whiteSpace: "nowrap",
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            width: 22, height: 22, borderRadius: "50%", flexShrink: 0,
+            background: "#D6F4DE", border: "1px solid #A8E7B9",
+            cursor: canEdit && !isCompleted ? "pointer" : "default", padding: 0,
           }}
         >
-          <CheckCircleOutlined style={{ fontSize: 13 }} />
-          Acknowledged
-        </span>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M2.5 6.3 4.9 8.7 9.5 3.6" stroke="#2A9F47" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
       ) : !isAcknowledged && showAcknowledge ? (
-        <AntButton
-          size="small"
-          icon={<CheckCircleOutlined />}
+        <button
+          type="button"
           onClick={() => onAcknowledge(fieldName)}
-          style={{ flexShrink: 0 }}
+          title="Acknowledge this mismatch"
+          style={{
+            flexShrink: 0, cursor: "pointer", whiteSpace: "nowrap",
+            fontSize: 10, fontWeight: 600, letterSpacing: "0.4px",
+            color: "#4C525E", background: "#ffffff",
+            border: "1px solid #D5D5D5", borderRadius: 4,
+            padding: "2px 7px", lineHeight: "14px",
+            fontFamily: "Inter, sans-serif",
+          }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = "#9CA3AF"; e.currentTarget.style.color = "#101828"; }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = "#D5D5D5"; e.currentTarget.style.color = "#4C525E"; }}
         >
-          Acknowledge
-        </AntButton>
+          ACK
+        </button>
       ) : null
     ) : null;
 
@@ -322,16 +337,8 @@ function MetadataAntdTable({
       </span>
     ) : null;
 
-    // Revert link: only for user-acknowledged fields (not system-auto-approved).
-    const revertLink = isAcknowledged && !isSystemAcknowledged && canEdit && !isCompleted ? (
-      <button
-        type="button"
-        onClick={() => onUnacknowledge(fieldName)}
-        className="text-xs text-gray-500 underline bg-transparent border-0 cursor-pointer flex-shrink-0"
-      >
-        revert
-      </button>
-    ) : null;
+    // Revert is handled by clicking the green check itself (per the Figma
+    // acknowledged state) — no separate "revert" link.
 
     // Required fields are never editable (they show the Acknowledge button instead).
     // Exempt fields (po_number) are read-only in both modes.
@@ -369,7 +376,6 @@ function MetadataAntdTable({
         </div>
         {autoApprovedBadge}
         {acknowledgeUI}
-        {revertLink}
       </div>
     );
   };
