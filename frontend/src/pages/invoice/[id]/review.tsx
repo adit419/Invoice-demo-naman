@@ -14,7 +14,7 @@ import { SourceViewerToolbar, ZOOM_MIN, ZOOM_MAX, ZOOM_STEP } from "@/components
 import { StageTransitionOverlay } from "@/components/StageTransitionOverlay";
 import { usePipelineCompleted } from "@/hooks/usePipelineCompleted";
 import { ExtractionEditHistory } from "@/components/ExtractionEditHistory";
-import NeoAiSuggestionBanner, { AiSparkleIcon, AI_VALUE_STYLE } from "@/components/NeoAiSuggestionBanner";
+import NeoAiSuggestionBanner, { AiAnalysisInfo, AiSparkleIcon, AI_VALUE_STYLE } from "@/components/NeoAiSuggestionBanner";
 import type { PoRecommendation } from "@/services/stages";
 
 const PdfViewer = dynamic(
@@ -266,16 +266,24 @@ function ReviewPage() {
       const b = data.bbox_schema.metadata.find(b => b.field === activeKey);
       if (!b) return null;
       const meta = data.invoice_schema.metadata.find(m => m.field === activeKey);
+      // Neo AI-recommended PO isn't on the document: treat the overlay like any
+      // absent field — zero bbox/confidence, and never echo the suggested value.
+      const appliedAiPo =
+        poRec?.applicable && poRec.status === "applied" && poRec.recommended
+          ? poRec.recommended.po_number
+          : null;
+      const isAiPo = b.field === "po_number" && !!appliedAiPo &&
+        String(edits["po_number"] ?? meta?.value ?? "").trim() === appliedAiPo;
       return {
         // Raw normalized coords — PdfViewer applies validator-fe-style padding.
-        bbox_left: b.bbox_left,
-        bbox_top: b.bbox_top,
-        bbox_width: b.bbox_width,
-        bbox_height: b.bbox_height,
-        page: b.page, confidence: b.value_confidence,
+        bbox_left: isAiPo ? 0 : b.bbox_left,
+        bbox_top: isAiPo ? 0 : b.bbox_top,
+        bbox_width: isAiPo ? 0 : b.bbox_width,
+        bbox_height: isAiPo ? 0 : b.bbox_height,
+        page: b.page, confidence: isAiPo ? 0 : b.value_confidence,
         confidenceThreshold: LOW_CONF,
         id: `meta-${b.field}`,
-        label: fieldLabel(b.field), value: meta?.value,
+        label: fieldLabel(b.field), value: isAiPo ? undefined : meta?.value,
       };
     } else {
       const b = data.bbox_schema.line_items.find(b => b.row_id === activeKey);
@@ -774,7 +782,7 @@ function ReviewPage() {
                         >
                           {isEditable ? (
                             <span className="flex items-center gap-1.5 w-full">
-                              {isAiFilled && <AiSparkleIcon size={15} />}
+                              {isAiFilled && <AiSparkleIcon size={28} />}
                               <input
                                 className="w-full focus:outline-none"
                                 style={{
@@ -790,11 +798,15 @@ function ReviewPage() {
                                 onClick={e => { e.stopPropagation(); setActiveKey(field.field); }}
                                 onKeyDown={e => { if (e.key === "Enter") void saveMetaField(field.field, edits[field.field] ?? value); }}
                               />
+                              {isAiFilled && poRec && <AiAnalysisInfo rec={poRec} />}
                             </span>
                           ) : (
-                            <span className="flex items-center gap-1.5">
-                              {isAiFilled && <AiSparkleIcon size={15} />}
+                            <span className="flex items-center gap-1.5 w-full">
+                              {isAiFilled && <AiSparkleIcon size={16} />}
                               <span style={isAiFilled ? AI_VALUE_STYLE : undefined}>{value || ""}</span>
+                              {isAiFilled && poRec && (
+                                <span style={{ marginLeft: "auto" }}><AiAnalysisInfo rec={poRec} /></span>
+                              )}
                             </span>
                           )}
                         </td>

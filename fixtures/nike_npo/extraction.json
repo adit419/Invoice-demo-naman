@@ -755,13 +755,13 @@
     "metadata": [
       {
         "row_id": "rlmw6wjm",
-        "bbox_left": 0.7575887131252672,
-        "bbox_top": 0.23714458560193588,
-        "bbox_width": 0.026934587430525864,
-        "bbox_height": 0.007864488808227465,
+        "bbox_left": 0,
+        "bbox_top": 0,
+        "bbox_width": 0,
+        "bbox_height": 0,
         "page": 1,
         "field": "po_number",
-        "value_confidence": 0.0919230769230769
+        "value_confidence": 0
       },
       {
         "row_id": "77sxl7d0",

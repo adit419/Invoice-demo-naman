@@ -107,6 +107,8 @@ async def ingest_from_email(
         "local_file_path": None,
         "source": "email",
         "source_meta": {"sender": sender},
+        # Dashboard "Assignee" — the user who triggered the email upload.
+        "uploaded_by": sender,
         "stp_enabled": False,
         "created_at": now,
         "updated_at": now,

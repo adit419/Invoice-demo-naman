@@ -16,6 +16,8 @@ export interface InvoiceListItem {
   fixture_key: string;
   percent_complete: number;
   source?: string;
+  /** Signed-in uploader (manual/trigger) or sender address (email ingestion). */
+  assignee?: string | null;
   created_at: string;
   updated_at: string;
 }

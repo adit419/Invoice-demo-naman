@@ -1,0 +1,181 @@
+{
+  "recommended": {
+    "po_number": "PO-00060",
+    "vendor_name": "YBM YELLOW BRICK MEDIA GROUP INC.",
+    "total_amount": 785280.72,
+    "currency": "PHP",
+    "order_date": null,
+    "status": null,
+    "source": "fixture_metadata_validation",
+    "score": 1.0,
+    "breakdown": [
+      {
+        "criterion": "vendor_name",
+        "score": 1.0,
+        "detail": "vendor \"YBM YELLOW BRICK MEDIA GROUP INC.\" vs \"YBM YELLOW BRICK MEDIA GROUP INC.\""
+      },
+      {
+        "criterion": "total_amount",
+        "score": 1.0,
+        "detail": "amount 785,280.72 vs invoice 785,280.72"
+      },
+      {
+        "criterion": "currency",
+        "score": 1.0,
+        "detail": "currency PHP vs PHP"
+      }
+    ]
+  },
+  "candidates": [
+    {
+      "po_number": "PO-00060",
+      "vendor_name": "YBM YELLOW BRICK MEDIA GROUP INC.",
+      "total_amount": 785280.72,
+      "currency": "PHP",
+      "order_date": null,
+      "status": null,
+      "source": "fixture_metadata_validation",
+      "score": 1.0,
+      "breakdown": [
+        {
+          "criterion": "vendor_name",
+          "score": 1.0,
+          "detail": "vendor \"YBM YELLOW BRICK MEDIA GROUP INC.\" vs \"YBM YELLOW BRICK MEDIA GROUP INC.\""
+        },
+        {
+          "criterion": "total_amount",
+          "score": 1.0,
+          "detail": "amount 785,280.72 vs invoice 785,280.72"
+        },
+        {
+          "criterion": "currency",
+          "score": 1.0,
+          "detail": "currency PHP vs PHP"
+        }
+      ]
+    },
+    {
+      "po_number": "PO-00066",
+      "vendor_name": "R. DAN AND CO., INC.",
+      "total_amount": 38335.0,
+      "currency": "PHP",
+      "order_date": null,
+      "status": null,
+      "source": "fixture_metadata_validation",
+      "score": 0.294,
+      "breakdown": [
+        {
+          "criterion": "vendor_name",
+          "score": 0.25,
+          "detail": "vendor \"R. DAN AND CO., INC.\" vs \"YBM YELLOW BRICK MEDIA GROUP INC.\""
+        },
+        {
+          "criterion": "total_amount",
+          "score": 0.0,
+          "detail": "amount 38,335.00 vs invoice 785,280.72"
+        },
+        {
+          "criterion": "currency",
+          "score": 1.0,
+          "detail": "currency PHP vs PHP"
+        }
+      ]
+    },
+    {
+      "po_number": "PO-00068",
+      "vendor_name": "PROGRESSIVE CARGO & SERVICES SDN BHD",
+      "total_amount": 302801.26,
+      "currency": null,
+      "order_date": "2026-05-01",
+      "status": "received",
+      "source": "fixture_po",
+      "score": 0.171,
+      "breakdown": [
+        {
+          "criterion": "vendor_name",
+          "score": 0.152,
+          "detail": "vendor \"PROGRESSIVE CARGO & SERVICES SDN BHD\" vs \"YBM YELLOW BRICK MEDIA GROUP INC.\""
+        },
+        {
+          "criterion": "total_amount",
+          "score": 0.0,
+          "detail": "amount 302,801.26 vs invoice 785,280.72"
+        },
+        {
+          "criterion": "dates",
+          "score": 0.567,
+          "detail": "PO date 2026-05-01 vs invoice dates (158d apart)"
+        }
+      ]
+    },
+    {
+      "po_number": "PO-00058",
+      "vendor_name": "NIKE SALES (MALAYSIA)",
+      "total_amount": 155091.24,
+      "currency": "INR",
+      "order_date": "2025-05-07",
+      "status": "received",
+      "source": "fixture_po",
+      "score": 0.162,
+      "breakdown": [
+        {
+          "criterion": "vendor_name",
+          "score": 0.235,
+          "detail": "vendor \"NIKE SALES (MALAYSIA)\" vs \"YBM YELLOW BRICK MEDIA GROUP INC.\""
+        },
+        {
+          "criterion": "total_amount",
+          "score": 0.0,
+          "detail": "amount 155,091.24 vs invoice 785,280.72"
+        },
+        {
+          "criterion": "currency",
+          "score": 0.0,
+          "detail": "currency INR vs PHP"
+        },
+        {
+          "criterion": "dates",
+          "score": 0.449,
+          "detail": "PO date 2025-05-07 vs invoice dates (201d apart)"
+        }
+      ]
+    },
+    {
+      "po_number": "PO-00064",
+      "vendor_name": "NIKE SALES (MALAYSIA) (USD)",
+      "total_amount": 155089.8,
+      "currency": "USD",
+      "order_date": null,
+      "status": null,
+      "source": "fixture_metadata_validation",
+      "score": 0.137,
+      "breakdown": [
+        {
+          "criterion": "vendor_name",
+          "score": 0.291,
+          "detail": "vendor \"NIKE SALES (MALAYSIA) (USD)\" vs \"YBM YELLOW BRICK MEDIA GROUP INC.\""
+        },
+        {
+          "criterion": "total_amount",
+          "score": 0.0,
+          "detail": "amount 155,089.80 vs invoice 785,280.72"
+        },
+        {
+          "criterion": "currency",
+          "score": 0.0,
+          "detail": "currency USD vs PHP"
+        }
+      ]
+    }
+  ],
+  "candidates_considered": 7,
+  "invoice_fields": {
+    "po_number": null,
+    "vendor_name": "YBM YELLOW BRICK MEDIA GROUP INC.",
+    "total_amount": 785280.72,
+    "currency": "PHP",
+    "invoice_date": "2025-11-24",
+    "due_date": null
+  },
+  "generated_at": "2026-07-15T08:22:09.893974+00:00"
+}

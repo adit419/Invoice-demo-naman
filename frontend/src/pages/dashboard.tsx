@@ -32,29 +32,30 @@ function invoiceRoute(id: string, status: string): string {
 // Internal stage statuses are grouped into broad labels (Extraction / Matching /
 // ERP Posting / Rejected / Error) exactly like validator-fe groups them.
 
-// AntD v5 Tag color palette — exact values from antd/lib/tag/style
+// AntD v5 Tag color palette — matches the P2P-Flow Figma dashboard pills
+// (Extraction cyan, Matching purple, ERP Posting geekblue, Error orange).
 const ANTD_TAG = {
-  cyan:    { bg: "#E6FFFB", color: "#08979C", border: "#87E8DE" },
-  blue:    { bg: "#E6F4FF", color: "#0958D9", border: "#91CAFF" },
-  green:   { bg: "#F6FFED", color: "#389E0D", border: "#B7EB8F" },
-  orange:  { bg: "#FFF7E6", color: "#D46B08", border: "#FFD591" },
-  red:     { bg: "#FFF1F0", color: "#CF1322", border: "#FFA39E" },
-  volcano: { bg: "#FFF2E8", color: "#D4380D", border: "#FFBB96" },
+  cyan:     { bg: "#E6FFFB", color: "#08979C", border: "#87E8DE" },
+  purple:   { bg: "#F9F0FF", color: "#722ED1", border: "#D3ADF7" },
+  geekblue: { bg: "#F0F5FF", color: "#1D39C4", border: "#ADC6FF" },
+  green:    { bg: "#F6FFED", color: "#389E0D", border: "#B7EB8F" },
+  orange:   { bg: "#FFF7E6", color: "#D46B08", border: "#FFD591" },
+  red:      { bg: "#FFF1F0", color: "#CF1322", border: "#FFA39E" },
 } as const;
 
-const STAGE_TAG: Record<string, { label: string; tone: keyof typeof ANTD_TAG }> = {
+const STAGE_TAG: Record<string, { label: string; tone: keyof typeof ANTD_TAG; icon?: boolean }> = {
   extraction:          { label: "Extraction",  tone: "cyan" },
-  vendor_validation:   { label: "Matching",    tone: "blue" },
-  metadata_validation: { label: "Matching",    tone: "blue" },
-  line_item_matching:  { label: "Matching",    tone: "blue" },
-  bill_posting:        { label: "ERP Posting", tone: "green" },
-  posted:              { label: "ERP Posting", tone: "green" },
-  rejected:            { label: "Rejected",    tone: "red" },
-  error:               { label: "Error",       tone: "volcano" },
+  vendor_validation:   { label: "Matching",    tone: "purple" },
+  metadata_validation: { label: "Matching",    tone: "purple" },
+  line_item_matching:  { label: "Matching",    tone: "purple" },
+  bill_posting:        { label: "ERP Posting", tone: "geekblue" },
+  posted:              { label: "Completed",   tone: "green" },
+  rejected:            { label: "Rejected",    tone: "red", icon: true },
+  error:               { label: "Error",       tone: "orange", icon: true },
 };
 
-// Pixel-equivalent to AntD v5 <Tag color="..." className="rounded-full px-3"> with
-// validator-fe's global `* { font-family: Inter; letter-spacing: -0.08px }` applied.
+// Figma dashboard pill: rounded-6 tag with tone bg/border, optional ⓘ icon
+// for error-like states.
 function StageTag({ status, loading }: { status: string; loading?: boolean }) {
   const cfg = STAGE_TAG[status];
   const tone = cfg ? ANTD_TAG[cfg.tone] : { bg: "#FAFAFA", color: "#595959", border: "#D9D9D9" };
@@ -62,13 +63,15 @@ function StageTag({ status, loading }: { status: string; loading?: boolean }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
       <span style={{
-        display: "inline-block",
-        padding: "0 12px",            // px-3 override of AntD's 0 7px
-        borderRadius: 9999,           // rounded-full
-        fontSize: 12,                 // AntD Tag default
-        lineHeight: "20px",           // AntD Tag default
-        fontWeight: 400,              // AntD Tag default
-        letterSpacing: "-0.08px",     // validator-fe global * rule
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 5,
+        padding: "1px 10px",
+        borderRadius: 6,
+        fontSize: 12.5,
+        lineHeight: "20px",
+        fontWeight: 500,
+        letterSpacing: "-0.08px",
         fontFamily: "Inter, -apple-system, BlinkMacSystemFont, sans-serif",
         color: tone.color,
         background: tone.bg,
@@ -76,6 +79,12 @@ function StageTag({ status, loading }: { status: string; loading?: boolean }) {
         whiteSpace: "nowrap",
         textAlign: "start",
       }}>
+        {cfg?.icon && (
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0 }}>
+            <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.2" />
+            <path d="M6 3.5v3M6 8.4h.01" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+          </svg>
+        )}
         {label}
       </span>
       {loading && (
@@ -134,12 +143,13 @@ function formatAmount(amount: number | null, currency: string | null): string {
   return `${currency || ""} ${amount.toLocaleString()}`.trim();
 }
 
+// Figma "Time" format: 14/03/2025 | 11:15
 function formatTimestamp(dateStr: string): string {
   const normalized = /Z$|[+-]\d{2}:?\d{2}$/.test(dateStr) ? dateStr : dateStr + "Z";
   const d = new Date(normalized);
   if (isNaN(d.getTime())) return "-";
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })
-    + " " + d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+    + " | " + d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 }
 
 function getSourceType(inv: InvoiceListItem): SourceType {
@@ -492,6 +502,10 @@ function DashboardPage() {
   //     (e.g. Yellow Brick fixture doesn't support full pipeline); let the user review.
   const STP_TERMINAL = new Set(["extraction", "bill_posting", "posted", "rejected", "error"]);
 
+  // Open = still being processed (incl. rejected/error); Closed = completely
+  // processed (posted to ERP) — per the Figma dashboard tabs.
+  const [activeTab, setActiveTab] = useState<"open" | "closed">("open");
+
   const [searchQuery, setSearchQuery] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
 
@@ -506,7 +520,18 @@ function DashboardPage() {
   const [amountMax, setAmountMax] = useState("");
 
   const [page, setPage] = useState(1);
-  const PAGE_SIZE = 10;
+  const [pageSize, setPageSize] = useState(10);
+
+  // Horizontal-scroll indicator for the table: the scrollbar is visible only
+  // while the user is actively scrolling left/right, then fades out quickly.
+  const [tableScrolling, setTableScrolling] = useState(false);
+  const scrollHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleTableScroll = () => {
+    setTableScrolling(true);
+    if (scrollHideTimer.current) clearTimeout(scrollHideTimer.current);
+    scrollHideTimer.current = setTimeout(() => setTableScrolling(false), 600);
+  };
+  useEffect(() => () => { if (scrollHideTimer.current) clearTimeout(scrollHideTimer.current); }, []);
 
   const fetchInvoices = useCallback(async () => {
     try {
@@ -543,6 +568,10 @@ function DashboardPage() {
   };
 
   const filteredInvoices = invoices.filter(inv => {
+    // Tab scoping: Closed = completely processed (posted); Open = the rest.
+    const matchesTab = activeTab === "closed" ? inv.status === "posted" : inv.status !== "posted";
+    if (!matchesTab) return false;
+
     const q = searchQuery.toLowerCase();
     const matchesSearch = !q ||
       inv.id.toLowerCase().includes(q) ||
@@ -576,10 +605,10 @@ function DashboardPage() {
     (selectedSources.size > 0 ? 1 : 0) + (selectedVendors.size > 0 ? 1 : 0) +
     (selectedInvoices.size > 0 ? 1 : 0) + (amountMin || amountMax ? 1 : 0);
 
-  useEffect(() => { setPage(1); }, [searchQuery, selectedStatuses, dateFrom, dateTo, selectedSources, selectedVendors, selectedInvoices, amountMin, amountMax]);
+  useEffect(() => { setPage(1); }, [activeTab, pageSize, searchQuery, selectedStatuses, dateFrom, dateTo, selectedSources, selectedVendors, selectedInvoices, amountMin, amountMax]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredInvoices.length / PAGE_SIZE));
-  const paginatedInvoices = filteredInvoices.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(filteredInvoices.length / pageSize));
+  const paginatedInvoices = filteredInvoices.slice((page - 1) * pageSize, page * pageSize);
 
   // Determine action label for an invoice (mirrors validator-fe's getActionButton)
   const getAction = (inv: InvoiceListItem): { label: string; primary: boolean; disabled: boolean } => {
@@ -599,6 +628,30 @@ function DashboardPage() {
       minHeight: "100vh", background: "#ffffff", display: "flex", flexDirection: "column",
       fontFamily: "Inter, sans-serif",
     }}>
+      {/* Horizontal scrollbar shows only while actively scrolling, then fades. */}
+      <style jsx>{`
+        .dash-scroll {
+          scrollbar-width: thin;               /* Firefox */
+          scrollbar-color: transparent transparent;
+        }
+        .dash-scroll.scrolling {
+          scrollbar-color: #c5c8ce transparent;
+        }
+        .dash-scroll::-webkit-scrollbar {
+          height: 8px;
+        }
+        .dash-scroll::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .dash-scroll::-webkit-scrollbar-thumb {
+          background: transparent;
+          border-radius: 4px;
+          transition: background 0.25s ease;
+        }
+        .dash-scroll.scrolling::-webkit-scrollbar-thumb {
+          background: #c5c8ce;
+        }
+      `}</style>
 
       {/* ── Greeting bar ───────────────────────────────────────────────────── */}
       <div style={{
@@ -613,20 +666,14 @@ function DashboardPage() {
       </div>
 
       {/* ── Main content ───────────────────────────────────────────────────── */}
-      <div style={{ flex: 1, padding: "24px 32px", display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ flex: 1, padding: "20px 32px", display: "flex", flexDirection: "column", gap: 14 }}>
 
         {/* ── Title row ── */}
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
-          <div>
-            <h1 style={{
-              margin: 0, fontSize: 20, fontWeight: 600, color: "#101828",
-              letterSpacing: "-0.5px", fontFamily: "Inter, sans-serif",
-            }}>Invoice Dashboard</h1>
-            <p style={{
-              margin: "4px 0 0", fontSize: 14, color: "#717680",
-              fontFamily: "Inter, sans-serif",
-            }}>Manage and track all your invoice processing workflows</p>
-          </div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+          <h1 style={{
+            margin: 0, fontSize: 20, fontWeight: 600, color: "#101828",
+            letterSpacing: "-0.5px", fontFamily: "Inter, sans-serif",
+          }}>Invoice Dashboard</h1>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
             {/* STP toggle — visible to all, editable by admin only */}
             {!stpLoading && (
@@ -685,16 +732,43 @@ function DashboardPage() {
                   <path d="M7 1.5v8M3.5 5l3.5-3.5L10.5 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
                   <path d="M1.5 11.5h11" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
                 </svg>
-                Upload Invoice
+                Add Invoice
               </button>
             )}
           </div>
         </div>
 
+        {/* ── Open / Closed tabs (Figma dashboard) ── */}
+        <div style={{ display: "flex", gap: 24, borderBottom: "1px solid #EBEDF0", marginTop: -6 }}>
+          {([["open", "Open"], ["closed", "Closed"]] as const).map(([key, label]) => {
+            const isActive = activeTab === key;
+            return (
+              <button
+                key={key}
+                onClick={() => setActiveTab(key)}
+                style={{
+                  padding: "8px 2px 10px",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: isActive ? "#1876FF" : "#585C65",
+                  marginBottom: -1,
+                  background: "transparent",
+                  border: "none",
+                  borderBottom: `2px solid ${isActive ? "#1876FF" : "transparent"}`,
+                  cursor: "pointer",
+                  fontFamily: "Inter, sans-serif",
+                }}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+
         {/* ── Search + Filter row ── */}
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          {/* Search */}
-          <div style={{ position: "relative", flex: 1 }}>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", justifyContent: "space-between" }}>
+          {/* Search — compact width per Figma, Filters pinned right */}
+          <div style={{ position: "relative", width: 320 }}>
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
               style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "#8D92A6" }}>
               <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.3" />
@@ -702,7 +776,7 @@ function DashboardPage() {
             </svg>
             <input
               type="text"
-              placeholder="Search by unique identifier, file name, vendor, or invoice #..."
+              placeholder="Search Invoices..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               style={{
@@ -758,36 +832,49 @@ function DashboardPage() {
           </div>
         </div>
 
-        {/* ── Table ── */}
+        {/* ── Table — fixed height for a full page of rows (56px each + 47px
+            header) so the layout doesn't shrink when fewer invoices are shown;
+            footer attaches below ── */}
         <div style={{
-          flex: 1, background: "#ffffff", border: "1px solid #E6E6E6", borderRadius: 8,
+          background: "#ffffff", border: "1px solid #E6E6E6", borderRadius: 8,
           overflow: "hidden", display: "flex", flexDirection: "column",
         }}>
-          <div style={{ overflowX: "hidden", flex: 1 }}>
+          <div
+            className={`dash-scroll${tableScrolling ? " scrolling" : ""}`}
+            onScroll={handleTableScroll}
+            style={{ overflowX: "auto", minHeight: 47 + pageSize * 56 }}
+          >
             <table style={{
-              width: "100%", borderCollapse: "collapse", fontSize: 14,
+              width: "100%", minWidth: 1150, borderCollapse: "collapse", fontSize: 14,
               fontFamily: "Inter, sans-serif", tableLayout: "fixed",
             }}>
               <colgroup>
-                {Array.from({ length: 7 }).map((_, i) => (
-                  <col key={i} style={{ width: `${100 / 7}%` }} />
+                {[200, 195, 130, 165, 190, 125, 145].map((w, i) => (
+                  <col key={i} style={{ width: w }} />
                 ))}
               </colgroup>
               <thead>
                 <tr>
                   {[
-                    { label: "File Name",     align: "left" as const },
-                    { label: "Timestamp",     align: "left" as const },
-                    { label: "Vendor Name",   align: "left" as const },
-                    { label: "Invoice #",     align: "left" as const },
-                    { label: "Amount",        align: "left" as const },
-                    { label: "Current Stage", align: "left" as const },
-                    { label: "Action",        align: "left" as const },
+                    { label: "File Name / Time",   align: "left" as const },
+                    { label: "Vendor / Invoice #", align: "left" as const },
+                    { label: "Status",             align: "left" as const },
+                    { label: "Assignee",           align: "left" as const },
+                    { label: "Invoice attachment", align: "left" as const },
+                    { label: "Amount",             align: "right" as const, pin: false, pad: "12px 20px 12px 16px" },
+                    { label: "Action",             align: "left" as const, pin: true },
                   ].map(col => (
                     <th key={col.label} style={{
-                      padding: "12px 16px", textAlign: col.align, fontSize: 14, fontWeight: 600,
+                      padding: (col as { pad?: string }).pad ?? "12px 16px",
+                      textAlign: col.align, fontSize: 14, fontWeight: 600,
                       color: "#717680", background: "#F5F5F5", borderBottom: "1px solid #E0E0E0",
                       lineHeight: "22px", fontFamily: "Inter, sans-serif", whiteSpace: "nowrap",
+                      // Action column stays pinned while the table scrolls,
+                      // separated by the Figma demarcation line.
+                      ...((col as { pin?: boolean }).pin ? {
+                        position: "sticky" as const, right: 0, zIndex: 2,
+                        borderLeft: "1px solid #E0E0E0",
+                      } : {}),
                     }}>
                       {col.label}
                     </th>
@@ -807,7 +894,9 @@ function DashboardPage() {
                   ))
                 ) : filteredInvoices.length === 0 ? (
                   <tr>
-                    <td colSpan={7} style={{ padding: "60px 24px", textAlign: "center" }}>
+                    {/* Empty state keeps the table's full-page height (56px/row)
+                        so the layout doesn't collapse when there's no data. */}
+                    <td colSpan={7} style={{ height: pageSize * 56, padding: "24px", textAlign: "center", verticalAlign: "middle" }}>
                       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
                         <div style={{ width: 44, height: 44, borderRadius: 12, background: "#F5F5F5", display: "flex", alignItems: "center", justifyContent: "center" }}>
                           <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
@@ -835,91 +924,146 @@ function DashboardPage() {
                     return (
                       <tr key={inv.id}
                         style={{ borderBottom: "1px solid #E6E6E6" }}
-                        onMouseEnter={e => (e.currentTarget.style.background = "#F9F9F9")}
-                        onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                        onMouseEnter={e => {
+                          e.currentTarget.style.background = "#F9F9F9";
+                          // The sticky Action cell paints its own background —
+                          // keep it in sync with the row hover.
+                          (e.currentTarget.lastElementChild as HTMLElement | null)?.style.setProperty("background", "#F9F9F9");
+                        }}
+                        onMouseLeave={e => {
+                          e.currentTarget.style.background = "transparent";
+                          (e.currentTarget.lastElementChild as HTMLElement | null)?.style.setProperty("background", "#ffffff");
+                        }}
                       >
-                        {/* File Name (with source icon) */}
-                        <td style={{ padding: "8px 16px" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8, overflow: "hidden" }}>
-                            <SourceIcon type={sourceType} />
+                        {/* File Name / Time (with source icon) */}
+                        <td style={{ padding: "10px 16px" }}>
+                          <div style={{ display: "flex", alignItems: "flex-start", gap: 8, overflow: "hidden" }}>
+                            <span style={{ marginTop: 2 }}><SourceIcon type={sourceType} /></span>
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                              <span
+                                title={inv.file_name}
+                                style={{
+                                  ...CELL_PRIMARY, fontWeight: 600, display: "block",
+                                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                                }}
+                              >
+                                {inv.file_name}
+                              </span>
+                              <span style={{ ...CELL_MUTED, fontSize: 12.5, whiteSpace: "nowrap" }}>
+                                {formatTimestamp(inv.created_at)}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+                        {/* Vendor / Invoice # */}
+                        <td style={{ padding: "10px 16px" }}>
+                          <span
+                            title={inv.vendor_name ?? undefined}
+                            style={{
+                              ...CELL_PRIMARY, display: "block",
+                              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                            }}
+                          >
+                            {inv.vendor_name ?? "-"}
+                          </span>
+                          <span style={{ ...CELL_MUTED, fontSize: 12.5 }}>{inv.invoice_number ?? "-"}</span>
+                        </td>
+                        {/* Status */}
+                        <td style={{ padding: "10px 16px" }}>
+                          <StageTag
+                            status={inv.status}
+                            loading={extractingIds.has(inv.id) || stpProcessingIds.has(inv.id)}
+                          />
+                        </td>
+                        {/* Assignee */}
+                        <td style={{ padding: "10px 16px" }}>
+                          <span
+                            title={inv.assignee ?? undefined}
+                            style={{
+                              ...CELL_PRIMARY, fontWeight: 400, display: "block",
+                              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                            }}
+                          >
+                            {inv.assignee ?? "-"}
+                          </span>
+                        </td>
+                        {/* Invoice attachment */}
+                        <td style={{ padding: "10px 16px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, overflow: "hidden" }}>
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8D92A6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                              <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                            </svg>
                             <span
                               title={inv.file_name}
                               style={{
-                                ...CELL_PRIMARY,
+                                ...CELL_MUTED, fontSize: 13,
                                 overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                                minWidth: 0, flex: 1,
                               }}
                             >
                               {inv.file_name}
                             </span>
                           </div>
                         </td>
-                        {/* Timestamp */}
-                        <td style={{ padding: "8px 16px", whiteSpace: "nowrap" }}>
-                          <span style={CELL_MUTED}>{formatTimestamp(inv.created_at)}</span>
-                        </td>
-                        {/* Vendor Name */}
-                        <td style={{ padding: "8px 16px" }}>
-                          {inv.vendor_name ? (
-                            <span
-                              title={inv.vendor_name}
-                              style={{
-                                ...CELL_PRIMARY,
-                                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                                display: "block",
-                              }}
-                            >
-                              {inv.vendor_name}
-                            </span>
-                          ) : (
-                            <span style={CELL_MUTED}>-</span>
-                          )}
-                        </td>
-                        {/* Invoice # */}
-                        <td style={{ padding: "8px 16px" }}>
-                          <span style={CELL_MUTED}>{inv.invoice_number ?? "-"}</span>
-                        </td>
                         {/* Amount */}
-                        <td style={{ padding: "8px 16px", textAlign: "left", whiteSpace: "nowrap" }}>
+                        <td style={{ padding: "10px 20px 10px 16px", textAlign: "right", whiteSpace: "nowrap" }}>
                           <span style={CELL_PRIMARY}>{formatAmount(inv.total_amount, inv.currency)}</span>
                         </td>
-                        {/* Current Stage */}
-                        <td style={{ padding: "8px 16px" }}>
-                          <StageTag
-                            status={inv.status}
-                            loading={extractingIds.has(inv.id) || stpProcessingIds.has(inv.id)}
-                          />
-                        </td>
-                        {/* Action */}
-                        <td style={{ padding: "8px 16px" }}>
-                          <button
-                            disabled={action.disabled}
-                            onClick={() => { if (!action.disabled) router.push(invoiceRoute(inv.id, inv.status)); }}
-                            style={
-                              action.primary
-                                ? {
-                                    background: "#1876FF", border: "none", color: "#FFFFFF",
-                                    borderRadius: 6, fontWeight: 500, fontSize: 12,
-                                    height: 28, padding: "0 12px", cursor: "pointer",
-                                    fontFamily: "Inter, sans-serif",
-                                  }
-                                : action.disabled
-                                ? {
-                                    background: "transparent", border: "1px solid #D5D5D5", color: "#8D92A6",
-                                    borderRadius: 6, fontWeight: 500, fontSize: 12,
-                                    height: 28, padding: "0 12px", cursor: "not-allowed",
-                                    fontFamily: "Inter, sans-serif", opacity: 0.7,
-                                  }
-                                : {
-                                    background: "transparent", border: "1px solid #D5D5D5", color: "#364153",
-                                    borderRadius: 6, fontWeight: 500, fontSize: 12,
-                                    height: 28, padding: "0 12px", cursor: "pointer",
-                                    fontFamily: "Inter, sans-serif",
-                                  }
-                            }
-                          >
-                            {action.label}
-                          </button>
+                        {/* Action — pinned right, separated by the demarcation line */}
+                        <td style={{
+                          padding: "10px 16px",
+                          position: "sticky", right: 0, zIndex: 1,
+                          background: "#ffffff", borderLeft: "1px solid #EBEDF0",
+                        }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <button
+                              disabled={action.disabled}
+                              onClick={() => { if (!action.disabled) router.push(invoiceRoute(inv.id, inv.status)); }}
+                              style={
+                                action.primary
+                                  ? {
+                                      background: "#ffffff", border: "1px solid #1876FF", color: "#1876FF",
+                                      borderRadius: 8, fontWeight: 600, fontSize: 12.5,
+                                      height: 30, padding: "0 18px", cursor: "pointer",
+                                      fontFamily: "Inter, sans-serif",
+                                    }
+                                  : action.disabled
+                                  ? {
+                                      background: "#F5F5F5", border: "1px solid #E0E0E0", color: "#8D92A6",
+                                      borderRadius: 8, fontWeight: 500, fontSize: 12.5,
+                                      height: 30, padding: "0 14px", cursor: "not-allowed",
+                                      fontFamily: "Inter, sans-serif",
+                                    }
+                                  : {
+                                      background: "#ffffff", border: "1px solid #D5D5D5", color: "#364153",
+                                      borderRadius: 8, fontWeight: 500, fontSize: 12.5,
+                                      height: 30, padding: "0 18px", cursor: "pointer",
+                                      fontFamily: "Inter, sans-serif",
+                                    }
+                              }
+                            >
+                              {action.label}
+                            </button>
+                            {/* Open in new tab (Figma external-link action) */}
+                            <button
+                              title="Open in new tab"
+                              disabled={action.disabled}
+                              onClick={() => { if (!action.disabled) window.open(invoiceRoute(inv.id, inv.status), "_blank", "noopener"); }}
+                              style={{
+                                background: "transparent", border: "none", padding: 2,
+                                cursor: action.disabled ? "not-allowed" : "pointer",
+                                color: action.disabled ? "#D1D5DB" : "#717680",
+                                display: "inline-flex", alignItems: "center",
+                              }}
+                              onMouseEnter={e => { if (!action.disabled) e.currentTarget.style.color = "#1876FF"; }}
+                              onMouseLeave={e => { if (!action.disabled) e.currentTarget.style.color = "#717680"; }}
+                            >
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M15 3h6v6" />
+                                <path d="M10 14 21 3" />
+                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                              </svg>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -937,6 +1081,21 @@ function DashboardPage() {
             <span style={{ fontSize: 12, color: "#717680", fontFamily: "Inter, sans-serif" }}>
               Total {filteredInvoices.length} item{filteredInvoices.length !== 1 ? "s" : ""}
             </span>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 12, color: "#717680", fontFamily: "Inter, sans-serif" }}>Rows per page:</span>
+              <select
+                value={pageSize}
+                onChange={e => setPageSize(Number(e.target.value))}
+                style={{
+                  fontSize: 12, color: "#414651", fontFamily: "Inter, sans-serif",
+                  border: "1px solid #D5D5D5", borderRadius: 6, padding: "3px 6px",
+                  background: "#ffffff", cursor: "pointer", outline: "none",
+                }}
+              >
+                {[10, 20, 50].map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
 
             {totalPages > 1 && (
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
