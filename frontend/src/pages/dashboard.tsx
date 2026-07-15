@@ -167,119 +167,39 @@ const CELL_MUTED: React.CSSProperties = {
   fontSize: 14, fontWeight: 500, color: "#8D92A6", fontFamily: "Inter, sans-serif",
 };
 
-// ── Filter config ─────────────────────────────────────────────────────────────
+// ── Filter config (mirrors invoice-sprint's Filter popover) ──────────────────
 
-type FilterCategory = "status" | "date" | "source" | "vendor" | "invoice" | "amount";
+type FilterCategory = "status" | "date" | "vendor" | "amount" | "source" | "invoice";
 
 const FILTER_CATEGORIES: { id: FilterCategory; label: string }[] = [
   { id: "status",   label: "Status" },
-  { id: "date",     label: "Date" },
-  { id: "source",   label: "Source" },
+  { id: "date",     label: "Date Range" },
   { id: "vendor",   label: "Vendor Name" },
+  { id: "amount",   label: "Amount Range" },
+  { id: "source",   label: "Source" },
   { id: "invoice",  label: "Invoice Number" },
-  { id: "amount",   label: "Amount" },
 ];
 
 const STATUS_FILTER_OPTIONS = [
-  { value: "extraction",    label: "Extraction",          statuses: ["extraction"] },
-  { value: "matching",      label: "Matching",            statuses: ["vendor_validation", "metadata_validation", "line_item_matching"] },
-  { value: "erp_posting",   label: "ERP Posting",         statuses: ["bill_posting", "posted"] },
-  { value: "rejected",      label: "Rejected",            statuses: ["rejected"] },
-  { value: "error",         label: "Error",               statuses: ["error"] },
+  { value: "extraction",   label: "Extraction",   statuses: ["extraction"] },
+  { value: "matching",     label: "Matching",     statuses: ["vendor_validation", "metadata_validation", "line_item_matching"] },
+  { value: "erp_posting",  label: "ERP Posting",  statuses: ["bill_posting", "posted"] },
+  { value: "faktur_pajak", label: "Faktur Pajak", statuses: ["fp_extraction"] },
+  { value: "error",        label: "Error",        statuses: ["error"] },
+  { value: "rejected",     label: "Rejected",     statuses: ["rejected"] },
 ];
 
+// Demo ingests via email (Gmail poller) instead of invoice-sprint's Freshdesk.
 const SOURCE_OPTIONS = [
-  { value: "manual",    label: "Manual Upload" },
-  { value: "gmail",     label: "Gmail" },
-  { value: "freshdesk", label: "Freshdesk" },
+  { value: "manual", label: "Manual Upload" },
+  { value: "gmail",  label: "Gmail" },
 ];
 
 const INPUT_S: React.CSSProperties = {
-  width: "100%", padding: "6px 10px", fontSize: 14,
-  border: "1px solid #D5D5D5", borderRadius: 6, outline: "none",
+  width: "100%", padding: "10px 12px", fontSize: 14, height: 44,
+  border: "1px solid #E5E7EB", borderRadius: 8, outline: "none", boxSizing: "border-box",
   color: "#414651", background: "#ffffff", fontFamily: "Inter, sans-serif",
 };
-
-// ── Multi-select dropdown ─────────────────────────────────────────────────────
-
-function MultiSelect({ options, selected, onChange, placeholder }: {
-  options: string[];
-  selected: Set<string>;
-  onChange: (v: string) => void;
-  placeholder: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, []);
-
-  const filtered = options.filter(o => o.toLowerCase().includes(search.toLowerCase()));
-  const label = selected.size === 0 ? placeholder : `${selected.size} selected`;
-
-  return (
-    <div ref={ref} style={{ position: "relative" }}>
-      <button
-        onClick={() => setOpen(v => !v)}
-        style={{
-          ...INPUT_S, display: "flex", alignItems: "center", justifyContent: "space-between",
-          cursor: "pointer", textAlign: "left",
-        }}
-      >
-        <span style={{ color: selected.size > 0 ? "#414651" : "#8D92A6" }}>{label}</span>
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0 }}>
-          <path d="M2 4l4 4 4-4" stroke="#8D92A6" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </button>
-      {open && (
-        <div style={{
-          position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 100,
-          background: "#ffffff", border: "1px solid #E6E6E6", borderRadius: 8,
-          boxShadow: "0 4px 12px rgba(0,0,0,0.08)", maxHeight: 200, display: "flex", flexDirection: "column",
-        }}>
-          <div style={{ padding: "6px 8px", borderBottom: "1px solid #E6E6E6" }}>
-            <input
-              autoFocus
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search…"
-              style={{ ...INPUT_S, padding: "4px 8px", fontSize: 12 }}
-            />
-          </div>
-          <div style={{ overflowY: "auto", flex: 1 }}>
-            {filtered.length === 0 ? (
-              <p style={{ padding: "8px 10px", fontSize: 12, color: "#8D92A6", margin: 0 }}>No options</p>
-            ) : filtered.map(o => (
-              <label key={o} style={{
-                display: "flex", alignItems: "center", gap: 8, padding: "6px 10px",
-                cursor: "pointer", fontSize: 14, color: "#414651", fontFamily: "Inter, sans-serif",
-              }}
-                onMouseEnter={e => (e.currentTarget.style.background = "#F9F9F9")}
-                onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-              >
-                <input type="checkbox" checked={selected.has(o)} onChange={() => onChange(o)}
-                  style={{ accentColor: "#1876FF", width: 14, height: 14, flexShrink: 0 }} />
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o}</span>
-              </label>
-            ))}
-          </div>
-          {selected.size > 0 && (
-            <div style={{ padding: "6px 10px", borderTop: "1px solid #E6E6E6" }}>
-              <button onClick={() => { options.forEach(o => selected.has(o) && onChange(o)); }}
-                style={{ fontSize: 11, color: "#1876FF", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
-                Clear all
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ── Filter panel ──────────────────────────────────────────────────────────────
 
@@ -298,9 +218,64 @@ interface FilterPanelProps {
   onClear: () => void;
 }
 
+// Search box used inside the Status / Vendor / Invoice panes (invoice-sprint style).
+function PaneSearch({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
+  return (
+    <div style={{ position: "relative", marginBottom: 14 }}>
+      <svg width="15" height="15" viewBox="0 0 14 14" fill="none"
+        style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "#8D92A6" }}>
+        <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.3" />
+        <path d="M9.5 9.5L12 12" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      </svg>
+      <input
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        style={{ ...INPUT_S, height: 42, paddingLeft: 38 }}
+        onFocus={e => (e.target.style.borderColor = "#1876FF")}
+        onBlur={e => (e.target.style.borderColor = "#E5E7EB")}
+      />
+    </div>
+  );
+}
+
+// Rounded pill toggle (Date Range presets + Source options, invoice-sprint style).
+function FilterPill({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 7,
+        height: 36, padding: "0 16px", borderRadius: 999,
+        fontSize: 13.5, fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap",
+        border: `1px solid ${active ? "#1876FF" : "#E5E7EB"}`,
+        color: active ? "#1876FF" : "#414651",
+        background: active ? "#F0F7FF" : "#ffffff",
+        fontFamily: "Inter, sans-serif",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function CheckRow({ checked, onChange, children }: { checked: boolean; onChange: () => void; children: React.ReactNode }) {
+  return (
+    <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 2px", cursor: "pointer" }}>
+      <input type="checkbox" checked={checked} onChange={onChange}
+        style={{ accentColor: "#1876FF", width: 16, height: 16, flexShrink: 0 }} />
+      <span style={{
+        fontSize: 14, color: "#414651", fontFamily: "Inter, sans-serif",
+        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+      }}>{children}</span>
+    </label>
+  );
+}
+
 function FilterPanel(p: FilterPanelProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [activeCategory, setActiveCategory] = useState<FilterCategory>("status");
+  const [paneSearch, setPaneSearch] = useState("");
 
   useEffect(() => {
     if (!p.open) return;
@@ -311,139 +286,187 @@ function FilterPanel(p: FilterPanelProps) {
 
   if (!p.open) return null;
 
-  const labelS: React.CSSProperties = { fontSize: 12, color: "#717680", fontWeight: 500, marginBottom: 6, display: "block", fontFamily: "Inter, sans-serif" };
+  const switchCategory = (c: FilterCategory) => { setActiveCategory(c); setPaneSearch(""); };
+
+  const paneLabelS: React.CSSProperties = {
+    fontSize: 14, fontWeight: 600, color: "#181D27", marginBottom: 12,
+    display: "block", fontFamily: "Inter, sans-serif",
+  };
+
+  // Date presets (derived from the from/to values, invoice-sprint style pills)
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  const todayStr = iso(new Date());
+  const last7Str = iso(new Date(Date.now() - 6 * 86400000));
+  const isAllTime = !p.dateFrom && !p.dateTo;
+  const isToday = p.dateFrom === todayStr && p.dateTo === todayStr;
+  const isLast7 = p.dateFrom === last7Str && p.dateTo === todayStr;
+
+  const q = paneSearch.toLowerCase();
+
+  // Select-all / clear-all for the checkbox panes
+  const paneSelection: { options: string[]; selected: Set<string>; toggle: (v: string) => void } | null =
+    activeCategory === "status" ? { options: STATUS_FILTER_OPTIONS.map(o => o.value), selected: p.selectedStatuses, toggle: p.onStatusChange } :
+    activeCategory === "vendor" ? { options: p.vendorOptions, selected: p.selectedVendors, toggle: p.onVendorChange } :
+    activeCategory === "invoice" ? { options: p.invoiceOptions, selected: p.selectedInvoices, toggle: p.onInvoiceChange } :
+    activeCategory === "source" ? { options: SOURCE_OPTIONS.map(o => o.value), selected: p.selectedSources, toggle: p.onSourceChange } :
+    null;
+  const selectAll = () => paneSelection?.options.forEach(o => { if (!paneSelection.selected.has(o)) paneSelection.toggle(o); });
+  const clearPane = () => {
+    if (paneSelection) { paneSelection.options.forEach(o => { if (paneSelection.selected.has(o)) paneSelection.toggle(o); }); return; }
+    if (activeCategory === "amount") { p.onAmountMin(""); p.onAmountMax(""); }
+  };
 
   const renderContent = () => {
     switch (activeCategory) {
       case "status":
         return (
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            {STATUS_FILTER_OPTIONS.map(f => (
-              <label key={f.value} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 6px", borderRadius: 6, cursor: "pointer" }}
-                onMouseEnter={e => (e.currentTarget.style.background = "#F9F9F9")}
-                onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-              >
-                <input type="checkbox" checked={p.selectedStatuses.has(f.value)} onChange={() => p.onStatusChange(f.value)}
-                  style={{ accentColor: "#1876FF", width: 15, height: 15 }} />
-                <span style={{ fontSize: 14, color: "#414651", fontFamily: "Inter, sans-serif" }}>{f.label}</span>
-              </label>
-            ))}
-          </div>
+          <>
+            <PaneSearch value={paneSearch} onChange={setPaneSearch} placeholder="Search Status" />
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {STATUS_FILTER_OPTIONS.filter(f => f.label.toLowerCase().includes(q)).map(f => (
+                <CheckRow key={f.value} checked={p.selectedStatuses.has(f.value)} onChange={() => p.onStatusChange(f.value)}>
+                  {f.label}
+                </CheckRow>
+              ))}
+            </div>
+          </>
         );
       case "date":
         return (
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <div>
-              <span style={labelS}>From</span>
-              <input type="date" value={p.dateFrom} onChange={e => p.onDateFrom(e.target.value)} style={INPUT_S} />
+          <>
+            <span style={paneLabelS}>Filter by Date Range</span>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 20 }}>
+              <FilterPill active={isAllTime} onClick={() => { p.onDateFrom(""); p.onDateTo(""); }}>All Time</FilterPill>
+              <FilterPill active={isToday} onClick={() => { p.onDateFrom(todayStr); p.onDateTo(todayStr); }}>Today</FilterPill>
+              <FilterPill active={isLast7} onClick={() => { p.onDateFrom(last7Str); p.onDateTo(todayStr); }}>Last 7 days</FilterPill>
             </div>
-            <div>
-              <span style={labelS}>To</span>
-              <input type="date" value={p.dateTo} onChange={e => p.onDateTo(e.target.value)} style={INPUT_S} />
+            <span style={paneLabelS}>Custom Date Range</span>
+            <div style={{ display: "flex", gap: 12 }}>
+              <input type="date" value={p.dateFrom} onChange={e => p.onDateFrom(e.target.value)} style={{ ...INPUT_S, flex: 1 }} />
+              <input type="date" value={p.dateTo} onChange={e => p.onDateTo(e.target.value)} style={{ ...INPUT_S, flex: 1 }} />
             </div>
+          </>
+        );
+      case "vendor":
+        return (
+          <>
+            <PaneSearch value={paneSearch} onChange={setPaneSearch} placeholder="Search Vendor Name" />
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, overflowY: "auto", flex: 1, minHeight: 0 }}>
+              {p.vendorOptions.filter(v => v.toLowerCase().includes(q)).map(v => (
+                <CheckRow key={v} checked={p.selectedVendors.has(v)} onChange={() => p.onVendorChange(v)}>{v}</CheckRow>
+              ))}
+              {p.vendorOptions.length === 0 && (
+                <span style={{ fontSize: 13, color: "#8D92A6", fontFamily: "Inter, sans-serif" }}>No vendors yet</span>
+              )}
+            </div>
+          </>
+        );
+      case "amount":
+        return (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <input type="number" value={p.amountMin} onChange={e => p.onAmountMin(e.target.value)} placeholder="Min Amount" style={INPUT_S} />
+            <input type="number" value={p.amountMax} onChange={e => p.onAmountMax(e.target.value)} placeholder="Max Amount" style={INPUT_S} />
           </div>
         );
       case "source":
         return (
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            {SOURCE_OPTIONS.map(s => (
-              <label key={s.value} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 6px", borderRadius: 6, cursor: "pointer" }}
-                onMouseEnter={e => (e.currentTarget.style.background = "#F9F9F9")}
-                onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-              >
-                <input type="checkbox" checked={p.selectedSources.has(s.value)} onChange={() => p.onSourceChange(s.value)}
-                  style={{ accentColor: "#1876FF", width: 15, height: 15 }} />
-                <SourceIcon type={s.value as SourceType} />
-                <span style={{ fontSize: 14, color: "#414651", fontFamily: "Inter, sans-serif" }}>{s.label}</span>
-              </label>
-            ))}
-          </div>
-        );
-      case "vendor":
-        return (
-          <div>
-            <span style={labelS}>Select vendors</span>
-            <MultiSelect
-              options={p.vendorOptions}
-              selected={p.selectedVendors}
-              onChange={p.onVendorChange}
-              placeholder="All vendors"
-            />
-          </div>
+          <>
+            <span style={paneLabelS}>Select Invoice Source</span>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              {SOURCE_OPTIONS.map(s => (
+                <FilterPill key={s.value} active={p.selectedSources.has(s.value)} onClick={() => p.onSourceChange(s.value)}>
+                  <SourceIcon type={s.value as SourceType} />
+                  {s.label}
+                </FilterPill>
+              ))}
+            </div>
+          </>
         );
       case "invoice":
         return (
-          <div>
-            <span style={labelS}>Select invoice numbers</span>
-            <MultiSelect
-              options={p.invoiceOptions}
-              selected={p.selectedInvoices}
-              onChange={p.onInvoiceChange}
-              placeholder="All invoice numbers"
-            />
-          </div>
-        );
-      case "amount":
-        return (
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <div>
-              <span style={labelS}>Minimum</span>
-              <input type="number" value={p.amountMin} onChange={e => p.onAmountMin(e.target.value)} placeholder="0.00" style={INPUT_S} />
+          <>
+            <PaneSearch value={paneSearch} onChange={setPaneSearch} placeholder="Search Invoice Number" />
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, overflowY: "auto", flex: 1, minHeight: 0 }}>
+              {p.invoiceOptions.filter(v => v.toLowerCase().includes(q)).map(v => (
+                <CheckRow key={v} checked={p.selectedInvoices.has(v)} onChange={() => p.onInvoiceChange(v)}>{v}</CheckRow>
+              ))}
+              {p.invoiceOptions.length === 0 && (
+                <span style={{ fontSize: 13, color: "#8D92A6", fontFamily: "Inter, sans-serif" }}>No invoice numbers yet</span>
+              )}
             </div>
-            <div>
-              <span style={labelS}>Maximum</span>
-              <input type="number" value={p.amountMax} onChange={e => p.onAmountMax(e.target.value)} placeholder="0.00" style={INPUT_S} />
-            </div>
-          </div>
+          </>
         );
     }
   };
 
+  const showSelectAll = paneSelection !== null;
+  const showFooter = showSelectAll || activeCategory === "amount";
+
   return (
     <div ref={ref}
       style={{
-        position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 50,
-        width: 360, background: "#ffffff",
-        border: "1px solid #E6E6E6", borderRadius: 12,
-        boxShadow: "0 8px 24px rgba(0,0,0,0.10)", overflow: "hidden",
+        position: "absolute", top: "calc(100% + 8px)", right: 0, zIndex: 50,
+        width: 594, maxWidth: "calc(100vw - 300px)", height: 428, background: "#ffffff",
+        border: "1px solid #EBEDF0", borderRadius: 12,
+        boxShadow: "0 12px 32px rgba(16,24,40,0.12)", overflow: "hidden",
+        display: "flex", flexDirection: "column",
       }}
     >
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderBottom: "1px solid #E6E6E6" }}>
-        <span style={{ fontSize: 14, fontWeight: 600, color: "#101828", fontFamily: "Inter, sans-serif" }}>Filters</span>
-        <button onClick={p.onClear} style={{ fontSize: 12, color: "#717680", background: "none", border: "none", cursor: "pointer", fontFamily: "Inter, sans-serif" }}>Clear all</button>
-      </div>
-
-      {/* Body */}
-      <div style={{ display: "flex", minHeight: 260 }}>
-        {/* Category list */}
-        <div style={{ width: 144, borderRight: "1px solid #E6E6E6", flexShrink: 0, padding: "6px 0", background: "#F5F5F5" }}>
-          {FILTER_CATEGORIES.map(cat => (
-            <button key={cat.id} onClick={() => setActiveCategory(cat.id)}
-              style={{
-                width: "100%", textAlign: "left", padding: "8px 14px", fontSize: 14, fontWeight: 500,
-                background: activeCategory === cat.id ? "#ffffff" : "transparent",
-                color: activeCategory === cat.id ? "#1876FF" : "#414651",
-                border: "none", cursor: "pointer", transition: "background 0.1s",
-                fontFamily: "Inter, sans-serif",
-              }}
-            >
-              {cat.label}
-            </button>
-          ))}
-        </div>
-        {/* Content */}
-        <div style={{ flex: 1, padding: "12px 14px", overflowY: "auto", background: "#ffffff" }}>
-          {renderContent()}
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div style={{ display: "flex", justifyContent: "flex-end", padding: "10px 16px", borderTop: "1px solid #E6E6E6" }}>
-        <button onClick={p.onClose}
-          style={{ fontSize: 13, fontWeight: 600, color: "#1876FF", background: "none", border: "none", cursor: "pointer", fontFamily: "Inter, sans-serif" }}>
-          Done
+      {/* Header — "Filter" + "Clear all filter" (invoice-sprint) */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px 10px" }}>
+        <span style={{ fontSize: 16, fontWeight: 700, color: "#181D27", fontFamily: "Inter, sans-serif" }}>Filter</span>
+        <button onClick={p.onClear}
+          style={{ fontSize: 14, color: "#9CA3AF", background: "none", border: "none", cursor: "pointer", fontFamily: "Inter, sans-serif" }}>
+          Clear all filter
         </button>
+      </div>
+
+      {/* Body — category rail + content pane */}
+      <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
+        <div style={{ width: 180, borderRight: "1px solid #F0F0F0", flexShrink: 0, padding: "6px 8px", display: "flex", flexDirection: "column", gap: 2 }}>
+          {FILTER_CATEGORIES.map(cat => {
+            const isActive = activeCategory === cat.id;
+            return (
+              <button key={cat.id} onClick={() => switchCategory(cat.id)}
+                style={{
+                  width: "100%", textAlign: "left", padding: "0 14px", height: 41,
+                  fontSize: 14, fontWeight: 500, borderRadius: 8,
+                  background: isActive ? "#EEF4FF" : "transparent",
+                  color: isActive ? "#1876FF" : "#414651",
+                  border: "none", cursor: "pointer", transition: "background 0.1s",
+                  fontFamily: "Inter, sans-serif",
+                }}
+                onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "#F9F9F9"; }}
+                onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
+              >
+                {cat.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+          <div style={{ flex: 1, minHeight: 0, padding: "14px 18px", overflowY: "auto", display: "flex", flexDirection: "column" }}>
+            {renderContent()}
+          </div>
+          {showFooter && (
+            <div style={{
+              display: "flex", justifyContent: "space-between", alignItems: "center",
+              padding: "12px 18px", borderTop: "1px solid #F0F0F0", flexShrink: 0,
+            }}>
+              {showSelectAll ? (
+                <button onClick={selectAll}
+                  style={{ fontSize: 14, color: "#414651", background: "none", border: "none", cursor: "pointer", fontFamily: "Inter, sans-serif", padding: 0 }}>
+                  Select all
+                </button>
+              ) : <span />}
+              <button onClick={clearPane}
+                style={{ fontSize: 14, color: "#9CA3AF", background: "none", border: "none", cursor: "pointer", fontFamily: "Inter, sans-serif", padding: 0 }}>
+                Clear all
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

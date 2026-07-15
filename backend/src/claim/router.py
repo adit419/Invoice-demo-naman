@@ -17,7 +17,7 @@ import sys
 import threading
 
 import pandas as pd
-from fastapi import APIRouter, Body, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
 
 # --- make the vendored engine modules importable by their top-level names ---
@@ -30,6 +30,7 @@ import dbstore as store  # noqa: E402
 import email_scan as inbox  # noqa: E402
 import pricing as pricing_mod  # noqa: E402
 
+from ..auth.deps import get_current_user  # noqa: E402
 from ..config import settings  # noqa: E402
 
 DATA = os.path.join(_CLAIM_DIR, "data")
@@ -39,7 +40,9 @@ DATA = os.path.join(_CLAIM_DIR, "data")
 if getattr(settings, "anthropic_api_key", None) and not os.environ.get("ANTHROPIC_API_KEY"):
     os.environ["ANTHROPIC_API_KEY"] = settings.anthropic_api_key
 
-router = APIRouter()
+# All /claim-api routes require a signed-in user — same policy as the cash
+# module's router (bearer token validated by auth.deps.get_current_user).
+router = APIRouter(dependencies=[Depends(get_current_user)])
 
 
 # --------------------------------------------------------------------------- #
