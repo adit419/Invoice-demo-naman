@@ -179,13 +179,13 @@
     "metadata": [
     {
         "row_id": "e57k1wys",
-        "bbox_left": 0.6717647058823529,
-        "bbox_top": 0.2177272727272727,
-        "bbox_width": 0.04,
-        "bbox_height": 0.008181818181818182,
+        "bbox_left": 0,
+        "bbox_top": 0,
+        "bbox_width": 0,
+        "bbox_height": 0,
         "page": 1,
         "field": "po_number",
-        "value_confidence": 0.09769230792307692
+        "value_confidence": 0
     },
     {
         "row_id": "4gc9bp1v",

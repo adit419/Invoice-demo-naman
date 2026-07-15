@@ -63,6 +63,7 @@ def _run_to_item(run: dict, doc: dict, inv: dict) -> InvoiceListItem:
         percent_complete=percent_for_run(run),
         source=run.get("source", "manual"),
         tag=run.get("tag"),
+        assignee=run.get("uploaded_by") or (run.get("source_meta") or {}).get("sender"),
         stp_enabled=run.get("stp_enabled", False),
         created_at=run.get("created_at", datetime.now(timezone.utc)),
         updated_at=run.get("updated_at", datetime.now(timezone.utc)),
@@ -169,6 +170,8 @@ async def upload_invoice(
         # "sender" is the notification address slot the bill-posted email reads
         # (same one the email-ingestion flow fills with the sender's address).
         "source_meta": {"sender": email} if email else {},
+        # Dashboard "Assignee" — the signed-in user who performed the upload.
+        "uploaded_by": current_user.email,
         "tag": tag,
         "stp_enabled": False,
         "created_at": now,
@@ -351,6 +354,8 @@ async def trigger_upload_invoice(body: TriggerUploadRequest, current_user: Curre
         # "sender" is the notification address slot the bill-posted email reads
         # (same one the email-ingestion flow fills with the sender's address).
         "source_meta": {"sender": body.email} if body.email else {},
+        # Dashboard "Assignee" — the signed-in user who triggered the upload.
+        "uploaded_by": current_user.email,
         "tag": body.tag,
         "stp_enabled": False,
         "created_at": now,

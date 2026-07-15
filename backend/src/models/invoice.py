@@ -64,6 +64,9 @@ class InvoiceListItem(BaseModel):
     percent_complete: int
     source: str = "manual"
     tag: Optional[str] = None
+    # Who initiated the invoice: the signed-in uploader for manual/trigger
+    # uploads, or the sender address for email-ingested invoices.
+    assignee: Optional[str] = None
     stp_enabled: bool = False
     created_at: datetime
     updated_at: datetime
