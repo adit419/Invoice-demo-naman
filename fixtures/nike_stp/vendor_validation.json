@@ -1,0 +1,190 @@
+[
+  {
+    "fields": [
+      {
+        "field_name": "vendor_name",
+        "display_name": "Vendor Legal Entity",
+        "type": "string",
+        "required": true,
+        "match_status": "match",
+        "values": {
+          "invoice": [
+            {
+              "document_id": "1001312123",
+              "value": "NIKE SALES (MALAYSIA)"
+            }
+          ],
+          "po": [
+            {
+              "document_id": "PO-00058",
+              "value": "NIKE SALES (MALAYSIA)"
+            }
+          ]
+        },
+        "is_acknowledged": false,
+        "acknowledged_by": null,
+        "acknowledged_at": null
+      },
+      {
+        "field_name": "vendor_vat_id",
+        "display_name": "Vendor VAT ID",
+        "type": "string",
+        "required": false,
+        "match_status": "match",
+        "values": {
+          "invoice": [
+            {
+              "document_id": "1001312123",
+              "value": "33LMNOP4321Q1Z6"
+            }
+          ],
+          "po": [
+            {
+              "document_id": "PO-00058",
+              "value": "33LMNOP4321Q1Z6"
+            }
+          ]
+        },
+        "is_acknowledged": false,
+        "acknowledged_by": null,
+        "acknowledged_at": null
+      },
+      {
+        "field_name": "vendor_address",
+        "display_name": "Vendor Address",
+        "type": "string",
+        "required": false,
+        "match_status": "match",
+        "values": {
+          "invoice": [
+            {
+              "document_id": "1001312123",
+              "value": "Unit 10-1 10-2, Lv110, Menara OBYU No.4, Jln PJU 8/8A, D'sara Perdana, 47820 Petaling Jaya"
+            }
+          ],
+          "po": [
+            {
+              "document_id": "PO-00058",
+              "value": "Unit 10-1 10-2, Lvl10, Menara OBYU No.4, Jln PJU 8/8A, D'sara Perdana\n 47820 Petaling Jaya, MALAYSIA, Malaysia"
+            }
+          ]
+        },
+        "is_acknowledged": false,
+        "acknowledged_by": null,
+        "acknowledged_at": null
+      },
+      {
+        "field_name": "vendor_bank_name",
+        "display_name": "Vendor Bank Name",
+        "type": "string",
+        "required": false,
+        "match_status": "mismatch",
+        "values": {
+          "invoice": [
+            {
+              "document_id": "1001312123",
+              "value": ""
+            }
+          ],
+          "po": [
+            {
+              "document_id": "PO-00058",
+              "value": "Philippine National Bank"
+            }
+          ]
+        },
+        "is_acknowledged": false,
+        "acknowledged_by": null,
+        "acknowledged_at": null
+      },
+      {
+        "field_name": "vendor_bank_account_number",
+        "display_name": "Vendor Bank Account Number",
+        "type": "string",
+        "required": false,
+        "match_status": "mismatch",
+        "values": {
+          "invoice": [
+            {
+              "document_id": "1001312123",
+              "value": ""
+            }
+          ],
+          "po": [
+            {
+              "document_id": "PO-00058",
+              "value": "058192319832"
+            }
+          ]
+        },
+        "is_acknowledged": false,
+        "acknowledged_by": null,
+        "acknowledged_at": null
+      },
+      {
+        "field_name": "vendor_bank_account_name",
+        "display_name": "Vendor Bank Account Name",
+        "type": "string",
+        "required": false,
+        "match_status": "mismatch",
+        "values": {
+          "invoice": [
+            {
+              "document_id": "1001312123",
+              "value": ""
+            }
+          ],
+          "po": [
+            {
+              "document_id": "PO-00058",
+              "value": "NIKE SALES (MALAYSIA)"
+            }
+          ]
+        },
+        "is_acknowledged": false,
+        "acknowledged_by": null,
+        "acknowledged_at": null
+      },
+      {
+        "field_name": "vendor_bank_swift",
+        "display_name": "Vendor Bank SWIFT",
+        "type": "string",
+        "required": false,
+        "match_status": "mismatch",
+        "values": {
+          "invoice": [
+            {
+              "document_id": "1001312123",
+              "value": ""
+            }
+          ],
+          "po": [
+            {
+              "document_id": "PO-00058",
+              "value": "PNBMPHMMXXX"
+            }
+          ]
+        },
+        "is_acknowledged": false,
+        "acknowledged_by": null,
+        "acknowledged_at": null
+      }
+    ],
+    "summary": {
+      "total_fields": 7,
+      "matched": 3,
+      "mismatched": 4,
+      "missing_required": 0,
+      "missing": 0,
+      "match_percentage": 42.86,
+      "document_types": [
+        "invoice",
+        "po"
+      ],
+      "validation_result": "fail"
+    },
+    "required_missing_fields": [],
+    "error_message": null,
+    "error_code": null
+  }
+]

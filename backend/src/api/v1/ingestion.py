@@ -298,7 +298,7 @@ async def trigger_upload_invoice(body: TriggerUploadRequest, current_user: Curre
     # Ingestion chain: job → document → attachment
     job_result = await jobs(db).insert_one({
         "status": "processing",
-        "source": "manual",
+        "source": "trigger",
         "tenant_id": uploader_tenant_oid,
         "created_at": now,
         "updated_at": now,
@@ -351,7 +351,9 @@ async def trigger_upload_invoice(body: TriggerUploadRequest, current_user: Curre
         "fixture_key": bundle.key,
         "file_name": file_name,
         "local_file_path": None,
-        "source": "manual",
+        # Distinct source so the dashboard can show the email + manual-upload
+        # icon pair for API-triggered ingestion.
+        "source": "trigger",
         # "sender" is the notification address slot the bill-posted email reads
         # (same one the email-ingestion flow fills with the sender's address).
         "source_meta": {"sender": body.email} if body.email else {},
