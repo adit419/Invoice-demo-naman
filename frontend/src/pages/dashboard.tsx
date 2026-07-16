@@ -152,11 +152,9 @@ function formatTimestamp(dateStr: string): string {
     + " | " + d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 }
 
-// API trigger-uploads show both the email and manual-upload icons, so a row
-// can carry more than one source type.
 function getSourceTypes(inv: InvoiceListItem): SourceType[] {
-  if (inv.source === "trigger") return ["gmail", "manual"];
-  if (inv.source === "email") return ["gmail"];
+  // API trigger-uploads mimic email ingestion — show the email icon.
+  if (inv.source === "trigger" || inv.source === "email") return ["gmail"];
   if (inv.source === "freshdesk") return ["freshdesk"];
   return ["manual"];
 }
