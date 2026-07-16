@@ -102,6 +102,45 @@ window.DATA = (function () {
   }
   const AGE_ORDER = ["0–15 days", "15–30 days", "1–3 months", "3–6 months", "6 months+"];
 
+  // ── Curated "Neoflo AI earns its keep" showcases ──────────────────────────
+  // A few Singapore credits get deliberately MESSY bank narrations — the clean
+  // payer name is abbreviated, mis-keyed, aliased, or absent entirely — so the
+  // only thing tying the receipt to a customer is a fuzzy name fragment and/or
+  // the recurring sender-account token. These carry a sub-threshold (fuzzy)
+  // confidence and a specific "how", which is exactly where the AI adds value.
+  // Every OTHER identified credit, where the full payer name is literally in the
+  // narration, is a deterministic exact match at ~100% (see buildCockpit / confOf).
+  const AI_SHOWCASE = [
+    { customer: "Sentosa Media Pte Ltd", conf: 0.82,
+      desc: (pk, d) => `GIRO BULK CR ${d} SENTOSA MEDIA P/L ${pk} WHT101456`,
+      how: (pk, name) => `abbreviated payer "SENTOSA MEDIA P/L" fuzzy-matched to ${name}, confirmed by the recurring sender account ${pk} seen on every prior remittance (ID-4 / ID-5)` },
+    { customer: "Lazada Singapore", conf: 0.74,
+      desc: (pk, d, it) => `INWARD TT ${d} /ORG LAZDA SG PTELTD /ACC ${pk} /OUR FT${100000 + (Math.abs(it.amount) % 89999)}`,
+      how: (pk, name) => `mis-keyed payer "LAZDA SG PTELTD" resolved to ${name} by edit-distance + the recurring sender account ${pk} (ID-4 / ID-5)` },
+    { customer: "Sentosa Media Pte Ltd", conf: 0.69,
+      desc: (pk, d, it) => `FAST ${d} OBO CLIENT COLLECTION ACC ${pk} OTHR ${100000 + (Math.abs(it.amount) % 89999)}`,
+      how: (pk, name) => `no payer name in the narration — identified purely from the recurring sender-account fingerprint ${pk}, which appears on every ${name} remittance (ID-5 / ID-6)` },
+    { customer: "Shopee Pay SG", conf: 0.78,
+      desc: (pk, d, it) => `IBG GIRO ${d} SHOPEE SG TREASURY ACC ${pk} ${100000 + (Math.abs(it.amount) % 89999)}`,
+      how: (pk, name) => `treasury alias "SHOPEE SG TREASURY" mapped to parent ${name} via the known-alias table, corroborated by sender account ${pk} (ID-3 / ID-4)` },
+  ];
+  // Overwrite the first few *identified* credits of an entity with the showcases
+  // above — messy narration + a fuzzy AI match object. Unidentified credits are
+  // never touched. Amounts/dates are left as-is, so all dashboard totals still tie.
+  function applyAiShowcase(list, entityId) {
+    if (entityId !== "grabads-sg") return;
+    let s = 0;
+    for (let i = 0; i < list.length && s < AI_SHOWCASE.length; i++) {
+      const it = list[i];
+      if (it.customer === "— unidentified —") continue;
+      const spec = AI_SHOWCASE[s++];
+      const pk = payerKey(spec.customer);
+      it.customer = spec.customer;
+      it.desc = spec.desc(pk, stmtDate(it.date), it);
+      it.ai = { confidence: spec.conf, how: spec.how(pk, spec.customer), rank: s - 1 };
+    }
+  }
+
   const _cache = {};
   function dashboardFor(entityId) {
     if (_cache[entityId]) return _cache[entityId];
@@ -130,6 +169,7 @@ window.DATA = (function () {
         customer, amount, ageDays, reason, tone: REASON_TONE[reason],
       });
     }
+    applyAiShowcase(list, entityId);
     const byType = REASONS.map((rn) => {
       const sub = list.filter((x) => x.reason === rn);
       return { label: rn, count: sub.length, amount: sub.reduce((s, x) => s + x.amount, 0), tone: REASON_TONE[rn] };
@@ -175,7 +215,11 @@ window.DATA = (function () {
         gap: { wht: 0, discount: 0, bankCharge: 0, onAccount: 0, rebate: 0, aiKind: null, aiRate: 0, unexplained: it.amount, note: "No customer auto-resolved — verify Neoflo AI's suggested match below, or pick another.", allocRule: "—" } };
     }
     const pk = payerKey(it.customer);
-    const cust = { name: it.customer, id: "C-auto", confidence: 0.72 + ((it.amount % 26) / 100), how: `recurring sender account ${pk} in the narration + payer-name match (ID-3 / ID-4) — ${pk} is seen on every ${it.customer} remittance` };
+    // Curated fuzzy showcase (messy narration) → sub-threshold AI confidence + its own "how".
+    // Otherwise the full payer name is literally in the narration → deterministic exact match.
+    const cust = it.ai
+      ? { name: it.customer, id: "C-auto", confidence: it.ai.confidence, how: it.ai.how }
+      : { name: it.customer, id: "C-auto", confidence: 1.0, how: `exact payer-name match in the narration + recurring sender account ${pk} (ID-1 / ID-3) — deterministic, no fuzzy inference needed` };
     const sc = CCY_SCALE[ccy] || 1;
     // Decide the realistic gap "story" so any AI-suggested value is exact and sensible:
     // WHT 5%, cash discount 2%, a flat cross-border bank charge, a ~6% volume rebate,

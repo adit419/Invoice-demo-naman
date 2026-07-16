@@ -342,6 +342,9 @@
       x.id.toLowerCase().includes(q)
     ) : list.slice();
     out.sort((a, b) => {
+      // Pin the curated AI-match showcases to the top of the queue, in showcase order.
+      if (!!a.ai !== !!b.ai) return a.ai ? -1 : 1;
+      if (a.ai && b.ai) return a.ai.rank - b.ai.rank;
       let av, bv;
       if (wsSortKey === "amount")   { av = a.amount;   bv = b.amount; }
       else if (wsSortKey === "customer") { av = (a.customer || "").toLowerCase(); bv = (b.customer || "").toLowerCase(); }
@@ -381,7 +384,7 @@
     };
   }
   function bankName() { const b = D.banks.find((x) => x.id === selectedBankId); return b ? b.name : "—"; }
-  function confOf(it) { return it.reason === "Unidentified customer" ? "—" : (0.72 + ((Math.abs(it.amount) % 26) / 100)).toFixed(2); }
+  function confOf(it) { return it.reason === "Unidentified customer" ? "—" : (it.ai ? it.ai.confidence : 1.0).toFixed(2); }
   function getCredit(id) {
     const db = D.dashboardFor(selectedEntityId);
     const it = (id && db.list.find((x) => x.id === id)) || db.list[0];
