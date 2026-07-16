@@ -152,10 +152,13 @@ function formatTimestamp(dateStr: string): string {
     + " | " + d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 }
 
-function getSourceType(inv: InvoiceListItem): SourceType {
-  if (inv.source === "email") return "gmail";
-  if (inv.source === "freshdesk") return "freshdesk";
-  return "manual";
+// API trigger-uploads show both the email and manual-upload icons, so a row
+// can carry more than one source type.
+function getSourceTypes(inv: InvoiceListItem): SourceType[] {
+  if (inv.source === "trigger") return ["gmail", "manual"];
+  if (inv.source === "email") return ["gmail"];
+  if (inv.source === "freshdesk") return ["freshdesk"];
+  return ["manual"];
 }
 
 // ── Cell styles (mirroring validator-fe CELL_PRIMARY / CELL_MUTED) ────────────
@@ -617,7 +620,7 @@ function DashboardPage() {
     const matchesDateFrom = !dateFrom || invDate >= new Date(dateFrom + "T00:00:00Z");
     const matchesDateTo   = !dateTo   || invDate <= new Date(dateTo + "T23:59:59Z");
 
-    const matchesSource = selectedSources.size === 0 || selectedSources.has(getSourceType(inv));
+    const matchesSource = selectedSources.size === 0 || getSourceTypes(inv).some(t => selectedSources.has(t));
     const matchesVendor  = selectedVendors.size === 0  || selectedVendors.has(inv.vendor_name ?? "");
     const matchesInvoice = selectedInvoices.size === 0 || selectedInvoices.has(inv.invoice_number ?? "");
     const matchesAmountMin = !amountMin || (inv.total_amount ?? 0) >= parseFloat(amountMin);
@@ -951,7 +954,7 @@ function DashboardPage() {
                 ) : (
                   paginatedInvoices.map(inv => {
                     const action = getAction(inv);
-                    const sourceType = getSourceType(inv);
+                    const sourceTypes = getSourceTypes(inv);
                     return (
                       <tr key={inv.id}
                         style={{ borderBottom: "1px solid #E6E6E6" }}
@@ -969,7 +972,9 @@ function DashboardPage() {
                         {/* File Name / Time (with source icon) */}
                         <td style={{ padding: "10px 16px" }}>
                           <div style={{ display: "flex", alignItems: "flex-start", gap: 8, overflow: "hidden" }}>
-                            <span style={{ marginTop: 2 }}><SourceIcon type={sourceType} /></span>
+                            <span style={{ marginTop: 2, display: "inline-flex", gap: 4 }}>
+                              {sourceTypes.map(t => <SourceIcon key={t} type={t} />)}
+                            </span>
                             <div style={{ minWidth: 0, flex: 1 }}>
                               <span
                                 title={inv.file_name}
