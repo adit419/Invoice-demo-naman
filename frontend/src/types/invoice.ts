@@ -18,6 +18,8 @@ export interface InvoiceListItem {
   source?: string;
   /** Signed-in uploader (manual/trigger) or sender address (email ingestion). */
   assignee?: string | null;
+  /** Auto-Process state: "processing" | "waiting_review" | "done" (absent when STP never ran). */
+  stp_state?: string | null;
   created_at: string;
   updated_at: string;
 }

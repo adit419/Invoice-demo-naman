@@ -23,6 +23,10 @@ from ...models.user import UserOut
 
 _MANDATORY_CHECK_STAGES = {"extraction", "vendor_validation", "metadata_validation", "line_item_matching"}
 
+# Matches stp._STP_ACTOR.id — used to tell system approvals apart from human
+# ones (human approvals re-trigger the Auto-Process cascade as a resume).
+_STP_ACTOR_ID = "000000000000000000000001"
+
 # ── Sequence and metadata ─────────────────────────────────────────────────────
 
 STAGE_SEQUENCE = [
@@ -242,6 +246,32 @@ async def approve_stage(
     # Trigger next stage (start → in_progress → in_review)
     await _trigger_stage(db, run_id, next_slug, now)
 
+    # Resume Auto-Process: when a HUMAN approves a stage (e.g. after fixing the
+    # condition that blocked the STP cascade) and Auto-Process is on, continue
+    # processing the remaining validation stages automatically. The cascade
+    # skips already-approved stages, so it picks up exactly where the pipeline
+    # now is. STP's own approvals don't re-trigger (the running cascade
+    # continues by itself).
+    if (
+        next_slug in ("fp_extraction", "metadata_validation", "line_item_matching")
+        and str(current_user.id) != _STP_ACTOR_ID
+    ):
+        import asyncio as _asyncio
+        import logging as _logging
+
+        async def _stp_resume(db_inner, run_id_inner):
+            _log = _logging.getLogger(__name__)
+            try:
+                from .stp import get_global_stp, run_stp_for_pipeline  # noqa: PLC0415
+                if not await get_global_stp(db_inner):
+                    return
+                _log.info("STP resume triggered by human approval for run %s", run_id_inner)
+                await run_stp_for_pipeline(run_id_inner)
+            except Exception:
+                _log.exception("STP resume failed for run %s", run_id_inner)
+
+        _asyncio.create_task(_stp_resume(db, run_id))
+
     # If STP is enabled and the next stage is bill_posting, auto-post to ERP.
     # Lazy import avoids circular dependency (stp.py imports from stages.py).
     if next_slug == "bill_posting":
@@ -338,9 +368,36 @@ async def check_stp_mandatory(db, run_id: ObjectId, slug: str) -> tuple[bool, li
     elif slug == "metadata_validation":
         mandatory = _mandatory_keys("metadata_validation")
         fixture = _unwrap_list(bundle.metadata_validation if bundle else {})
-        for f in fixture.get("fields", []):
+
+        # A mandatory mismatch is satisfied once acknowledged — either manually
+        # by a reviewer (invoices.acknowledged_fields) or automatically via the
+        # tenant acknowledgement memory (>= ACK threshold). Without this, an
+        # acknowledged field still blocked both manual approval and STP.
+        inv_doc = await invoices(db).find_one({"run_id": run_id}, {"acknowledged_fields": 1}) or {}
+        acked = {a.get("field_name") for a in inv_doc.get("acknowledged_fields") or []}
+
+        check_fields = [
+            {
+                **f,
+                "required": f.get("field_name") in mandatory,
+                "is_acknowledged": f.get("field_name") in acked,
+            }
+            for f in fixture.get("fields", [])
+        ]
+        tenant_id = str(run["tenant_id"]) if run.get("tenant_id") else None
+        # Local imports avoid a circular dependency (both modules import stages).
+        from .metadata_validation import _apply_ack_memory
+        from .stp import get_global_ack_threshold
+        threshold = await get_global_ack_threshold(db)
+        check_fields = await _apply_ack_memory(db, tenant_id, check_fields, threshold=threshold)
+
+        for f in check_fields:
             field_key = f.get("field_name", "")
-            if field_key in mandatory and f.get("match_status") != "match":
+            if (
+                field_key in mandatory
+                and f.get("match_status") != "match"
+                and not f.get("is_acknowledged")
+            ):
                 missing.append(f.get("display_name") or field_key)
 
     elif slug == "line_item_matching":

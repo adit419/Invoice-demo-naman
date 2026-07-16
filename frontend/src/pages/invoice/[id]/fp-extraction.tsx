@@ -31,7 +31,7 @@ import { StageTransitionOverlay } from "@/components/StageTransitionOverlay";
 import { ComponentHeaderAntd } from "@/components/matching";
 import { Loader } from "@/components/ui";
 import { useToast } from "@/components/ui";
-import { ApiError, stagesService } from "@/services";
+import { ApiError, settingsService, stagesService } from "@/services";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -183,6 +183,12 @@ function FpExtractionPage() {
     setConfirming(true);
     try {
       await stagesService.approve(id, "fp_extraction");
+      // With Auto-Process on, return the reviewer to the dashboard — STP
+      // continues the remaining stages in the background.
+      try {
+        const stp = await settingsService.getStp();
+        if (stp.stp_enabled) { router.push("/dashboard"); return; }
+      } catch { /* fall through to normal stage navigation */ }
       setTransitioning(true);
       setTimeout(() => router.push(`/invoice/${id}/matching?tab=metadata`), 2000);
     } catch (err) {

@@ -20,7 +20,7 @@ from pydantic import BaseModel
 
 from ...auth.deps import CurrentUser
 from ...database import get_db
-from ...db.collections import app_settings, bills, email_log, executed_stages, invoices, pipeline_runs
+from ...db.collections import app_settings, bills, email_log, executed_stages, invoices, pipeline_runs, po_recommendations
 from ...models.user import UserOut
 from ...services.fixtures import get_loader
 from fastapi import HTTPException
@@ -81,16 +81,73 @@ async def _cascade_validation(db, run_id: ObjectId) -> dict:
     """
     Auto-approve each validation stage sequentially.
     approve_stage() enforces mandatory field rules — catches the 422 here.
+
+    Stages that don't apply are skipped rather than aborting the cascade:
+      - fp_extraction for non-IDR invoices (approve_stage auto-skips it, so it
+        never reaches in_review — waiting on it stalled every non-IDR run);
+      - stages already approved/completed (by a human or an earlier cascade),
+        which makes this safe to re-run as a *resume* after human intervention.
     """
     stages_approved: list[str] = []
     failure_reason: str | None = None
 
+    inv_doc = await invoices(db).find_one({"run_id": run_id}) or {}
+    is_idr = (inv_doc.get("currency") or "").upper() == "IDR"
+
     for slug in _VALIDATION_STAGES:
+        if slug == "fp_extraction" and not is_idr:
+            continue
+
+        stage_doc = await executed_stages(db).find_one({"run_id": run_id, "stage_slug": slug}) or {}
+        if stage_doc.get("status") in ("approved", "completed"):
+            continue
+
         ready = await _wait_for_in_review(db, run_id, slug)
         if not ready:
             logger.error("STP: aborting cascade at %s — stage never reached in_review", slug)
             failure_reason = "stage_not_ready"
             break
+
+        # Demo realism: let extraction "run" for a few seconds before the
+        # system acts on it, mirroring real OCR / field-extraction latency
+        # (the dashboard shows the Processing state during this window).
+        if slug == "extraction":
+            await asyncio.sleep(5)
+
+        # An AI-recommended PO must be reviewed by a human before the pipeline
+        # moves on — STP never auto-approves extraction over a Neo AI fill.
+        # The human approving extraction resumes the cascade from there.
+        if slug == "extraction":
+            rec = await po_recommendations(db).find_one({"run_id": run_id})
+            if rec and rec.get("status") == "applied":
+                logger.info(
+                    "STP: AI PO recommendation applied for run %s — holding at "
+                    "extraction for human review", run_id,
+                )
+                failure_reason = "ai_recommendation_pending_review"
+                break
+
+        # Line items only auto-approve when every match is "perfect". A
+        # probable (or missing) match needs a human to confirm the GRN mapping
+        # — STP holds here and resumes once the stage is approved.
+        if slug == "line_item_matching":
+            run_doc = await pipeline_runs(db).find_one({"_id": run_id}) or {}
+            bundle = get_loader().discover().get(run_doc.get("fixture_key", ""))
+            li_fixture = bundle.line_item if bundle else {}
+            if isinstance(li_fixture, list):
+                li_fixture = li_fixture[0] if li_fixture else {}
+            non_perfect = [
+                r for r in li_fixture.get("results", [])
+                if r.get("match_status") != "perfect"
+            ]
+            if non_perfect:
+                logger.info(
+                    "STP: %d line item(s) without a perfect match for run %s — "
+                    "holding at line_item_matching for human review",
+                    len(non_perfect), run_id,
+                )
+                failure_reason = "line_items_pending_review"
+                break
 
         try:
             await approve_stage(db, run_id, slug, _STP_ACTOR, f"{slug}.stp_approved")
@@ -98,7 +155,8 @@ async def _cascade_validation(db, run_id: ObjectId) -> dict:
             detail = exc.detail if isinstance(exc.detail, dict) else {}
             missing = detail.get("missing", [])
             logger.warning(
-                "STP: mandatory fields missing at %s for run %s — %s",
+                "STP: mandatory fields missing at %s for run %s — %s. "
+                "Waiting for human review; STP resumes after the stage is approved.",
                 slug, run_id, missing,
             )
             failure_reason = "mandatory_fields_missing"
@@ -108,10 +166,9 @@ async def _cascade_validation(db, run_id: ObjectId) -> dict:
         logger.info("STP: approved %s for run %s", slug, run_id)
         await asyncio.sleep(3)
 
-    all_passed = len(stages_approved) == len(_VALIDATION_STAGES)
     return {
         "stages_approved": stages_approved,
-        "reason": "ready_for_bill_posting" if all_passed else (failure_reason or "cascade_incomplete"),
+        "reason": "ready_for_bill_posting" if failure_reason is None else failure_reason,
         "completed": False,
     }
 
@@ -135,15 +192,17 @@ async def _auto_post_bill(db, run_id: ObjectId) -> dict:
     fixture stub with an empty `zoho_url`.
     """
     from ...services.invoice_state import get_invoice_schema
+    from ...services.qbd_bill import post_bill as qbd_post_bill
     from ...services.zoho_bill import post_bill as zoho_post_bill
     from .bill_posting import _resolve_bill_line_items
 
     run = await pipeline_runs(db).find_one({"_id": run_id}) or {}
+    fixture_key = run.get("fixture_key", "")
     # Live extraction state: fixture extraction.json + replayed edit_history
     invoice_schema = await get_invoice_schema(db, run_id)
 
     loader = get_loader()
-    bundle = loader.discover().get(run.get("fixture_key", ""))
+    bundle = loader.discover().get(fixture_key)
     bp_fixture = _unwrap(bundle.bill_posting if bundle else {})
 
     # Apply any saved overrides from the bills collection (mirrors manual flow)
@@ -156,46 +215,90 @@ async def _auto_post_bill(db, run_id: ObjectId) -> dict:
     bill_date = saved.get("invoice_date") or _extract_field(invoice_schema, "invoice_date") or header.get("bill_date", "")
     due_date = saved.get("due_date") or header.get("due_date", "")
     reference = header.get("reference", "")
+    currency = _extract_field(invoice_schema, "currency") or header.get("currency", "")
+    erp_type = bp_fixture.get("erp_type") or ("qbd" if fixture_key == "CATERSPOT_QBDE" else "zoho")
 
     now = datetime.now(timezone.utc)
 
-    try:
-        zoho_result = await zoho_post_bill(
-            vendor_name=vendor_name,
-            bill_date=bill_date,
-            due_date=due_date,
-            reference_number=reference,
-            line_items=[
-                {
-                    "description": li.get("description", ""),
-                    "account_id": li.get("account_id"),
-                    "account_code": li.get("account_code", ""),
-                    "account_name": li.get("account_name", ""),
-                    "tax_id": li.get("tax_id"),
-                    "quantity": li.get("quantity", 1),
-                    "unit_price": li.get("unit_price", 0),
-                }
-                for li in line_items
-            ],
-        )
-    except Exception as exc:
-        # Mirror the manual flow: a Zoho failure must abort posting. The STP
-        # cascade's outer handler logs this and leaves the run at bill_posting.
-        raise RuntimeError(f"Zoho Books error: {exc}") from exc
+    if erp_type == "qbd":
+        qbd_vendor_ref = header.get("qbd_vendor_ref") or vendor_name
+        try:
+            qbd_result = await qbd_post_bill(
+                vendor_name=qbd_vendor_ref,
+                bill_date=bill_date,
+                due_date=due_date,
+                reference_number=reference,
+                currency_code=currency,
+                fixture_key=fixture_key,
+                line_items=[
+                    {
+                        "item_ref": li.get("item_ref") or li.get("description", ""),
+                        "description": li.get("description", ""),
+                        "quantity": li.get("quantity", 1),
+                        "unit_price": li.get("unit_price", 0),
+                    }
+                    for li in line_items
+                ],
+            )
+        except Exception as exc:
+            raise RuntimeError(f"QB Desktop error: {exc}") from exc
 
-    erp_result = {
-        "run_id": run_id,
-        "bill_id": zoho_result["bill_id"],
-        "bill_number": zoho_result["bill_number"],
-        "zoho_reference": zoho_result["zoho_reference"],
-        "zoho_url": zoho_result.get("zoho_url", ""),
-        "status": "posted",
-        "posted_at": now,
-        "notification_email": "",
-        "vendor_name": vendor_name,
-        "total": header.get("total", 0),
-        "currency": header.get("currency", ""),
-    }
+        erp_result = {
+            "run_id": run_id,
+            "erp_type": "qbd",
+            "bill_id": qbd_result["bill_id"],
+            "bill_number": qbd_result["bill_number"],
+            "zoho_reference": qbd_result.get("ref_number", reference),
+            "zoho_url": "",
+            "status": "posted",
+            "posted_at": now,
+            "notification_email": "",
+            "vendor_name": vendor_name,
+            "total": header.get("total", 0),
+            "currency": header.get("currency", ""),
+        }
+    else:
+        try:
+            zoho_result = await zoho_post_bill(
+                vendor_name=vendor_name,
+                bill_date=bill_date,
+                due_date=due_date,
+                reference_number=reference,
+                currency_code=currency,
+                tax_amount=float(header.get("tax_amount") or 0),
+                wht_amount=float(header.get("wht") or 0),
+                line_items=[
+                    {
+                        "description": li.get("description", ""),
+                        "account_id": li.get("account_id"),
+                        "account_code": li.get("account_code", ""),
+                        "account_name": li.get("account_name", ""),
+                        "tax_id": li.get("tax_id"),
+                        "quantity": li.get("quantity", 1),
+                        "unit_price": li.get("unit_price", 0),
+                    }
+                    for li in line_items
+                ],
+            )
+        except Exception as exc:
+            # Mirror the manual flow: a Zoho failure must abort posting. The STP
+            # cascade's outer handler logs this and leaves the run at bill_posting.
+            raise RuntimeError(f"Zoho Books error: {exc}") from exc
+
+        erp_result = {
+            "run_id": run_id,
+            "erp_type": "zoho",
+            "bill_id": zoho_result["bill_id"],
+            "bill_number": zoho_result["bill_number"],
+            "zoho_reference": zoho_result["zoho_reference"],
+            "zoho_url": zoho_result.get("zoho_url", ""),
+            "status": "posted",
+            "posted_at": now,
+            "notification_email": "",
+            "vendor_name": vendor_name,
+            "total": header.get("total", 0),
+            "currency": header.get("currency", ""),
+        }
 
     await bills(db).update_one(
         {"run_id": run_id},
@@ -255,17 +358,44 @@ async def _auto_post_bill(db, run_id: ObjectId) -> dict:
 
 # ── Public entry point (called as background task after upload) ────────────────
 
+# Runs currently being processed by a cascade — prevents a resume trigger
+# (human approval) racing an already-running cascade for the same invoice.
+_ACTIVE_STP_RUNS: set[str] = set()
+
+
 async def run_stp_for_pipeline(run_id: ObjectId) -> None:
     """
     Full STP cascade for one pipeline run.
     Safe to call as asyncio.create_task() — all errors are caught and logged.
+    Re-entrant by design: called at upload AND as a *resume* whenever a human
+    approves a stage while Auto-Process is on (already-approved stages are
+    skipped by the cascade).
     """
+    key = str(run_id)
+    if key in _ACTIVE_STP_RUNS:
+        logger.info("STP: cascade already running for %s — skipping duplicate trigger", key)
+        return
+    _ACTIVE_STP_RUNS.add(key)
+
     db = get_db()
+
+    async def _set_stp_state(state: str) -> None:
+        """Publish the cascade state on the run so the dashboard can tell
+        'actively processing' (Review disabled) from 'waiting for a human'
+        (Review enabled) without client-side guessing."""
+        await pipeline_runs(db).update_one(
+            {"_id": run_id},
+            {"$set": {"stp_state": state, "updated_at": datetime.now(timezone.utc)}},
+        )
+
+    # Assume human review will be needed; overwritten with "done" on success.
+    final_state = "waiting_review"
     try:
+        await _set_stp_state("processing")
         # Brief pause so the upload handler's DB writes are fully committed
         await asyncio.sleep(0.5)
 
-        # 1. Auto-approve all validation stages
+        # 1. Auto-approve all (remaining) validation stages
         result = await _cascade_validation(db, run_id)
         logger.info("STP cascade for run %s: approved=%s", run_id, result["stages_approved"])
 
@@ -275,24 +405,36 @@ async def run_stp_for_pipeline(run_id: ObjectId) -> None:
             # poll briefly as a safety net for any propagation lag
             for _ in range(15):
                 bp = await executed_stages(db).find_one({"run_id": run_id, "stage_slug": "bill_posting"})
-                if bp and bp.get("status") == "in_review":
+                if bp and bp.get("status") in ("in_review", "approved", "completed"):
                     break
                 await asyncio.sleep(0.3)
             else:
                 logger.error("STP: bill_posting never reached in_review for run %s", run_id)
                 return
 
+            if bp.get("status") in ("approved", "completed"):
+                logger.info("STP: bill already posted for run %s — nothing to do", run_id)
+                final_state = "done"
+                return
+
             await asyncio.sleep(3)
             await _auto_post_bill(db, run_id)
             logger.info("STP bill posted for run %s", run_id)
+            final_state = "done"
         else:
             logger.warning(
-                "STP: cascade incomplete for run %s — approved=%s, skipping bill posting",
+                "STP: cascade incomplete for run %s — approved=%s, waiting for human review",
                 run_id, result["stages_approved"],
             )
 
     except Exception:
         logger.exception("STP pipeline run failed for run_id=%s", run_id)
+    finally:
+        _ACTIVE_STP_RUNS.discard(key)
+        try:
+            await _set_stp_state(final_state)
+        except Exception:
+            logger.exception("STP: failed to publish final state for run %s", run_id)
 
 
 # ── Global ACK_THRESHOLD (persisted in app_settings) ─────────────────────────

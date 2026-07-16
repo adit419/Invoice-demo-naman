@@ -64,6 +64,7 @@ def _run_to_item(run: dict, doc: dict, inv: dict) -> InvoiceListItem:
         source=run.get("source", "manual"),
         tag=run.get("tag"),
         assignee=run.get("uploaded_by") or (run.get("source_meta") or {}).get("sender"),
+        stp_state=run.get("stp_state"),
         stp_enabled=run.get("stp_enabled", False),
         created_at=run.get("created_at", datetime.now(timezone.utc)),
         updated_at=run.get("updated_at", datetime.now(timezone.utc)),

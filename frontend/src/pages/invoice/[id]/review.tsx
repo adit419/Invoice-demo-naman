@@ -341,6 +341,13 @@ function ReviewPage() {
         }
       }
       const res = await stagesService.approve(id, "extraction");
+      // With Auto-Process on, the approval hands the invoice back to STP —
+      // return the reviewer to the dashboard while processing continues in
+      // the background (it stops again only if a later stage needs review).
+      try {
+        const stp = await settingsService.getStp();
+        if (stp.stp_enabled) { router.push("/dashboard"); return; }
+      } catch { /* fall through to normal stage navigation */ }
       setNextStage(res.next_stage ?? null);
       setTransitioning(true);
       setTimeout(() => router.push(res.redirect), 2500);

@@ -68,6 +68,10 @@ class InvoiceListItem(BaseModel):
     # uploads, or the sender address for email-ingested invoices.
     assignee: Optional[str] = None
     stp_enabled: bool = False
+    # Auto-Process cascade state: "processing" while STP works the invoice,
+    # "waiting_review" when it holds for a human, "done" after auto-posting.
+    # Absent for invoices never touched by STP.
+    stp_state: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

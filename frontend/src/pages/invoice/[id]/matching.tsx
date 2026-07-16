@@ -224,6 +224,16 @@ function MatchingPage() {
         anyApproved = true;
       }
 
+      // With Auto-Process on, the approval hands the invoice back to STP —
+      // return the reviewer to the dashboard while processing continues in
+      // the background (it stops again only if a later stage needs review).
+      if (anyApproved) {
+        try {
+          const stp = await settingsService.getStp();
+          if (stp.stp_enabled) { router.push("/dashboard"); return; }
+        } catch { /* fall through to normal stage navigation */ }
+      }
+
       // Always forward to bill-posting — that's the deterministic next stop
       // from matching. We deliberately ignore the API's `redirect` because
       // when only metadata was in_review it points back to /matching, which
