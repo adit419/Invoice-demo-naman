@@ -614,7 +614,9 @@ function ManualSelectionDrawer({
     <div style={{
       background: "#fff", borderTop: "1px solid #E5E7EB",
       boxShadow: "0 -4px 16px rgba(0,0,0,0.08)",
-      padding: "16px 24px", flexShrink: 0,
+      // Extra right padding keeps the Cancel / Confirm Mapping buttons and the
+      // totals clear of the floating Neo chat widget pinned bottom-right.
+      padding: "16px 160px 16px 24px", flexShrink: 0,
     }}>
       <div style={{ fontSize: 14, fontWeight: 700, color: "#101828", marginBottom: 12 }}>
         Manual Selection ({selectedGrnCandidates.length})
@@ -775,6 +777,16 @@ export function LineItemsTab({
       }
     }
     setCheckedGrnIds(ids);
+
+    // Default focus: jump straight to the first probable match (the item that
+    // needs the reviewer's attention). If everything is resolved, stay on the
+    // All tab with the first line item selected. Pre-tick the item's checkbox
+    // so it starts in manual-selection mode, ready to review/confirm.
+    const firstProbable = perItem.findIndex(i => i.match_status === "probable");
+    const targetIdx = firstProbable >= 0 ? firstProbable : 0;
+    setFilterTab(firstProbable >= 0 ? "probable" : "all");
+    setActiveIdx(targetIdx);
+    setManualItemId(perItem[targetIdx]?.id ?? null);
   }, [data?.fixture_key, perItem]);
 
   // Variance gating for parent.
@@ -882,7 +894,12 @@ export function LineItemsTab({
           localMatched={localMatched}
           currency={currency}
           onSelectItem={setActiveIdx}
-          onFilterChange={(tab) => { setFilterTab(tab); setActiveIdx(0); }}
+          onFilterChange={(tab) => {
+            setFilterTab(tab);
+            // Select the first item visible under the new filter
+            const idx = tab === "all" ? 0 : perItem.findIndex(i => effectiveStatus(i) === tab);
+            setActiveIdx(Math.max(0, idx));
+          }}
           onCheckboxChange={handleCheckbox}
         />
         <RightPanel
