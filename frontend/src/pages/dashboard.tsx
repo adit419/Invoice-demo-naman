@@ -561,12 +561,16 @@ function DashboardPage() {
       const data = await invoicesService.list();
       setInvoices(data.items);
 
-      // Auto-clear STP processing state once an invoice reaches a terminal status.
+      // Auto-clear the local STP lock once the server publishes an STP state:
+      // "waiting_review" (Auto-Process is holding for a human) or "done"
+      // re-enable Review; "processing" is covered by the server flag itself.
+      // STP_TERMINAL remains as a fallback for runs without a published state.
       setStpProcessingIds(prev => {
         if (prev.size === 0) return prev;
         const next = new Set(prev);
         data.items.forEach(inv => {
-          if (next.has(inv.id) && STP_TERMINAL.has(inv.status)) {
+          const serverSettled = !!inv.stp_state && inv.stp_state !== "processing";
+          if (next.has(inv.id) && (serverSettled || STP_TERMINAL.has(inv.status))) {
             next.delete(inv.id);
           }
         });
@@ -636,6 +640,10 @@ function DashboardPage() {
   // Determine action label for an invoice (mirrors validator-fe's getActionButton)
   const getAction = (inv: InvoiceListItem): { label: string; primary: boolean; disabled: boolean } => {
     if (extractingIds.has(inv.id)) return { label: "Processing", primary: false, disabled: true };
+    // Server-published Auto-Process state: locked only while STP is actively
+    // working the invoice. When it holds ("waiting_review") the Review button
+    // opens the stage that needs the human (covers email-ingested runs too).
+    if (inv.stp_state === "processing") return { label: "Processing", primary: false, disabled: true };
     // STP-uploaded invoice: keep button disabled until ERP Posting / terminal status
     if (stpProcessingIds.has(inv.id)) return { label: "Processing", primary: false, disabled: true };
     if (inv.status === "posted") return { label: "View", primary: false, disabled: false };
@@ -995,7 +1003,7 @@ function DashboardPage() {
                         <td style={{ padding: "10px 16px" }}>
                           <StageTag
                             status={inv.status}
-                            loading={extractingIds.has(inv.id) || stpProcessingIds.has(inv.id)}
+                            loading={extractingIds.has(inv.id) || stpProcessingIds.has(inv.id) || inv.stp_state === "processing"}
                           />
                         </td>
                         {/* Assignee */}
