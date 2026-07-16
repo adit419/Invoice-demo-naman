@@ -588,10 +588,44 @@ function RightPanel({
 
 // ── Manual selection drawer ───────────────────────────────────────────────────
 
+/** Production-style variance card (VARIANCE / amount / status). */
+function VarianceCard({ diff, tolerance, currency }: {
+  diff: number;
+  tolerance: number | null;
+  currency: string;
+}) {
+  const balanced = Math.abs(diff) < 0.01;
+  const withinTol = !balanced && tolerance !== null && Math.abs(diff) <= tolerance;
+  const palette = balanced
+    ? { border: "#BBF7D0", bg: "#F0FDF4", label: "#15803D", big: "#15803D", sub: "#15803D" }
+    : withinTol
+    ? { border: "#F5D9A8", bg: "#FDF9F0", label: "#B45309", big: "#92400E", sub: "#B45309" }
+    : { border: "#FECACA", bg: "#FEF2F2", label: "#B91C1C", big: "#991B1B", sub: "#B91C1C" };
+  const amount = `${diff < 0 ? "-" : "+"}${fmt(Math.abs(diff), currency)}`;
+  return (
+    <div style={{
+      border: `1px solid ${palette.border}`, background: palette.bg,
+      borderRadius: 10, padding: "8px 16px", minWidth: 150, flexShrink: 0,
+      alignSelf: "flex-start",
+    }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: palette.label, textTransform: "uppercase", letterSpacing: 0.6 }}>
+        Variance
+      </div>
+      <div style={{ fontSize: 19, fontWeight: 700, color: palette.big, lineHeight: 1.3, fontVariantNumeric: "tabular-nums" }}>
+        {balanced ? "Balanced" : amount}
+      </div>
+      <div style={{ fontSize: 12, color: palette.sub }}>
+        {balanced ? "Invoice = GRN" : withinTol ? "Within Tolerance" : "Exceeds Tolerance"}
+      </div>
+    </div>
+  );
+}
+
 function ManualSelectionDrawer({
   invoiceItem,
   selectedGrnCandidates,
   currency,
+  tolerance,
   isPerfect,
   onCancel,
   onConfirm,
@@ -599,6 +633,7 @@ function ManualSelectionDrawer({
   invoiceItem: InvoiceLinePerItem;
   selectedGrnCandidates: GrnCandidate[];
   currency: string;
+  tolerance: number | null;
   isPerfect?: boolean;
   onCancel: () => void;
   onConfirm: () => void;
@@ -614,16 +649,48 @@ function ManualSelectionDrawer({
     <div style={{
       background: "#fff", borderTop: "1px solid #E5E7EB",
       boxShadow: "0 -4px 16px rgba(0,0,0,0.08)",
-      // Extra right padding keeps the Cancel / Confirm Mapping buttons and the
-      // totals clear of the floating Neo chat widget pinned bottom-right.
-      padding: "16px 160px 16px 24px", flexShrink: 0,
+      padding: "12px 24px 16px", flexShrink: 0,
     }}>
-      <div style={{ fontSize: 14, fontWeight: 700, color: "#101828", marginBottom: 12 }}>
-        Manual Selection ({selectedGrnCandidates.length})
+      {/* Header row: title left, actions top-right (clear of the Neo widget
+          pinned to the bottom-right corner). */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: "#101828" }}>
+          Manual Selection ({selectedGrnCandidates.length})
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            type="button"
+            onClick={onCancel}
+            style={{
+              height: 34, padding: "0 16px", fontSize: 13, fontWeight: 500,
+              border: "1px solid #D1D5DB", borderRadius: 6, background: "#fff",
+              color: "#374151", cursor: "pointer",
+            }}
+          >
+            Cancel
+          </button>
+          {!isPerfect && (
+            <button
+              type="button"
+              onClick={canConfirm ? onConfirm : undefined}
+              disabled={!canConfirm}
+              style={{
+                height: 34, padding: "0 16px", fontSize: 13, fontWeight: 600,
+                border: "none", borderRadius: 6,
+                background: canConfirm ? "#2563EB" : "#BFDBFE",
+                color: "#fff", cursor: canConfirm ? "pointer" : "default",
+              }}
+            >
+              ✓ Confirm Mapping
+            </button>
+          )}
+        </div>
       </div>
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 24 }}>
+
+      {/* Content row: invoice → GRN selection, with the variance card adjacent */}
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 50 }}>
         {/* Invoice Selected */}
-        <div style={{ flex: 1 }}>
+        <div style={{ flexShrink: 0, maxWidth: 340 }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.4 }}>
             Invoice Selected
           </div>
@@ -632,20 +699,21 @@ function ManualSelectionDrawer({
             padding: "4px 10px", borderRadius: 20,
             border: "1px solid #E5E7EB", background: "#F9FAFB",
             fontSize: 13, color: "#101828", marginBottom: 8,
+            maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
           }}>
             {invoiceItem.description || invoiceItem.id} · {invoiceItem.quantity}
           </div>
-          <div style={{ fontSize: 12, color: "#6B7280" }}>
+          <div style={{ fontSize: 12, color: "#6B7280", whiteSpace: "nowrap" }}>
             Lines: 1&nbsp;&nbsp;Quantity: <b style={{ color: "#101828" }}>{invoiceItem.quantity}</b>&nbsp;&nbsp;
             Line Total: <b style={{ color: "#101828" }}>{fmt(invoiceItem.line_total, currency)}</b>
           </div>
         </div>
 
         {/* Arrow */}
-        <div style={{ paddingTop: 28, fontSize: 20, color: "#9CA3AF", flexShrink: 0 }}>→</div>
+        <div style={{ paddingTop: 24, fontSize: 20, color: "#9CA3AF", flexShrink: 0 }}>→</div>
 
         {/* GRN Selected */}
-        <div style={{ flex: 1 }}>
+        <div style={{ flexShrink: 1, minWidth: 220, maxWidth: 560 }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.4 }}>
             PO + GRN Selected
           </div>
@@ -671,67 +739,28 @@ function ManualSelectionDrawer({
             </div>
           )}
           {selectedGrnCandidates.length > 0 && (
-            <div style={{ fontSize: 12, color: "#6B7280" }}>
+            <div style={{ fontSize: 12, color: "#6B7280", whiteSpace: "nowrap" }}>
               Lines: {selectedGrnCandidates.length}&nbsp;&nbsp;Quantity: <b style={{ color: "#101828" }}>{grnQty}</b>&nbsp;&nbsp;
               Line Total: <b style={{ color: "#101828" }}>{fmt(grnTotal, currency)}</b>
             </div>
           )}
         </div>
 
-        {/* Confirm / Cancel */}
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8, flexShrink: 0, paddingTop: 20 }}>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button
-              type="button"
-              onClick={onCancel}
-              style={{
-                height: 34, padding: "0 16px", fontSize: 13, fontWeight: 500,
-                border: "1px solid #D1D5DB", borderRadius: 6, background: "#fff",
-                color: "#374151", cursor: "pointer",
-              }}
-            >
-              Cancel
-            </button>
-            {!isPerfect && (
-              <button
-                type="button"
-                onClick={canConfirm ? onConfirm : undefined}
-                disabled={!canConfirm}
-                style={{
-                  height: 34, padding: "0 16px", fontSize: 13, fontWeight: 600,
-                  border: "none", borderRadius: 6,
-                  background: canConfirm ? "#2563EB" : "#BFDBFE",
-                  color: "#fff", cursor: canConfirm ? "pointer" : "default",
-                }}
-              >
-                ✓ Confirm Mapping
-              </button>
-            )}
-          </div>
-          {/* Discrepancy summary */}
-          {selectedGrnCandidates.length > 0 && (qtyDiff !== 0 || totalDiff !== 0) && (
-            <div style={{ display: "flex", gap: 8 }}>
-              {qtyDiff !== 0 && (
-                <span style={{
-                  padding: "2px 10px", borderRadius: 20,
-                  border: "1px solid #FECACA", background: "#FEF2F2",
-                  fontSize: 12,
-                }}>
-                  Quantity: <DiscrepancyBadge diff={qtyDiff} type="qty" />
-                </span>
-              )}
-              {totalDiff !== 0 && (
-                <span style={{
-                  padding: "2px 10px", borderRadius: 20,
-                  border: "1px solid #FECACA", background: "#FEF2F2",
-                  fontSize: 12,
-                }}>
-                  Line Total: <DiscrepancyBadge diff={totalDiff} type="total" />
-                </span>
-              )}
-            </div>
-          )}
-        </div>
+        {/* Variance card — replaces the old "Line Total:" discrepancy pill */}
+        {selectedGrnCandidates.length > 0 && (
+          <VarianceCard diff={totalDiff} tolerance={tolerance} currency={currency} />
+        )}
+
+        {/* Quantity discrepancy pill (kept from the previous design) */}
+        {selectedGrnCandidates.length > 0 && qtyDiff !== 0 && (
+          <span style={{
+            padding: "2px 10px", borderRadius: 20,
+            border: "1px solid #FECACA", background: "#FEF2F2",
+            fontSize: 12, alignSelf: "center", whiteSpace: "nowrap",
+          }}>
+            Quantity: <DiscrepancyBadge diff={qtyDiff} type="qty" />
+          </span>
+        )}
       </div>
     </div>
   );
@@ -917,6 +946,7 @@ export function LineItemsTab({
           invoiceItem={drawerItem}
           selectedGrnCandidates={activeCheckedCandidates}
           currency={currency}
+          tolerance={tolerance?.value ?? null}
           isPerfect={drawerItem.match_status === "matched" && !drawerItem.grn_candidates.some(g => g.is_ai_suggested)}
           onCancel={() => setManualItemId(null)}
           onConfirm={handleConfirm}
