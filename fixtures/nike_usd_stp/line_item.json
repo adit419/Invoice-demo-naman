@@ -1,0 +1,1340 @@
+{
+  "_unused_matching_method": "ai",
+  "match_type": "3-way",
+  "_unused_base_document": "invoice",
+  "summary": {
+    "total_items": 38,
+    "perfect_matches": 38,
+    "probable_matches": 0,
+    "no_matches": 0
+  },
+  "results": [
+    {
+      "id": 1,
+      "invoice_line_id": "PLACEHOLDER_ID",
+      "match_status": "perfect",
+      "result_data": {
+        "matched_row_ids": [
+          80,
+          78,
+          79,
+          82,
+          81
+        ],
+        "po": [
+          "LHNFY",
+          "5S7GA",
+          "X2KLA",
+          "MHACO",
+          "KWGFW"
+        ],
+        "grn": [
+          "K1KOV",
+          "W2WAW",
+          "9EA8P",
+          "G8KN7",
+          "2U1LC"
+        ],
+        "confidence": 1
+      },
+      "matching_method": "ai",
+      "matched_by": "ai",
+      "matched_at": null,
+      "created_at": "2026-03-24T13:40:54.000Z",
+      "reasoning": "Perfect match found. Invoice line item DX6013-006 (AS W NK ONE DF MR 3IN 2N1 SRT) with total quantity 12 and unit price 85.86 matches exactly with 5 size-specific PO/GRN line items: XS(1), S(3), M(3), L(3), XL(2). All quantities and unit prices match exactly across the merged data rows (ids: 80, 78, 79, 82, 81). Combined line total of 1030.32 matches invoice perfectly."
+    },
+    {
+      "id": 2,
+      "invoice_line_id": "PLACEHOLDER_ID",
+      "match_status": "perfect",
+      "result_data": {
+        "matched_row_ids": [
+          114,
+          113
+        ],
+        "po": [
+          "HQCQ9",
+          "1PUHX"
+        ],
+        "grn": [
+          "GGD3G",
+          "P65AH"
+        ],
+        "confidence": 1
+      },
+      "matching_method": "ai",
+      "matched_by": "ai",
+      "matched_at": null,
+      "created_at": "2026-03-24T13:41:06.000Z",
+      "reasoning": "Perfect match found. Invoice line item FN2799-233 (AS W NK ONE CLASSIC DF SS TOP) with total quantity 3 and unit price 72.9 matches exactly with 2 size-specific PO/GRN line items: M(2) and L(1). All quantities and unit prices match exactly across the merged data rows (ids: 114, 113). Combined line total of 218.7 matches invoice perfectly."
+    },
+    {
+      "id": 3,
+      "invoice_line_id": "PLACEHOLDER_ID",
+      "match_status": "perfect",
+      "result_data": {
+        "matched_row_ids": [
+          119,
+          118,
+          117,
+          116,
+          115
+        ],
+        "po": [
+          "83JYO",
+          "0GJSZ",
+          "Y7FKV",
+          "UP30J",
+          "31RBU"
+        ],
+        "grn": [
+          "0PATP",
+          "PVJ5A",
+          "XOJ5R",
+          "RK46I",
+          "R4FZK"
+        ],
+        "confidence": 1
+      },
+      "matching_method": "ai",
+      "matched_by": "ai",
+      "matched_at": null,
+      "created_at": "2026-03-24T13:41:18.000Z",
+      "reasoning": "Perfect match found. Invoice line item FV6623-233 (AS W NSW ESSNTL MR 5IN WVN SHR) with total quantity 12 and unit price 96.66 matches exactly with 5 size-specific PO/GRN line items: XS(1), S(4), M(4), L(2), XL(1). All quantities and unit prices match exactly across the merged data rows (ids: 119, 118, 117, 116, 115). Combined line total of 1159.92 matches invoice perfectly."
+    },
+    {
+      "id": 4,
+      "invoice_line_id": "PLACEHOLDER_ID",
+      "match_status": "perfect",
+      "result_data": {
+        "matched_row_ids": [
+          144,
+          146,
+          145,
+          147
+        ],
+        "po": [
+          "9D8KU",
+          "6Q5I5",
+          "TD65I",
+          "CIR8D"
+        ],
+        "grn": [
+          "CGV0G",
+          "0G8X6",
+          "UF056",
+          "DXX63"
+        ],
+        "confidence": 1
+      },
+      "matching_method": "ai",
+      "matched_by": "ai",
+      "matched_at": null,
+      "created_at": "2026-03-24T13:41:31.000Z",
+      "reasoning": "Perfect match found. Invoice line item HF7325-233 (AS W NP INDY PLUNGE BRA BOLD) with total quantity 12 and unit price 110.7 matches exactly with 4 size-specific PO/GRN line items: S(2), M(5), L(2), XL(3). All quantities and unit prices match exactly across the merged data rows (ids: 144, 146, 145, 147). Combined line total of 1328.4 matches invoice perfectly."
+    },
+    {
+      "id": 5,
+      "invoice_line_id": "PLACEHOLDER_ID",
+      "match_status": "perfect",
+      "result_data": {
+        "matched_row_ids": [
+          148,
+          150,
+          152,
+          151,
+          149
+        ],
+        "po": [
+          "A800J",
+          "6NAU9",
+          "2S6AN",
+          "4620P",
+          "PFYTK"
+        ],
+        "grn": [
+          "LVFIN",
+          "7Z3MA",
+          "Y1E4R",
+          "1LHQ1",
+          "Y3VL3"
+        ],
+        "confidence": 1
+      },
+      "matching_method": "ai",
+      "matched_by": "ai",
+      "matched_at": null,
+      "created_at": "2026-03-24T13:41:44.000Z",
+      "reasoning": "Perfect match found. Invoice line item HJ1275-051 (AS W NSW NK CHLL FT MR MINI SK) with total quantity 12 and unit price 132.3 matches exactly with 5 size-specific PO/GRN line items: XS(1), S(4), M(4), L(2), XL(1). All quantities and unit prices match exactly across the merged data rows (ids: 148, 150, 152, 151, 149). Combined line total of 1587.6 matches invoice perfectly."
+    },
+    {
+      "id": 6,
+      "invoice_line_id": "PLACEHOLDER_ID",
+      "match_status": "perfect",
+      "result_data": {
+        "matched_row_ids": [
+          154,
+          157,
+          155,
+          153,
+          156
+        ],
+        "po": [
+          "JQSJ6",
+          "FPTOI",
+          "R5D5V",
+          "KPSTW",
+          "0FPCX"
+        ],
+        "grn": [
+          "QJNP3",
+          "2KHTM",
+          "F5HPH",
+          "DNJLB",
+          "QTHRZ"
+        ],
+        "confidence": 1
+      },
+      "matching_method": "ai",
+      "matched_by": "ai",
+      "matched_at": null,
+      "created_at": "2026-03-24T13:41:56.000Z",
+      "reasoning": "Perfect match found. Invoice line item HJ1398-010 (AS W NSW EVRYTHNG WVN HR 9\" SH) with total quantity 24 and unit price 102.06 matches exactly with 5 size-specific PO/GRN line items: XS(2), S(9), M(6), L(4), XL(3). All quantities and unit prices match exactly across the merged data rows (ids: 154, 157, 155, 153, 156). Combined line total of 2449.44 matches invoice perfectly."
+    },
+    {
+      "id": 7,
+      "invoice_line_id": "PLACEHOLDER_ID",
+      "match_status": "perfect",
+      "result_data": {
+        "matched_row_ids": [
+          160,
+          158,
+          159,
+          161,
+          162
+        ],
+        "po": [
+          "GYCTO",
+          "FZCFZ",
+          "EY4Y7",
+          "GFRPX",
+          "46NFR"
+        ],
+        "grn": [
+          "W3JY6",
+          "WHKMN",
+          "O4WGQ",
+          "U063X",
+          "ZWGXG"
+        ],
+        "confidence": 1
+      },
+      "matching_method": "ai",
+      "matched_by": "ai",
+      "matched_at": null,
+      "created_at": "2026-03-24T13:42:09.000Z",
+      "reasoning": "Perfect match found. Invoice line item HJ1398-214 (AS W NSW EVRYTHNG WVN HR 9\" SH) with total quantity 24 and unit price 102.06 matches exactly with 5 size-specific PO/GRN line items: XS(2), S(9), M(6), L(4), XL(3). All quantities and unit prices match exactly across the merged data rows (ids: 160, 158, 159, 161, 162). Combined line total of 2449.44 matches invoice perfectly."
+    },
+    {
+      "id": 8,
+      "invoice_line_id": "PLACEHOLDER_ID",
+      "match_status": "perfect",
+      "result_data": {
+        "matched_row_ids": [
+          165,
+          163,
+          164
+        ],
+        "po": [
+          "GDNO6",
+          "71RSB",
+          "QFA4U"
+        ],
+        "grn": [
+          "SE2J2",
+          "LZZJ0",
+          "UJ00K"
+        ],
+        "confidence": 1
+      },
+      "matching_method": "ai",
+      "matched_by": "ai",
+      "matched_at": null,
+      "created_at": "2026-03-24T13:42:22.000Z",
+      "reasoning": "Perfect match found. Invoice line item HJ3565-010 (AS W NSW ESSNTL WVN MR 3\" SKO) with total quantity 6 and unit price 72.9 matches exactly with 3 size-specific PO/GRN line items: S(1), M(3), L(2). All quantities and unit prices match exactly across the merged data rows (ids: 165, 163, 164). Combined line total of 437.4 matches invoice perfectly."
+    },
+    {
+      "id": 9,
+      "invoice_line_id": "PLACEHOLDER_ID",
+      "match_status": "perfect",
+      "result_data": {
+        "matched_row_ids": [
+          173,
+          171,
+          172,
+          174,
+          175
+        ],
+        "po": [
+          "VQZCQ",
+          "VRVG6",
+          "2K7LP",
+          "HJFYH",
+          "223DZ"
+        ],
+        "grn": [
+          "LO6I1",
+          "YGNZG",
+          "K1AJ5",
+          "3XECW",
+          "YD7DB"
+        ],
+        "confidence": 1
+      },
+      "matching_method": "ai",
+      "matched_by": "ai",
+      "matched_at": null,
+      "created_at": "2026-03-24T13:42:36.000Z",
+      "reasoning": "Perfect match found. Invoice line item HM6980-527 (AS M NK RUN ENERGY MILER SS TO) with total quantity 12 and unit price 102.06 matches exactly with 5 size-specific PO/GRN line items: XS(1), S(4), M(4), L(2), XL(1). All quantities and unit prices match exactly across the merged data rows (ids: 173, 171, 172, 174, 175). Combined line total of 1224.72 matches invoice perfectly."
+    },
+    {
+      "id": 10,
+      "invoice_line_id": "PLACEHOLDER_ID",
+      "match_status": "perfect",
+      "result_data": {
+        "matched_row_ids": [
+          178,
+          179,
+          180,
+          177,
+          176
+        ],
+        "po": [
+          "RQV0H",
+          "D15NW",
+          "F9A3C",
+          "GC46U",
+          "K7XCP"
+        ],
+        "grn": [
+          "0Z5P4",
+          "0ICMC",
+          "RYVAQ",
+          "7ECHJ",
+          "BSVR5"
+        ],
+        "confidence": 1
+      },
+      "matching_method": "ai",
+      "matched_by": "ai",
+      "matched_at": null,
+      "created_at": "2026-03-24T13:42:50.000Z",
+      "reasoning": "Perfect match found. Invoice line item HM6983-004 (AS W NSW ESSNTL WVN HR 5\" CRGO) with total quantity 12 and unit price 102.06 matches exactly with 5 size-specific PO/GRN line items: XS(1), S(4), M(4), L(2), XL(1). All quantities and unit prices match exactly across the merged data rows (ids: 178, 179, 180, 177, 176). Combined line total of 1224.72 matches invoice perfectly."
+    },
+    {
+      "id": 11,
+      "invoice_line_id": "PLACEHOLDER_ID",
+      "match_status": "perfect",
+      "result_data": {
+        "po": [
+          "3XEEI",
+          "JHBWE",
+          "5NMEI",
+          "WHGYE",
+          "KLFCO",
+          "P7O21",
+          "RJ52Q"
+        ],
+        "grn": [
+          "CKQKS",
+          "12J05",
+          "PKRWZ",
+          "2JPDI",
+          "6HPCY",
+          "FZKN9",
+          "5W90M"
+        ],
+        "confidence": 1
+      },
+      "matching_method": null,
+      "matched_by": null,
+      "matched_at": null,
+      "created_at": "2026-03-24T13:43:23.000Z",
+      "reasoning": "SKU DC3729-003 matches perfectly across all 7 rows. Six size variants (6, 6.5, 7, 7.5, 8.5, 9) match invoice quantities exactly at unit price 121.5. Row 25 (size 8, qty 6) has a minor price variance (121.44 vs 121.5 = -0.06/unit, -0.05% difference). Top candidate (rows 26, 27, 28, 29, 30, 31) achieves 24 out of 25 units with exact match; missing size 8 variant is available at near-identical rate. This represents a near-perfect aggregation match with minimal pricing variance.\""
+    },
+    {
+      "id": 12,
+      "invoice_line_id": "PLACEHOLDER_ID",
+      "match_status": "perfect",
+      "result_data": {
+        "matched_row_ids": [
+          200,
+          201,
+          202,
+          203,
+          204,
+          205,
+          206,
+          207,
+          208
+        ],
+        "po": [
+          "V3VPT",
+          "NJ9RS",
+          "WPWJN",
+          "F48JW",
+          "GTTK2",
+          "JTG77",
+          "A9S56",
+          "8HCUL",
+          "GV83V"
+        ],
+        "grn": [
+          "8Y3R4",
+          "NCSPW",
+          "BE4GR",
+          "Y5AJG",
+          "OL2ZN",
+          "UA0JT",
+          "0KCNU",
+          "IZ0B0",
+          "Y1EKD"
+        ],
+        "confidence": 1
+      },
+      "matching_method": "ai",
+      "matched_by": "ai",
+      "matched_at": null,
+      "created_at": "2026-03-24T13:43:36.000Z",
+      "reasoning": "Perfect match achieved for HF5441-100 NIKE DUNK LOW RETRO. All 9 size variants (7, 8, 8.5, 9, 9.5, 10, 10.5, 11, 12) match invoice quantities exactly: 4+9+6+7+6+9+4+9+5 = 59 units. Unit price matches exactly at 264.06 across all rows (0% variance). Line total validates to 15,579.54. SKU, quantity, and pricing all align with 100% accuracy.\""
+    },
+    {
+      "id": 13,
+      "invoice_line_id": "PLACEHOLDER_ID",
+      "match_status": "perfect",
+      "result_data": {
+        "matched_row_ids": [
+          209,
+          210,
+          211,
+          212,
+          213,
+          214,
+          215,
+          216
+        ],
+        "po": [
+          "HUUP7",
+          "AYU29",
+          "0BUCU",
+          "H3SOU",
+          "I8BB2",
+          "MSSTA",
+          "OVN46",
+          "BCP5S"
+        ],
+        "grn": [
+          "OX5L1",
+          "LTHPC",
+          "TBASC",
+          "2YJZI",
+          "Q7ETX",
+          "DOKED",
+          "874TW",
+          "4KQXH"
+        ],
+        "confidence": 1
+      },
+      "matching_method": "ai",
+      "matched_by": "ai",
+      "matched_at": null,
+      "created_at": "2026-03-24T13:43:50.000Z",
+      "reasoning": "Perfect match achieved for CT2302-100 AIR FORCE 1 '07. All 8 size variants (7, 8, 8.5, 9, 9.5, 10, 11, 12) match invoice quantities exactly: 2+4+3+4+3+2+4+1 = 23 units. Unit price matches exactly at 264.06 across all rows (0% variance). Line total validates to 6,073.38. SKU, quantity, and pricing all align with 100% accuracy.\""
+    },
+    {
+      "id": 14,
+      "invoice_line_id": "PLACEHOLDER_ID",
+      "match_status": "perfect",
+      "result_data": {
+        "matched_row_ids": [
+          217,
+          218,
+          219,
+          220,
+          221,
+          222,
+          223,
+          224
+        ],
+        "po": [
+          "INYNB",
+          "RRJA7",
+          "0J21S",
+          "1G7OM",
+          "2XT8K",
+          "X9RID",
+          "IMNXK",
+          "1MLBR"
+        ],
+        "grn": [
+          "XT8I7",
+          "GVVAW",
+          "X9VPN",
+          "7R4RO",
+          "D664F",
+          "MGTAB",
+          "OCSIT",
+          "DLE8L"
+        ],
+        "confidence": 1
+      },
+      "matching_method": "ai",
+      "matched_by": "ai",
+      "matched_at": null,
+      "created_at": "2026-03-24T13:44:02.000Z",
+      "reasoning": "Perfect match achieved for CW2288-001 AIR FORCE 1 '07. All 8 size variants (8, 8.5, 9, 9.5, 10, 10.5, 11, 12) match invoice quantities exactly: 5+3+5+3+5+2+4+2 = 29 units. Unit price matches exactly at 264.06 across all rows (0% variance). Line total validates to 7,657.74. SKU, quantity, and pricing all align with 100% accuracy.\""
+    },
+    {
+      "id": 15,
+      "invoice_line_id": "PLACEHOLDER_ID",
+      "match_status": "perfect",
+      "result_data": {
+        "matched_row_ids": [
+          225,
+          226,
+          227,
+          228,
+          229,
+          230,
+          231
+        ],
+        "po": [
+          "A9E1A",
+          "GBD1X",
+          "U3U4H",
+          "80JIB",
+          "V38CJ",
+          "G4ZWD",
+          "2P3NH"
+        ],
+        "grn": [
+          "JRPMS",
+          "5PL8S",
+          "Y7XBS",
+          "7E67F",
+          "XHC2N",
+          "N61K6",
+          "T7H7W"
+        ],
+        "confidence": 1
+      },
+      "matching_method": "ai",
+      "matched_by": "ai",
+      "matched_at": null,
+      "created_at": "2026-03-24T13:44:17.000Z",
+      "reasoning": "Perfect match achieved for DD1503-101 W NIKE DUNK LOW. All 7 size variants (5.5, 6, 6.5, 7, 8, 8.5, 9) match invoice quantities exactly: 1+4+4+7+4+3+3 = 26 units. Unit price matches exactly at 264.06 across all rows (0% variance). Line total validates to 6,865.56. SKU, quantity, and pricing all align with 100% accuracy.\""
+    },
+    {
+      "id": 16,
+      "invoice_line_id": "PLACEHOLDER_ID",
+      "match_status": "perfect",
+      "result_data": {
+        "matched_row_ids": [
+          232,
+          233,
+          234,
+          235,
+          236,
+          237
+        ],
+        "po": [
+          "EBVYE",
+          "SD45G",
+          "UVTVS",
+          "TXLBB",
+          "KXAC1",
+          "5XI0D"
+        ],
+        "grn": [
+          "TPLX8",
+          "PX5M6",
+          "KOGDK",
+          "YL26G",
+          "JD23M",
+          "PLQVD"
+        ],
+        "confidence": 1
+      },
+      "matching_method": "ai",
+      "matched_by": "ai",
+      "matched_at": null,
+      "created_at": "2026-03-24T13:44:29.000Z",
+      "reasoning": "Perfect match achieved for DD8959-103 WMNS AIR FORCE 1 '07. All 6 size variants (6.5, 7, 7.5, 8, 8.5, 9) match invoice quantities exactly: 3+5+3+5+3+2 = 21 units. Unit price matches exactly at 264.06 across all rows (0% variance). Line total validates to 5,545.26. SKU, quantity, and pricing all align with 100% accuracy.\""
+    },
+    {
+      "id": 17,
+      "invoice_line_id": "PLACEHOLDER_ID",
+      "match_status": "perfect",
+      "result_data": {
+        "matched_row_ids": [
+          238,
+          239,
+          240,
+          241,
+          242,
+          243,
+          244,
+          245
+        ],
+        "po": [
+          "GNYVH",
+          "DD9K3",
+          "NP5R3",
+          "5BCT4",
+          "GIQNW",
+          "NYDAW",
+          "61TVI",
+          "CGKNU"
+        ],
+        "grn": [
+          "3VI2I",
+          "FCBN0",
+          "L5KI2",
+          "WCCVV",
+          "OMKTL",
+          "A7LHJ",
+          "MX2V0",
+          "H769X"
+        ],
+        "confidence": 1
+      },
+      "matching_method": "ai",
+      "matched_by": "ai",
+      "matched_at": null,
+      "created_at": "2026-03-24T13:44:42.000Z",
+      "reasoning": "Perfect match achieved for DH3158-102 W NIKE COURT VISION LO NN. All 8 size variants (5.5, 6, 6.5, 7, 7.5, 8, 8.5, 9) match invoice quantities exactly: 1+1+1+4+4+5+4+2 = 22 units. Unit price matches exactly at 148.5 across all rows (0% variance). Line total validates to 3,267.0. SKU, quantity, and pricing all align with 100% accuracy.\""
+    },
+    {
+      "id": 18,
+      "invoice_line_id": "PLACEHOLDER_ID",
+      "match_status": "perfect",
+      "result_data": {
+        "matched_row_ids": [
+          246,
+          247,
+          248,
+          249,
+          250,
+          251
+        ],
+        "po": [
+          "VWSAI",
+          "STQQS",
+          "SJVCA",
+          "DH72D",
+          "B56NT",
+          "CK8AH"
+        ],
+        "grn": [
+          "MO0OX",
+          "AH8RB",
+          "T5AW9",
+          "MRK87",
+          "AISYV",
+          "17GHB"
+        ],
+        "confidence": 1
+      },
+      "matching_method": "ai",
+      "matched_by": "ai",
+      "matched_at": null,
+      "created_at": "2026-03-24T13:44:55.000Z",
+      "reasoning": "Perfect match achieved for DV1238-502 WMNS NIKE MOTIVA. All 6 size variants (6.5, 7, 7.5, 8, 8.5, 9) match invoice quantities exactly: 4+3+2+2+3+3 = 17 units. Unit price matches exactly at 264.06 across all rows (0% variance). Line total validates to 4,489.02. SKU, quantity, and pricing all align with 100% accuracy.\""
+    },
+    {
+      "id": 19,
+      "invoice_line_id": "PLACEHOLDER_ID",
+      "match_status": "perfect",
+      "result_data": {
+        "matched_row_ids": [
+          252,
+          253,
+          254,
+          255,
+          256,
+          257,
+          258,
+          259,
+          260
+        ],
+        "po": [
+          "LWNG1",
+          "12QEN",
+          "QEQ0U",
+          "T1LF0",
+          "PEBAA",
+          "NSF4G",
+          "IZTDD",
+          "WBC2S",
+          "I6901"
+        ],
+        "grn": [
+          "ZAKCR",
+          "4WTWZ",
+          "TZTEV",
+          "TVJCA",
+          "UYK1O",
+          "L0A39",
+          "GWFAT",
+          "PMFB8",
+          "SZS7A"
+        ],
+        "confidence": 1
+      },
+      "matching_method": "ai",
+      "matched_by": "ai",
+      "matched_at": null,
+      "created_at": "2026-03-24T13:45:08.000Z",
+      "reasoning": "Perfect match achieved for FJ1284-001 NIKE DOWNSHIFTER 13 WIDE. All 9 size variants (7, 8, 8.5, 9, 9.5, 10, 10.5, 11, 12) match invoice quantities exactly: 2+5+1+6+4+4+3+3+2 = 30 units. Unit price matches exactly at 137.7 across all rows (0% variance). Line total validates to 4,131.0. SKU, quantity, and pricing all align with 100% accuracy.\""
+    },
+    {
+      "id": 20,
+      "invoice_line_id": "PLACEHOLDER_ID",
+      "match_status": "perfect",
+      "result_data": {
+        "matched_row_ids": [
+          261,
+          262,
+          263,
+          264,
+          265,
+          266
+        ],
+        "po": [
+          "45DKX",
+          "GD9TW",
+          "2MX93",
+          "T6P3T",
+          "UOUQ9",
+          "8OSY6"
+        ],
+        "grn": [
+          "DI9JK",
+          "CLW71",
+          "IV1U2",
+          "CRLK3",
+          "RM7Y7",
+          "U4DHQ"
+        ],
+        "confidence": 1
+      },
+      "matching_method": "ai",
+      "matched_by": "ai",
+      "matched_at": null,
+      "created_at": "2026-03-24T13:45:22.000Z",
+      "reasoning": "Perfect match achieved for FJ7126-500 W NIKE FREE METCON 6. All 6 size variants (6.5, 7, 7.5, 8, 8.5, 9) match invoice quantities exactly: 4+4+4+4+3+3 = 22 units. Unit price matches exactly at 301.86 across all rows (0% variance). Line total validates to 6,640.92. SKU, quantity, and pricing all align with 100% accuracy.\""
+    },
+    {
+      "id": 21,
+      "invoice_line_id": "PLACEHOLDER_ID",
+      "match_status": "perfect",
+      "result_data": {
+        "po": [
+          "0PX1B",
+          "JI7W0",
+          "625MT",
+          "JU88S",
+          "7XG9Z",
+          "KAK8P",
+          "760W9",
+          "5WHWR"
+        ],
+        "grn": [
+          "AABO5",
+          "S0FO9",
+          "YPCAP",
+          "T8S5C",
+          "ZL8P5",
+          "9038E",
+          "PV3KW",
+          "ETRA9"
+        ],
+        "confidence": 1
+      },
+      "matching_method": null,
+      "matched_by": null,
+      "matched_at": null,
+      "created_at": "2026-03-24T13:46:07.000Z",
+      "reasoning": "Found 7 matching size variants (5.5, 6, 6.5, 7, 7.5, 8, 8.5) with exact SKU FV9952-103 and exact unit price 197.1. Total matched quantity: 40 units. Size 9 (3 units) missing from merged data. Quantity discrepancy of 3 units prevents perfect match classification. Unit price exact match across all found variants supports high confidence despite missing size variant."
+    },
+    {
+      "id": 22,
+      "invoice_line_id": "PLACEHOLDER_ID",
+      "match_status": "perfect",
+      "result_data": {
+        "po": [
+          "2A65E",
+          "M04VU",
+          "YWT7Q",
+          "IAQUS",
+          "LR9SW",
+          "MP8LQ",
+          "JXIEZ"
+        ],
+        "grn": [
+          "R4V1G",
+          "YP5OO",
+          "DVQF4",
+          "TNBRK",
+          "GUJBJ",
+          "5WGA0",
+          "C4HHL"
+        ],
+        "confidence": 1
+      },
+      "matching_method": null,
+      "matched_by": null,
+      "matched_at": null,
+      "created_at": "2026-03-24T13:46:19.000Z",
+      "reasoning": "SKU FZ1689-004 matched across 7 size variants (6, 6.5, 7, 7.5, 8, 8.5, 9) in PO-00058 / GRN PR-00056. All quantities align exactly: 2+4+4+4+4+3+3 = 24 units, and the invoice unit price of $220.80 matches the PO/GRN agreed rate across all 24 units, giving identical line totals of $5,299.20. SKU, quantities, price and GRN receipt are all confirmed — classified as a perfect match."
+    },
+    {
+      "id": 23,
+      "invoice_line_id": "PLACEHOLDER_ID",
+      "match_status": "perfect",
+      "result_data": {
+        "matched_row_ids": [
+          274,
+          275
+        ],
+        "po": [
+          "XJTID",
+          "6RGZB"
+        ],
+        "grn": [
+          "7T9NE",
+          "X554R"
+        ],
+        "confidence": 1
+      },
+      "matching_method": "ai",
+      "matched_by": "ai",
+      "matched_at": null,
+      "created_at": "2026-03-24T13:46:30.000Z",
+      "reasoning": "Perfect match found. Both size variants (6.5, 8.5) matched exactly with SKU IF1761-300. Total quantity 4 units matches invoice exactly. Both variants have identical unit price 269.46. Line total calculation: 4 × 269.46 = 1,077.84 verified. 100% match on SKU, price, and quantity."
+    },
+    {
+      "id": 24,
+      "invoice_line_id": "PLACEHOLDER_ID",
+      "match_status": "perfect",
+      "result_data": {
+        "matched_row_ids": [
+          276,
+          277,
+          278,
+          279,
+          280,
+          281
+        ],
+        "po": [
+          "QG1UN",
+          "OMR8K",
+          "299YP",
+          "3H9ZO",
+          "N4A0P",
+          "BI7Q3"
+        ],
+        "grn": [
+          "OF77A",
+          "X8BWM",
+          "5YLT6",
+          "QL0CT",
+          "Z79HT",
+          "V0DN3"
+        ],
+        "confidence": 1
+      },
+      "matching_method": "ai",
+      "matched_by": "ai",
+      "matched_at": null,
+      "created_at": "2026-03-24T13:46:44.000Z",
+      "reasoning": "Perfect match found. All 6 size variants (6, 6.5, 7, 7.5, 8, 8.5) matched exactly with SKU IF1764-300. Total quantity 18 units matches invoice exactly. All variants have identical unit price 220.86. Line total calculation: 18 × 220.86 = 3,975.48 verified. 100% match on SKU, price, and quantity."
+    },
+    {
+      "id": 25,
+      "invoice_line_id": "PLACEHOLDER_ID",
+      "match_status": "perfect",
+      "result_data": {
+        "matched_row_ids": [
+          282,
+          283,
+          284,
+          285,
+          286,
+          287
+        ],
+        "po": [
+          "G7Q62",
+          "3XPTW",
+          "F2H3A",
+          "T8UCR",
+          "8Y2WT",
+          "Q0R91"
+        ],
+        "grn": [
+          "0S72L",
+          "JUC0K",
+          "C6U6T",
+          "B017S",
+          "XWVAA",
+          "OB8R7"
+        ],
+        "confidence": 1
+      },
+      "matching_method": "ai",
+      "matched_by": "ai",
+      "matched_at": null,
+      "created_at": "2026-03-24T13:46:56.000Z",
+      "reasoning": "Perfect match found. All 6 size variants (6.5, 7, 7.5, 8, 8.5, 9) matched exactly with SKU DV1238-400. Total quantity 20 units matches invoice exactly. All variants have identical unit price 264.06. Line total calculation: 20 × 264.06 = 5,281.2 verified. 100% match on SKU, price, and quantity."
+    },
+    {
+      "id": 26,
+      "invoice_line_id": "PLACEHOLDER_ID",
+      "match_status": "perfect",
+      "result_data": {
+        "matched_row_ids": [
+          288,
+          289,
+          290,
+          291,
+          292,
+          293,
+          294
+        ],
+        "po": [
+          "FYJ2H",
+          "YCY4J",
+          "F1FIA",
+          "RORNO",
+          "AYLRZ",
+          "NQ9VZ",
+          "CAONX"
+        ],
+        "grn": [
+          "6IF89",
+          "MWBVG",
+          "4Y637",
+          "3T8Q5",
+          "0FPY3",
+          "9Q8KB",
+          "YUHMF"
+        ],
+        "confidence": 1
+      },
+      "matching_method": "ai",
+      "matched_by": "ai",
+      "matched_at": null,
+      "created_at": "2026-03-24T13:47:09.000Z",
+      "reasoning": "Perfect match found. All 7 size variants (6, 6.5, 7, 7.5, 8, 8.5, 9) matched exactly with SKU DV3865-601. Total quantity 24 units matches invoice exactly. All variants have identical unit price 345.06. Line total calculation: 24 × 345.06 = 8,281.44 verified. 100% match on SKU, price, and quantity."
+    },
+    {
+      "id": 27,
+      "invoice_line_id": "PLACEHOLDER_ID",
+      "match_status": "perfect",
+      "result_data": {
+        "matched_row_ids": [
+          295,
+          296,
+          297,
+          298,
+          299,
+          300,
+          301,
+          302
+        ],
+        "po": [
+          "KHNOE",
+          "A24CX",
+          "S7WYM",
+          "BUUXU",
+          "0DRP3",
+          "VOZ7V",
+          "8845N",
+          "987A5"
+        ],
+        "grn": [
+          "II6UJ",
+          "UETRS",
+          "7PCJB",
+          "5VYVN",
+          "XS3GS",
+          "QVCH5",
+          "7DFF5",
+          "R6Z3K"
+        ],
+        "confidence": 1
+      },
+      "matching_method": "ai",
+      "matched_by": "ai",
+      "matched_at": null,
+      "created_at": "2026-03-24T13:47:22.000Z",
+      "reasoning": "Perfect match found. All 8 size variants (5.5, 6, 6.5, 7, 7.5, 8, 8.5, 9) matched exactly with SKU FD4328-002. Total quantity 23 units matches invoice exactly. All variants have identical unit price 345.06. Line total calculation: 23 × 345.06 = 7,936.38 verified. 100% match on SKU, price, and quantity."
+    },
+    {
+      "id": 28,
+      "invoice_line_id": "PLACEHOLDER_ID",
+      "match_status": "perfect",
+      "result_data": {
+        "matched_row_ids": [
+          303,
+          304,
+          305,
+          306,
+          307,
+          308,
+          309
+        ],
+        "po": [
+          "3T53Y",
+          "V3QH9",
+          "M6FVH",
+          "D07YD",
+          "KS0BG",
+          "WAQUI",
+          "T84QE"
+        ],
+        "grn": [
+          "URTB0",
+          "X3PZW",
+          "GY96Q",
+          "C6XHI",
+          "N5LCJ",
+          "5EW7S",
+          "8438X"
+        ],
+        "confidence": 1
+      },
+      "matching_method": "ai",
+      "matched_by": "ai",
+      "matched_at": null,
+      "created_at": "2026-03-24T13:47:35.000Z",
+      "reasoning": "Perfect match found. All 7 size variants (6, 6.5, 7, 7.5, 8, 8.5, 9) matched exactly with SKU FJ7126-402. Total quantity 23 units matches invoice exactly. All variants have identical unit price 301.86. Line total calculation: 23 × 301.86 = 6,942.78 verified. 100% match on SKU, price, and quantity."
+    },
+    {
+      "id": 29,
+      "invoice_line_id": "PLACEHOLDER_ID",
+      "match_status": "perfect",
+      "result_data": {
+        "matched_row_ids": [
+          310,
+          311,
+          312,
+          313,
+          314,
+          315,
+          316,
+          317,
+          318
+        ],
+        "po": [
+          "H3LTE",
+          "TS8HJ",
+          "CD4K8",
+          "GKM1J",
+          "MTNWH",
+          "BGCHM",
+          "0ZAWA",
+          "NFFZ3",
+          "5VWQI"
+        ],
+        "grn": [
+          "CQAKD",
+          "HR1JV",
+          "H534S",
+          "GJRLU",
+          "34369",
+          "46FNB",
+          "P2A8D",
+          "VCUQT",
+          "C9RGI"
+        ],
+        "confidence": 1
+      },
+      "matching_method": "ai",
+      "matched_by": "ai",
+      "matched_at": null,
+      "created_at": "2026-03-24T13:47:48.000Z",
+      "reasoning": "Perfect match found. All 9 size variants (7, 8, 8.5, 9, 9.5, 10, 10.5, 11, 12) matched exactly with SKU HQ4502-101. Total quantity 19 units matches invoice exactly. All variants have identical unit price 210.06. Line total calculation: 19 × 210.06 = 3,991.14 verified. 100% match on SKU, price, and quantity."
+    },
+    {
+      "id": 30,
+      "invoice_line_id": "PLACEHOLDER_ID",
+      "match_status": "perfect",
+      "result_data": {
+        "matched_row_ids": [
+          319,
+          320,
+          321,
+          322
+        ],
+        "po": [
+          "98045",
+          "NT4M2",
+          "18Z1Z",
+          "R38EF"
+        ],
+        "grn": [
+          "IGGM8",
+          "F22UA",
+          "URIZB",
+          "FKV90"
+        ],
+        "confidence": 1
+      },
+      "matching_method": "ai",
+      "matched_by": "ai",
+      "matched_at": null,
+      "created_at": "2026-03-24T13:48:02.000Z",
+      "reasoning": "Perfect match found. All 4 size variants (6, 6.5, 7, 8) matched exactly with SKU HV3032-600. Total quantity 8 units matches invoice exactly. All variants have identical unit price 447.66. Line total calculation: 8 × 447.66 = 3,581.28 verified. 100% match on SKU, price, and quantity."
+    },
+    {
+      "id": 31,
+      "invoice_line_id": "PLACEHOLDER_ID",
+      "match_status": "perfect",
+      "result_data": {
+        "po": [
+          "XJ8YQ",
+          "L3SZJ",
+          "OEVNJ",
+          "AMKYV",
+          "6JW6B",
+          "ANOHT",
+          "FADE3"
+        ],
+        "grn": [
+          "HA00M",
+          "ADCEM",
+          "J64RS",
+          "E1JO1",
+          "P2XN1",
+          "WDRQI",
+          "QL3VO"
+        ],
+        "confidence": 1
+      },
+      "matching_method": null,
+      "matched_by": null,
+      "matched_at": null,
+      "created_at": "2026-03-24T13:48:38.000Z",
+      "reasoning": "All 7 size variants of IB8912-204 matched with exact quantity aggregation (19 units). Minor price variance: invoice $253.26 vs database $253.28 per unit (0.008% difference, -$0.02). All product descriptions and size breakdowns align perfectly. High-confidence probable match due to negligible price discrepancy."
+    },
+    {
+      "id": 32,
+      "invoice_line_id": "PLACEHOLDER_ID",
+      "match_status": "perfect",
+      "result_data": {
+        "po": [
+          "IY7XF",
+          "BSG4V",
+          "3QQTW",
+          "U3MC6",
+          "T8PLL",
+          "MZD1D",
+          "A67NN",
+          "QE2GO"
+        ],
+        "grn": [
+          "9JO5T",
+          "TX377",
+          "Q198A",
+          "C1IT8",
+          "CR5W6",
+          "XQNRY",
+          "XE05P",
+          "OLHJI"
+        ],
+        "confidence": 1
+      },
+      "matching_method": null,
+      "matched_by": null,
+      "matched_at": null,
+      "created_at": "2026-03-24T13:48:52.000Z",
+      "reasoning": "All 8 size variants of BQ6472-510 matched with exact quantity aggregation (28 units). Minor price variance only on size 5.5: invoice $301.86 vs database $301.84 per unit (0.0066% difference, +$0.02). All other 7 sizes have exact price match. All product descriptions and size breakdowns align perfectly. Very high-confidence probable match."
+    },
+    {
+      "id": 33,
+      "invoice_line_id": "PLACEHOLDER_ID",
+      "match_status": "perfect",
+      "result_data": {
+        "matched_row_ids": [
+          323
+        ],
+        "po": [
+          "KLTRY"
+        ],
+        "grn": [
+          "W9SNT"
+        ],
+        "confidence": 1
+      },
+      "matching_method": "ai",
+      "matched_by": "ai",
+      "matched_at": null,
+      "created_at": "2026-03-24T13:49:02.000Z",
+      "reasoning": "Perfect match for DR7217-699 - Gym Tote Bag. Exact SKU match, exact quantity (24 units), and exact unit price ($94.50). Line total matches exactly at $2,268.00. No size variants, single one-size item. 100% match across all validation criteria."
+    },
+    {
+      "id": 34,
+      "invoice_line_id": "PLACEHOLDER_ID",
+      "match_status": "perfect",
+      "result_data": {
+        "matched_row_ids": [
+          324,
+          325
+        ],
+        "po": [
+          "5JPLY",
+          "W1AUE"
+        ],
+        "grn": [
+          "GEKH2",
+          "45ELT"
+        ],
+        "confidence": 1
+      },
+      "matching_method": "ai",
+      "matched_by": "ai",
+      "matched_at": null,
+      "created_at": "2026-03-24T13:49:12.000Z",
+      "reasoning": "Perfect match for DX5025-010 - Sportswear Everyday Essential Crew. Exact SKU match, exact quantity aggregation (6M + 6L = 12 units), and exact unit price ($37.26) across both size variants. Line total matches exactly at $447.12. 100% match across all validation criteria."
+    },
+    {
+      "id": 35,
+      "invoice_line_id": "PLACEHOLDER_ID",
+      "match_status": "perfect",
+      "result_data": {
+        "matched_row_ids": [
+          326,
+          327,
+          328
+        ],
+        "po": [
+          "CUOVW",
+          "S5P0F",
+          "6S0EK"
+        ],
+        "grn": [
+          "89RME",
+          "BAY82",
+          "Y2XEV"
+        ],
+        "confidence": 1
+      },
+      "matching_method": "ai",
+      "matched_by": "ai",
+      "matched_at": null,
+      "created_at": "2026-03-24T13:49:23.000Z",
+      "reasoning": "Perfect match for DX5025-100 - Sportswear Everyday Essential Crew. Exact SKU match, exact quantity aggregation (12S + 24M + 6L = 42 units), and exact unit price ($37.26) across all three size variants. Line total matches exactly at $1,564.92. 100% match across all validation criteria."
+    },
+    {
+      "id": 36,
+      "invoice_line_id": "PLACEHOLDER_ID",
+      "match_status": "perfect",
+      "result_data": {
+        "matched_row_ids": [
+          329
+        ],
+        "po": [
+          "WOU3M"
+        ],
+        "grn": [
+          "IPQGU"
+        ],
+        "confidence": 1
+      },
+      "matching_method": "ai",
+      "matched_by": "ai",
+      "matched_at": null,
+      "created_at": "2026-03-24T13:49:37.000Z",
+      "reasoning": "Perfect match for HM4415-010 - Cortez Heritage Crossbody Bag. Exact SKU match, exact quantity (42 units), and exact unit price ($62.10). Line total matches exactly at $2,608.20. No size variants, single one-size item. 100% match across all validation criteria."
+    },
+    {
+      "id": 37,
+      "invoice_line_id": "PLACEHOLDER_ID",
+      "match_status": "perfect",
+      "result_data": {
+        "matched_row_ids": [
+          330,
+          331,
+          332,
+          333
+        ],
+        "po": [
+          "3K0R1",
+          "4JL13",
+          "3EQQ2",
+          "ECD6U"
+        ],
+        "grn": [
+          "5ZAUH",
+          "NYOF7",
+          "ILNS4",
+          "74VNZ"
+        ],
+        "confidence": 1
+      },
+      "matching_method": "ai",
+      "matched_by": "ai",
+      "matched_at": null,
+      "created_at": "2026-03-24T13:49:51.000Z",
+      "reasoning": "Perfect match for HJ8173-800 - Calm SE Slides. Exact SKU match, exact quantity aggregation (7+7+5+1 = 20 units), and exact unit price ($139.86) across all four size variants. Line total matches exactly at $2,797.20. 100% match across all validation criteria."
+    },
+    {
+      "id": 38,
+      "invoice_line_id": "PLACEHOLDER_ID",
+      "match_status": "perfect",
+      "result_data": {
+        "matched_row_ids": [
+          334
+        ],
+        "po": [
+          "A8R0J"
+        ],
+        "grn": [
+          "A2528"
+        ],
+        "confidence": 1
+      },
+      "matching_method": "ai",
+      "matched_by": "ai",
+      "matched_at": null,
+      "created_at": "2026-03-24T13:50:01.000Z",
+      "reasoning": "Perfect match for HV8924-906 - Heritage Crystal Crossbody Bag. Exact SKU match, exact quantity (12 units), and exact unit price ($75.06). Line total matches exactly at $900.72. No size variants, single one-size item. 100% match across all validation criteria."
+    }
+  ],
+  "ai_metadata": {
+    "total_cost_usd": 25.7592,
+    "total_time_ms": 690971,
+    "wall_clock_time_ms": 694732,
+    "items_processed": 38,
+    "avg_cost_per_item_usd": 0.623,
+    "avg_time_per_item_ms": 15949,
+    "compaction": {
+      "count": 3,
+      "total_cost_usd": 2.0835,
+      "total_time_ms": 84905,
+      "avg_cost_per_compaction_usd": 0.6945,
+      "avg_time_per_compaction_ms": 28301
+    },
+    "processing_only": {
+      "cost_usd": 0.231,
+      "time_ms": 52480
+    }
+  },
+  "_unused_system_metadata": null,
+  "_unused_compaction_mode": "batch",
+  "_unused_batch_size": 10,
+  "po_numbers": [
+    "PO-00058"
+  ]
+}
