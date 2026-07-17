@@ -347,7 +347,7 @@
       ]
     },
     "required_missing_fields": [],
-    "error_message": null,
-    "error_code": null
+    "_unused_error_message": null,
+    "_unused_error_code": null
   }
 ]

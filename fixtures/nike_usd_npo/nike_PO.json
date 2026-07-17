@@ -1,7 +1,7 @@
 {
-  "po_id": "3225354000000212679",
+  "_unused_po_id": "3225354000000212679",
   "po_number": "PO-00064",
-  "vendor_id": "3225354000000212641",
+  "_unused_vendor_id": "3225354000000212641",
   "vendor_name": "NIKE SALES (MALAYSIA) (USD)",
   "order_date": "2026-06-30T00:00:00",
   "status": "received",
@@ -1679,9 +1679,9 @@
       "total_amount": 662.58
     }
   ],
-  "sub_total": 155091.24,
+  "_unused_sub_total": 155091.24,
   "total_amount": 155091.24,
-  "tax_total": 0,
+  "_unused_tax_total": 0,
   "total_quantity": 808,
   "discount_amount": 0,
   "currency": "USD"

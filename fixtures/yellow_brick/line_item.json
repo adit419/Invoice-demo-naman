@@ -1,7 +1,7 @@
 {
-  "matching_method": "ai",
+  "_unused_matching_method": "ai",
   "match_type": "3-way",
-  "base_document": "invoice",
+  "_unused_base_document": "invoice",
   "summary": {
     "total_items": 1,
     "perfect_matches": 1,
@@ -27,7 +27,7 @@
       },
       "matching_method": "ai",
       "matched_by": "ai",
-      "reasoning": "Searched for invoice item \"AAA 11.11 Kick off Party\" in merged table and found 1 candidate row with matching name and quantity. Called evaluate_match tool with candidate row ID 1. Tool returned perfect match: invoice quantity (1) equals po_quantity (1) and grn_quantity (1); invoice line_total (701143.5) exactly matches PO total (701143.5) with 0% difference, which is within the \u00b11.0% threshold. All quantity constraints and price match requirements satisfied for a perfect 3-way match.",
+      "reasoning": "Searched for invoice item \"AAA 11.11 Kick off Party\" in merged table and found 1 candidate row with matching name and quantity. Called evaluate_match tool with candidate row ID 1. Tool returned perfect match: invoice quantity (1) equals po_quantity (1) and grn_quantity (1); invoice line_total (701143.5) exactly matches PO total (701143.5) with 0% difference, which is within the ±1.0% threshold. All quantity constraints and price match requirements satisfied for a perfect 3-way match.",
       "created_at": "2026-04-13T06:36:27"
     }
   ],
@@ -50,9 +50,9 @@
       "time_ms": 15639
     }
   },
-  "system_metadata": null,
-  "compaction_mode": "batch",
-  "batch_size": 10,
+  "_unused_system_metadata": null,
+  "_unused_compaction_mode": "batch",
+  "_unused_batch_size": 10,
   "po_numbers": [
     "PO-00060"
   ]

@@ -1,7 +1,7 @@
 {
-  "matching_method": "ai",
+  "_unused_matching_method": "ai",
   "match_type": "3-way",
-  "base_document": "invoice",
+  "_unused_base_document": "invoice",
   "summary": {
     "total_items": 2,
     "perfect_matches": 2,
@@ -71,11 +71,11 @@
       "time_ms": 37072
     }
   },
-  "system_metadata": null,
-  "compaction_mode": "batch",
-  "batch_size": 10,
+  "_unused_system_metadata": null,
+  "_unused_compaction_mode": "batch",
+  "_unused_batch_size": 10,
   "po_numbers": [
     "PO-00067"
   ],
-  "error": null
+  "_unused_error": null
 }

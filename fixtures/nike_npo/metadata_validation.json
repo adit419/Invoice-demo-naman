@@ -161,13 +161,13 @@
           "invoice": [
             {
               "document_id": "1001312123",
-              "value": 155089.80
+              "value": 155089.8
             }
           ],
           "po": [
             {
               "document_id": "PO-00058",
-              "value": 155089.80
+              "value": 155089.8
             }
           ],
           "grn": [
@@ -221,13 +221,13 @@
           "invoice": [
             {
               "document_id": "1001312123",
-              "value": 155089.80
+              "value": 155089.8
             }
           ],
           "po": [
             {
               "document_id": "PO-00058",
-              "value": 155089.80
+              "value": 155089.8
             }
           ],
           "grn": [
@@ -347,7 +347,7 @@
       ]
     },
     "required_missing_fields": [],
-    "error_message": null,
-    "error_code": null
+    "_unused_error_message": null,
+    "_unused_error_code": null
   }
 ]

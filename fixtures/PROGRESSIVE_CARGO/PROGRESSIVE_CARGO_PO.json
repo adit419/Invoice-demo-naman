@@ -1,7 +1,7 @@
 {
-  "po_id": "PO-00068",
+  "_unused_po_id": "PO-00068",
   "po_number": "PO-00068",
-  "vendor_id": "vendor_progcargo_01",
+  "_unused_vendor_id": "vendor_progcargo_01",
   "vendor_name": "PROGRESSIVE CARGO & SERVICES SDN BHD",
   "order_date": "2026-05-01T00:00:00",
   "status": "received",

@@ -1,7 +1,7 @@
 {
-  "matching_method": "ai",
+  "_unused_matching_method": "ai",
   "match_type": "3-way",
-  "base_document": "invoice",
+  "_unused_base_document": "invoice",
   "summary": {
     "total_items": 1,
     "perfect_matches": 1,
@@ -27,7 +27,7 @@
       },
       "matching_method": "ai",
       "matched_by": "ai",
-      "reasoning": "Found exact match by searching for keywords \"PMS\", \"Quarterly\", \"Support\", and \"material Handling\" in merged table. Candidate row id=1 contains \"Quarterly PMS Support Services for the material Handling\" with po_quantity=1, po_rate=34227.68, po_item_total=34227.68, and grn_quantity=1. Called evaluate_match tool which confirmed perfect match: invoice quantity (1) equals po_quantity (1) and grn_quantity (1), invoice line_total (34227.68) equals PO total (1 \u00d7 34227.68 = 34227.68) with 0% difference, well within the \u00b11.0% threshold. Product descriptions are identical.",
+      "reasoning": "Found exact match by searching for keywords \"PMS\", \"Quarterly\", \"Support\", and \"material Handling\" in merged table. Candidate row id=1 contains \"Quarterly PMS Support Services for the material Handling\" with po_quantity=1, po_rate=34227.68, po_item_total=34227.68, and grn_quantity=1. Called evaluate_match tool which confirmed perfect match: invoice quantity (1) equals po_quantity (1) and grn_quantity (1), invoice line_total (34227.68) equals PO total (1 × 34227.68 = 34227.68) with 0% difference, well within the ±1.0% threshold. Product descriptions are identical.",
       "created_at": "2026-06-06T13:28:41"
     }
   ],
@@ -50,11 +50,11 @@
       "time_ms": 32252
     }
   },
-  "system_metadata": null,
-  "compaction_mode": "batch",
-  "batch_size": 10,
+  "_unused_system_metadata": null,
+  "_unused_compaction_mode": "batch",
+  "_unused_batch_size": 10,
   "po_numbers": [
     "PO-00066"
   ],
-  "error": null
+  "_unused_error": null
 }
