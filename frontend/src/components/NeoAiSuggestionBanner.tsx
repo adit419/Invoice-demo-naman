@@ -102,9 +102,14 @@ export function AiAnalysisInfo({ rec }: { rec: PoRecommendation }) {
             </span>
           </div>
 
-          <div style={{ fontSize: 11.5, color: "#585C65", lineHeight: "15px", marginBottom: 8 }}>
+          <div style={{ fontSize: 11.5, color: "#585C65", lineHeight: "15px", marginBottom: 4 }}>
             Recommended <strong style={{ color: "#414651" }}>{po.po_number}</strong>
             {po.vendor_name ? <> — {po.vendor_name}</> : null}
+          </div>
+
+          <div style={{ fontSize: 11, color: "#8D92A6", lineHeight: "15px", marginBottom: 8 }}>
+            Of the {rec.candidates_considered ?? 0} purchase order{(rec.candidates_considered ?? 0) === 1 ? "" : "s"} evaluated
+            for this vendor, Neo AI recommends this one based on the criteria below.
           </div>
 
           <div className="flex flex-col" style={{ gap: 7 }}>
@@ -126,12 +131,6 @@ export function AiAnalysisInfo({ rec }: { rec: PoRecommendation }) {
             ))}
           </div>
 
-          <div style={{
-            marginTop: 10, paddingTop: 8, borderTop: "1px solid #EFF2F6",
-            fontSize: 10.5, color: "#8D92A6", lineHeight: "14px",
-          }}>
-            Best match among {rec.candidates_considered ?? 0} purchase order{(rec.candidates_considered ?? 0) === 1 ? "" : "s"} evaluated for this vendor.
-          </div>
         </div>
       )}
     </span>

@@ -1,0 +1,196 @@
+{
+  "recommended": {
+    "po_number": "PO-00064",
+    "vendor_name": "NIKE SALES (MALAYSIA) (USD)",
+    "total_amount": 155089.8,
+    "currency": "USD",
+    "order_date": "2026-06-30",
+    "status": "received",
+    "source": "fixture_metadata_validation",
+    "score": 1.0,
+    "breakdown": [
+      {
+        "criterion": "vendor_name",
+        "score": 1.0,
+        "detail": "vendor \"NIKE SALES (MALAYSIA) (USD)\" vs \"NIKE SALES (MALAYSIA) (USD)\""
+      },
+      {
+        "criterion": "total_amount",
+        "score": 1.0,
+        "detail": "amount 155,089.80 vs invoice 155,089.80"
+      },
+      {
+        "criterion": "currency",
+        "score": 1.0,
+        "detail": "currency USD vs USD"
+      },
+      {
+        "criterion": "dates",
+        "score": 1.0,
+        "detail": "PO date 2026-06-30 vs invoice dates (0d apart)"
+      }
+    ]
+  },
+  "candidates": [
+    {
+      "po_number": "PO-00064",
+      "vendor_name": "NIKE SALES (MALAYSIA) (USD)",
+      "total_amount": 155089.8,
+      "currency": "USD",
+      "order_date": "2026-06-30",
+      "status": "received",
+      "source": "fixture_metadata_validation",
+      "score": 1.0,
+      "breakdown": [
+        {
+          "criterion": "vendor_name",
+          "score": 1.0,
+          "detail": "vendor \"NIKE SALES (MALAYSIA) (USD)\" vs \"NIKE SALES (MALAYSIA) (USD)\""
+        },
+        {
+          "criterion": "total_amount",
+          "score": 1.0,
+          "detail": "amount 155,089.80 vs invoice 155,089.80"
+        },
+        {
+          "criterion": "currency",
+          "score": 1.0,
+          "detail": "currency USD vs USD"
+        },
+        {
+          "criterion": "dates",
+          "score": 1.0,
+          "detail": "PO date 2026-06-30 vs invoice dates (0d apart)"
+        }
+      ]
+    },
+    {
+      "po_number": "PO-00058",
+      "vendor_name": "NIKE SALES (MALAYSIA)",
+      "total_amount": 155091.24,
+      "currency": "INR",
+      "order_date": "2026-06-30",
+      "status": "received",
+      "source": "fixture_po",
+      "score": 0.83,
+      "breakdown": [
+        {
+          "criterion": "vendor_name",
+          "score": 0.95,
+          "detail": "vendor \"NIKE SALES (MALAYSIA)\" vs \"NIKE SALES (MALAYSIA) (USD)\""
+        },
+        {
+          "criterion": "total_amount",
+          "score": 1.0,
+          "detail": "amount 155,091.24 vs invoice 155,089.80"
+        },
+        {
+          "criterion": "currency",
+          "score": 0.0,
+          "detail": "currency INR vs USD"
+        },
+        {
+          "criterion": "dates",
+          "score": 1.0,
+          "detail": "PO date 2026-06-30 vs invoice dates (0d apart)"
+        }
+      ]
+    },
+    {
+      "po_number": "PO-00068",
+      "vendor_name": "PROGRESSIVE CARGO & SERVICES SDN BHD",
+      "total_amount": 302801.26,
+      "currency": "MYR",
+      "order_date": "2026-05-01",
+      "status": "received",
+      "source": "fixture_po",
+      "score": 0.259,
+      "breakdown": [
+        {
+          "criterion": "vendor_name",
+          "score": 0.316,
+          "detail": "vendor \"PROGRESSIVE CARGO & SERVICES SDN BHD\" vs \"NIKE SALES (MALAYSIA) (USD)\""
+        },
+        {
+          "criterion": "total_amount",
+          "score": 0.024,
+          "detail": "amount 302,801.26 vs invoice 155,089.80"
+        },
+        {
+          "criterion": "currency",
+          "score": 0.0,
+          "detail": "currency MYR vs USD"
+        },
+        {
+          "criterion": "dates",
+          "score": 0.836,
+          "detail": "PO date 2026-05-01 vs invoice dates (60d apart)"
+        }
+      ]
+    },
+    {
+      "po_number": "PO-00060",
+      "vendor_name": "YBM YELLOW BRICK MEDIA GROUP INC.",
+      "total_amount": 785280.72,
+      "currency": "PHP",
+      "order_date": null,
+      "status": null,
+      "source": "fixture_metadata_validation",
+      "score": 0.137,
+      "breakdown": [
+        {
+          "criterion": "vendor_name",
+          "score": 0.291,
+          "detail": "vendor \"YBM YELLOW BRICK MEDIA GROUP INC.\" vs \"NIKE SALES (MALAYSIA) (USD)\""
+        },
+        {
+          "criterion": "total_amount",
+          "score": 0.0,
+          "detail": "amount 785,280.72 vs invoice 155,089.80"
+        },
+        {
+          "criterion": "currency",
+          "score": 0.0,
+          "detail": "currency PHP vs USD"
+        }
+      ]
+    },
+    {
+      "po_number": "PO-00067",
+      "vendor_name": "PT Nau Corp Indonesia",
+      "total_amount": 10101000.0,
+      "currency": "IDR",
+      "order_date": null,
+      "status": null,
+      "source": "fixture_metadata_validation",
+      "score": 0.128,
+      "breakdown": [
+        {
+          "criterion": "vendor_name",
+          "score": 0.273,
+          "detail": "vendor \"PT Nau Corp Indonesia\" vs \"NIKE SALES (MALAYSIA) (USD)\""
+        },
+        {
+          "criterion": "total_amount",
+          "score": 0.0,
+          "detail": "amount 10,101,000.00 vs invoice 155,089.80"
+        },
+        {
+          "criterion": "currency",
+          "score": 0.0,
+          "detail": "currency IDR vs USD"
+        }
+      ]
+    }
+  ],
+  "candidates_considered": 7,
+  "invoice_fields": {
+    "po_number": null,
+    "vendor_name": "NIKE SALES (MALAYSIA) (USD)",
+    "total_amount": 155089.8,
+    "currency": "USD",
+    "invoice_date": "2026-06-30",
+    "due_date": "2026-08-29"
+  },
+  "generated_at": "2026-07-17T05:34:18.016005+00:00"
+}

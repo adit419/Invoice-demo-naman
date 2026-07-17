@@ -1,0 +1,1560 @@
+{
+  "invoice_schema": {
+    "metadata": [
+      {
+        "row_id": "rlmw6wjm",
+        "field": "po_number",
+        "value": "",
+        "is_required": true
+      },
+      {
+        "row_id": "77sxl7d0",
+        "field": "invoice_number",
+        "value": "1001312123",
+        "is_required": true
+      },
+      {
+        "row_id": "0c4wbxgo",
+        "field": "invoice_date",
+        "value": "2026-06-30",
+        "is_required": true
+      },
+      {
+        "row_id": "rts3bldh",
+        "field": "payment_terms",
+        "value": "Net 60",
+        "is_required": false
+      },
+      {
+        "row_id": "ag0m58p9",
+        "field": "due_date",
+        "value": "2026-08-29",
+        "is_required": false
+      },
+      {
+        "row_id": "7tralila",
+        "field": "vendor_name",
+        "value": "NIKE SALES (MALAYSIA) (USD)",
+        "is_required": true
+      },
+      {
+        "row_id": "0h8uph6l",
+        "field": "vendor_address",
+        "value": "Unit 10-1 10-2, Lv110, Menara OBYU No.4, Jln PJU 8/8A, D'sara Perdana, 47820 Petaling Jaya",
+        "is_required": false
+      },
+      {
+        "row_id": "zlhw5p8i",
+        "field": "vendor_vat_id",
+        "value": "",
+        "is_required": false
+      },
+      {
+        "row_id": "jl7uq8kc",
+        "field": "customer_legal_entity",
+        "value": "NEOFLO PTE LTD",
+        "is_required": false
+      },
+      {
+        "row_id": "r9ivgr1l",
+        "field": "customer_address",
+        "value": "35/38, 24th Main Road, Opposite Brigade Palms, Achappa Layout, Ramaiah Garden, JP Nagar, 7th Phase, Bengaluru, Karnataka, 560078, India",
+        "is_required": false
+      },
+      {
+        "row_id": "e1svkskf",
+        "field": "customer_vat_id",
+        "value": "33LMNOP4321Q1Z6",
+        "is_required": true
+      },
+      {
+        "row_id": "wyzci299",
+        "field": "description",
+        "value": "MATERIALS PRODUCT DESCRIPTION",
+        "is_required": false
+      },
+      {
+        "row_id": "iro2gce4",
+        "field": "currency",
+        "value": "USD",
+        "is_required": true
+      },
+      {
+        "row_id": "yyi0wkeq",
+        "field": "total_amount_before_vat",
+        "value": 155089.8,
+        "is_required": true
+      },
+      {
+        "row_id": "c5y16vma",
+        "field": "vat_gst",
+        "value": "",
+        "is_required": false
+      },
+      {
+        "row_id": "0oq6vmiv",
+        "field": "total_amount",
+        "value": 155089.8,
+        "is_required": true
+      },
+      {
+        "row_id": "sbtbeuxq",
+        "field": "wht",
+        "value": "",
+        "is_required": false
+      },
+      {
+        "row_id": "edxm7nta",
+        "field": "net_amount_after_wht",
+        "value": "",
+        "is_required": false
+      },
+      {
+        "row_id": "yydho53e",
+        "field": "vendor_bank_name",
+        "value": "",
+        "is_required": false
+      },
+      {
+        "row_id": "a0sw5yd3",
+        "field": "vendor_bank_account_name",
+        "value": "",
+        "is_required": false
+      },
+      {
+        "row_id": "espg8o3z",
+        "field": "vendor_bank_account_number",
+        "value": "",
+        "is_required": false
+      },
+      {
+        "row_id": "80muiuwb",
+        "field": "vendor_bank_swift",
+        "value": "",
+        "is_required": false
+      },
+      {
+        "row_id": "v047ki0e",
+        "field": "total_quantity",
+        "value": 808,
+        "is_required": true
+      }
+    ],
+    "line_items": [
+      {
+        "id": 1,
+        "row_id": "k0zzzmuf",
+        "item_code": "DX6013-006",
+        "item_description": "AS W NK ONE DF MR 3IN 2N1 SRT",
+        "unit_of_measurement": "EA",
+        "quantity": 12,
+        "unit_price": 85.86,
+        "total_price_before_vat": 1030.32,
+        "row_bbox": {
+          "x_min": 43,
+          "y_min": 577,
+          "x_max": 2260,
+          "y_max": 616
+        }
+      },
+      {
+        "id": 2,
+        "row_id": "yh07566k",
+        "item_code": "FN2799-233",
+        "item_description": "AS W NK ONE CLASSIC DF SS TOP",
+        "unit_of_measurement": "EA",
+        "quantity": 3,
+        "unit_price": 72.9,
+        "total_price_before_vat": 218.7,
+        "row_bbox": {
+          "x_min": 44,
+          "y_min": 588,
+          "x_max": 2262,
+          "y_max": 684
+        }
+      },
+      {
+        "id": 3,
+        "row_id": "jf8moqhx",
+        "item_code": "FV6623-233",
+        "item_description": "AS W NSW ESSNTL MR 5IN WVN SHR",
+        "unit_of_measurement": "EA",
+        "quantity": 12,
+        "unit_price": 96.66,
+        "total_price_before_vat": 1159.92,
+        "row_bbox": {
+          "x_min": 44,
+          "y_min": 590,
+          "x_max": 2260,
+          "y_max": 752
+        }
+      },
+      {
+        "id": 4,
+        "row_id": "ixpfnxjv",
+        "item_code": "HF7325-233",
+        "item_description": "AS W NP INDY PLUNGE BRA BOLD",
+        "unit_of_measurement": "EA",
+        "quantity": 12,
+        "unit_price": 110.7,
+        "total_price_before_vat": 1328.4,
+        "row_bbox": {
+          "x_min": 44,
+          "y_min": 590,
+          "x_max": 2260,
+          "y_max": 820
+        }
+      },
+      {
+        "id": 5,
+        "row_id": "plafmbvd",
+        "item_code": "HJ1275-051",
+        "item_description": "AS W NSW NK CHLL FT MR MINI SK",
+        "unit_of_measurement": "EA",
+        "quantity": 12,
+        "unit_price": 132.3,
+        "total_price_before_vat": 1587.6,
+        "row_bbox": {
+          "x_min": 44,
+          "y_min": 590,
+          "x_max": 2261,
+          "y_max": 888
+        }
+      },
+      {
+        "id": 6,
+        "row_id": "zz4maa4d",
+        "item_code": "HJ1398-010",
+        "item_description": "AS W NSW EVRYTHNG WVN HR 9\" SH",
+        "unit_of_measurement": "EA",
+        "quantity": 24,
+        "unit_price": 102.06,
+        "total_price_before_vat": 2449.44,
+        "row_bbox": {
+          "x_min": 44,
+          "y_min": 591,
+          "x_max": 2260,
+          "y_max": 997
+        }
+      },
+      {
+        "id": 7,
+        "row_id": "uugp3ypz",
+        "item_code": "HJ1398-214",
+        "item_description": "AS W NSW EVRYTHNG WVN HR 9\" SH",
+        "unit_of_measurement": "EA",
+        "quantity": 24,
+        "unit_price": 102.06,
+        "total_price_before_vat": 2449.44,
+        "row_bbox": {
+          "x_min": 44,
+          "y_min": 591,
+          "x_max": 2260,
+          "y_max": 997
+        }
+      },
+      {
+        "id": 8,
+        "row_id": "aehi2z0x",
+        "item_code": "HJ3565-010",
+        "item_description": "AS M NK RUN ENERGY MILER SS TO",
+        "unit_of_measurement": "EA",
+        "quantity": 6,
+        "unit_price": 72.9,
+        "total_price_before_vat": 437.4,
+        "row_bbox": {
+          "x_min": 44,
+          "y_min": 591,
+          "x_max": 2261,
+          "y_max": 1091
+        }
+      },
+      {
+        "id": 9,
+        "row_id": "9ghv2rpr",
+        "item_code": "HM6980-527",
+        "item_description": "AS W NSW ESSNTL WVN MR 3\" SKO",
+        "unit_of_measurement": "EA",
+        "quantity": 12,
+        "unit_price": 102.06,
+        "total_price_before_vat": 1224.72,
+        "row_bbox": {
+          "x_min": 43,
+          "y_min": 590,
+          "x_max": 2261,
+          "y_max": 1147
+        }
+      },
+      {
+        "id": 10,
+        "row_id": "v06rj4m8",
+        "item_code": "HM6983-004",
+        "item_description": "AS W NSW ESSNTL WVN HR 5\" CRGO",
+        "unit_of_measurement": "EA",
+        "quantity": 12,
+        "unit_price": 102.06,
+        "total_price_before_vat": 1224.72,
+        "row_bbox": {
+          "x_min": 43,
+          "y_min": 576,
+          "x_max": 2261,
+          "y_max": 1147
+        }
+      },
+      {
+        "id": 11,
+        "row_id": "szzpp25m",
+        "item_code": "DC3729-003",
+        "item_description": "W NIKE REVOLUTION 6 NN",
+        "unit_of_measurement": "PR",
+        "quantity": 25,
+        "unit_price": 121.5,
+        "total_price_before_vat": 3037.5,
+        "row_bbox": {
+          "x_min": 44,
+          "y_min": 645,
+          "x_max": 2261,
+          "y_max": 684
+        }
+      },
+      {
+        "id": 12,
+        "row_id": "620aihep",
+        "item_code": "HF5441-100",
+        "item_description": "NIKE DUNK LOW RETRO",
+        "unit_of_measurement": "PR",
+        "quantity": 59,
+        "unit_price": 264.06,
+        "total_price_before_vat": 15579.54,
+        "row_bbox": {
+          "x_min": 44,
+          "y_min": 658,
+          "x_max": 2260,
+          "y_max": 752
+        }
+      },
+      {
+        "id": 13,
+        "row_id": "vc2dru3z",
+        "item_code": "CT2302-100",
+        "item_description": "AIR FORCE 1 '07",
+        "unit_of_measurement": "PR",
+        "quantity": 23,
+        "unit_price": 264.06,
+        "total_price_before_vat": 6073.38,
+        "row_bbox": {
+          "x_min": 44,
+          "y_min": 658,
+          "x_max": 2262,
+          "y_max": 821
+        }
+      },
+      {
+        "id": 14,
+        "row_id": "u90k2lg0",
+        "item_code": "CW2288-001",
+        "item_description": "AIR FORCE 1 '07",
+        "unit_of_measurement": "PR",
+        "quantity": 29,
+        "unit_price": 264.06,
+        "total_price_before_vat": 7657.74,
+        "row_bbox": {
+          "x_min": 44,
+          "y_min": 658,
+          "x_max": 2262,
+          "y_max": 877
+        }
+      },
+      {
+        "id": 15,
+        "row_id": "l9fsdy78",
+        "item_code": "DD1503-101",
+        "item_description": "W NIKE DUNK LOW",
+        "unit_of_measurement": "PR",
+        "quantity": 26,
+        "unit_price": 264.06,
+        "total_price_before_vat": 6865.56,
+        "row_bbox": {
+          "x_min": 43,
+          "y_min": 37,
+          "x_max": 2262,
+          "y_max": 946
+        }
+      },
+      {
+        "id": 16,
+        "row_id": "z7q70omz",
+        "item_code": "DD8959-103",
+        "item_description": "WMNS AIR FORCE 1 '07",
+        "unit_of_measurement": "PR",
+        "quantity": 21,
+        "unit_price": 264.06,
+        "total_price_before_vat": 5545.26,
+        "row_bbox": {
+          "x_min": 43,
+          "y_min": 658,
+          "x_max": 2262,
+          "y_max": 1013
+        }
+      },
+      {
+        "id": 17,
+        "row_id": "peop6y1h",
+        "item_code": "DH3158-102",
+        "item_description": "W NIKE COURT VISION LO NN",
+        "unit_of_measurement": "PR",
+        "quantity": 22,
+        "unit_price": 148.5,
+        "total_price_before_vat": 3267,
+        "row_bbox": {
+          "x_min": 43,
+          "y_min": 658,
+          "x_max": 2075,
+          "y_max": 1093
+        }
+      },
+      {
+        "id": 18,
+        "row_id": "16gubxte",
+        "item_code": "DV1238-502",
+        "item_description": "WMNS NIKE MOTIVA",
+        "unit_of_measurement": "PR",
+        "quantity": 17,
+        "unit_price": 264.06,
+        "total_price_before_vat": 4489.02,
+        "row_bbox": {
+          "x_min": 43,
+          "y_min": 658,
+          "x_max": 2261,
+          "y_max": 1161
+        }
+      },
+      {
+        "id": 19,
+        "row_id": "h12dov65",
+        "item_code": "FJ1284-001",
+        "item_description": "NIKE DOWNSHIFTER 13 WIDE",
+        "unit_of_measurement": "PR",
+        "quantity": 30,
+        "unit_price": 137.7,
+        "total_price_before_vat": 4131,
+        "row_bbox": {
+          "x_min": 44,
+          "y_min": 312,
+          "x_max": 2075,
+          "y_max": 671
+        }
+      },
+      {
+        "id": 20,
+        "row_id": "jc6tmuct",
+        "item_code": "FJ7126-500",
+        "item_description": "W NIKE FREE METCON 6",
+        "unit_of_measurement": "PR",
+        "quantity": 22,
+        "unit_price": 301.86,
+        "total_price_before_vat": 6640.92,
+        "row_bbox": {
+          "x_min": 45,
+          "y_min": 576,
+          "x_max": 2261,
+          "y_max": 1077
+        }
+      },
+      {
+        "id": 21,
+        "row_id": "42xurtaj",
+        "item_code": "FV9952-103",
+        "item_description": "W NIKE COURT VISION LO NN",
+        "unit_of_measurement": "PR",
+        "quantity": 43,
+        "unit_price": 197.1,
+        "total_price_before_vat": 8475.3,
+        "row_bbox": {
+          "x_min": 44,
+          "y_min": 658,
+          "x_max": 2262,
+          "y_max": 1093
+        }
+      },
+      {
+        "id": 22,
+        "row_id": "jqmnrllu",
+        "item_code": "FZ1689-004",
+        "item_description": "W NIKE AIR ZOOM BELLA 7",
+        "unit_of_measurement": "PR",
+        "quantity": 24,
+        "unit_price": 220.8,
+        "total_price_before_vat": 5299.2,
+        "row_bbox": {
+          "x_min": 44,
+          "y_min": 658,
+          "x_max": 2262,
+          "y_max": 941
+        }
+      },
+      {
+        "id": 23,
+        "row_id": "wpuusvyg",
+        "item_code": "IF1761-300",
+        "item_description": "W LD-1000",
+        "unit_of_measurement": "PR",
+        "quantity": 4,
+        "unit_price": 269.46,
+        "total_price_before_vat": 1077.84,
+        "row_bbox": {
+          "x_min": 45,
+          "y_min": 658,
+          "x_max": 2260,
+          "y_max": 889
+        }
+      },
+      {
+        "id": 24,
+        "row_id": "k04utp9n",
+        "item_code": "IF1764-300",
+        "item_description": "W NIKE CORTEZ",
+        "unit_of_measurement": "PR",
+        "quantity": 18,
+        "unit_price": 220.86,
+        "total_price_before_vat": 3975.48,
+        "row_bbox": {
+          "x_min": 46,
+          "y_min": 658,
+          "x_max": 2259,
+          "y_max": 956
+        }
+      },
+      {
+        "id": 25,
+        "row_id": "nivfnegi",
+        "item_code": "DV1238-400",
+        "item_description": "WMNS NIKE MOTIVA",
+        "unit_of_measurement": "PR",
+        "quantity": 20,
+        "unit_price": 264.06,
+        "total_price_before_vat": 5281.2,
+        "row_bbox": {
+          "x_min": 43,
+          "y_min": 658,
+          "x_max": 2261,
+          "y_max": 1161
+        }
+      },
+      {
+        "id": 26,
+        "row_id": "2mke9zid",
+        "item_code": "DV3865-601",
+        "item_description": "W NIKE REACTX PEGASUS TRAIL 5",
+        "unit_of_measurement": "PR",
+        "quantity": 24,
+        "unit_price": 345.06,
+        "total_price_before_vat": 8281.44,
+        "row_bbox": {
+          "x_min": 43,
+          "y_min": 658,
+          "x_max": 2260,
+          "y_max": 1092
+        }
+      },
+      {
+        "id": 27,
+        "row_id": "gbugtmur",
+        "item_code": "FD4328-002",
+        "item_description": "NIKE AIR MAX 90 LV8",
+        "unit_of_measurement": "PR",
+        "quantity": 23,
+        "unit_price": 345.06,
+        "total_price_before_vat": 7936.38,
+        "row_bbox": {
+          "x_min": 44,
+          "y_min": 37,
+          "x_max": 2261,
+          "y_max": 1148
+        }
+      },
+      {
+        "id": 28,
+        "row_id": "gocr614q",
+        "item_code": "FJ7126-402",
+        "item_description": "W NIKE FREE METCON 6",
+        "unit_of_measurement": "PR",
+        "quantity": 23,
+        "unit_price": 301.86,
+        "total_price_before_vat": 6942.78,
+        "row_bbox": {
+          "x_min": 45,
+          "y_min": 576,
+          "x_max": 2261,
+          "y_max": 806
+        }
+      },
+      {
+        "id": 29,
+        "row_id": "qupdlv37",
+        "item_code": "HQ4502-101",
+        "item_description": "NIKE TERRA MANTA",
+        "unit_of_measurement": "PR",
+        "quantity": 19,
+        "unit_price": 210.06,
+        "total_price_before_vat": 3991.14,
+        "row_bbox": {
+          "x_min": 44,
+          "y_min": 643,
+          "x_max": 2260,
+          "y_max": 685
+        }
+      },
+      {
+        "id": 30,
+        "row_id": "zbo9a59l",
+        "item_code": "HV3032-600",
+        "item_description": "W PEGASUS PLUS",
+        "unit_of_measurement": "PR",
+        "quantity": 8,
+        "unit_price": 447.66,
+        "total_price_before_vat": 3581.28,
+        "row_bbox": {
+          "x_min": 43,
+          "y_min": 65,
+          "x_max": 2261,
+          "y_max": 1092
+        }
+      },
+      {
+        "id": 31,
+        "row_id": "qr0u9x05",
+        "item_code": "IB8912-204",
+        "item_description": "NIKE AIR MAX EXCEE",
+        "unit_of_measurement": "PR",
+        "quantity": 19,
+        "unit_price": 253.26,
+        "total_price_before_vat": 4811.94,
+        "row_bbox": {
+          "x_min": 45,
+          "y_min": 658,
+          "x_max": 2261,
+          "y_max": 820
+        }
+      },
+      {
+        "id": 32,
+        "row_id": "5zl77wms",
+        "item_code": "BQ6472-510",
+        "item_description": "WMNS AIR JORDAN 1 MID",
+        "unit_of_measurement": "PR",
+        "quantity": 28,
+        "unit_price": 301.86,
+        "total_price_before_vat": 8452.08,
+        "row_bbox": {
+          "x_min": 44,
+          "y_min": 658,
+          "x_max": 2262,
+          "y_max": 888
+        }
+      },
+      {
+        "id": 33,
+        "row_id": "hgi2oika",
+        "item_code": "DR7217-699",
+        "item_description": "NK GYM TOTE",
+        "unit_of_measurement": "EA",
+        "quantity": 24,
+        "unit_price": 94.5,
+        "total_price_before_vat": 2268,
+        "row_bbox": {
+          "x_min": 43,
+          "y_min": 591,
+          "x_max": 2076,
+          "y_max": 956
+        }
+      },
+      {
+        "id": 34,
+        "row_id": "psza3bqu",
+        "item_code": "DX5025-010",
+        "item_description": "U NK NSW EVERYDAY ESSENTIAL CR",
+        "unit_of_measurement": "EA",
+        "quantity": 12,
+        "unit_price": 37.26,
+        "total_price_before_vat": 447.12,
+        "row_bbox": {
+          "x_min": 43,
+          "y_min": 590,
+          "x_max": 2260,
+          "y_max": 1024
+        }
+      },
+      {
+        "id": 35,
+        "row_id": "1oi9lfyo",
+        "item_code": "DX5025-100",
+        "item_description": "U NK NSW EVERYDAY ESSENTIAL CR",
+        "unit_of_measurement": "EA",
+        "quantity": 42,
+        "unit_price": 37.26,
+        "total_price_before_vat": 1564.92,
+        "row_bbox": {
+          "x_min": 43,
+          "y_min": 591,
+          "x_max": 2261,
+          "y_max": 1147
+        }
+      },
+      {
+        "id": 36,
+        "row_id": "z60l0ysj",
+        "item_code": "HM4415-010",
+        "item_description": "NK HRTGE CRSSBY-CORTEZ PTCH",
+        "unit_of_measurement": "EA",
+        "quantity": 42,
+        "unit_price": 62.1,
+        "total_price_before_vat": 2608.2,
+        "row_bbox": {
+          "x_min": 44,
+          "y_min": 591,
+          "x_max": 2261,
+          "y_max": 1148
+        }
+      },
+      {
+        "id": 37,
+        "row_id": "j9krbccz",
+        "item_code": "HJ8173-800",
+        "item_description": "W NIKE CALM SLIDE SE",
+        "unit_of_measurement": "PR",
+        "quantity": 20,
+        "unit_price": 139.86,
+        "total_price_before_vat": 2797.2,
+        "row_bbox": {
+          "x_min": 44,
+          "y_min": 577,
+          "x_max": 2261,
+          "y_max": 1010
+        }
+      },
+      {
+        "id": 38,
+        "row_id": "s5kjplxx",
+        "item_code": "HV8924-906",
+        "item_description": "NK HERITAGE CRYSTAL CB",
+        "unit_of_measurement": "EA",
+        "quantity": 12,
+        "unit_price": 75.06,
+        "total_price_before_vat": 900.72,
+        "row_bbox": {
+          "x_min": 43,
+          "y_min": 590,
+          "x_max": 2261,
+          "y_max": 684
+        }
+      }
+    ]
+  },
+  "bbox_schema": {
+    "metadata": [
+      {
+        "row_id": "rlmw6wjm",
+        "bbox_left": 0,
+        "bbox_top": 0,
+        "bbox_width": 0,
+        "bbox_height": 0,
+        "page": 1,
+        "field": "po_number",
+        "value_confidence": 0
+      },
+      {
+        "row_id": "77sxl7d0",
+        "bbox_left": 0.910645575032065,
+        "bbox_top": 0.14337568058076225,
+        "bbox_width": 0.055151774262505344,
+        "bbox_height": 0.007864488808227465,
+        "page": 1,
+        "field": "invoice_number",
+        "value_confidence": 1
+      },
+      {
+        "row_id": "0c4wbxgo",
+        "bbox_left": 0.9102180418982471,
+        "bbox_top": 0.16636418632788869,
+        "bbox_width": 0.05557930739632321,
+        "bbox_height": 0.009679370840895343,
+        "page": 1,
+        "field": "invoice_date",
+        "value_confidence": 0.9628667235374451
+      },
+      {
+        "row_id": "rts3bldh",
+        "bbox_left": 0.8418127404873877,
+        "bbox_top": 0.3248638838475499,
+        "bbox_width": 0.01838392475416845,
+        "bbox_height": 0.009074410163339383,
+        "page": 1,
+        "field": "payment_terms",
+        "value_confidence": 0.9366666666666666
+      },
+      {
+        "row_id": "ag0m58p9",
+        "bbox_left": 0.9097905087644292,
+        "bbox_top": 0.23895946763460374,
+        "bbox_width": 0.05643437366395896,
+        "bbox_height": 0.007864488808227465,
+        "page": 1,
+        "field": "due_date",
+        "value_confidence": 1
+      },
+      {
+        "row_id": "7tralila",
+        "bbox_left": 0.09833262077811031,
+        "bbox_top": 0.021778584392014518,
+        "bbox_width": 0.11799914493373237,
+        "bbox_height": 0.009074410163339383,
+        "page": 2,
+        "field": "vendor_name",
+        "value_confidence": 0.9545454545454546
+      },
+      {
+        "row_id": "0h8uph6l",
+        "bbox_left": 0.09876015391192818,
+        "bbox_top": 0.03750756200846945,
+        "bbox_width": 0.39290294997862335,
+        "bbox_height": 0.032667876588021776,
+        "page": 2,
+        "field": "vendor_address",
+        "value_confidence": 0.9565217391304348
+      },
+      {
+        "row_id": "zlhw5p8i",
+        "bbox_left": 0,
+        "bbox_top": 0,
+        "bbox_width": 0,
+        "bbox_height": 0,
+        "page": 1,
+        "field": "vendor_vat_id",
+        "value_confidence": 0
+      },
+      {
+        "row_id": "jl7uq8kc",
+        "bbox_left": 0.01881145788798632,
+        "bbox_top": 0.1736237144585602,
+        "bbox_width": 0.12526720820863618,
+        "bbox_height": 0.007864488808227465,
+        "page": 1,
+        "field": "customer_legal_entity",
+        "value_confidence": 1
+      },
+      {
+        "row_id": "r9ivgr1l",
+        "bbox_left": 0.01923899102180419,
+        "bbox_top": 0.21960072595281308,
+        "bbox_width": 0.10175288584865327,
+        "bbox_height": 0.0102843315184513,
+        "page": 1,
+        "field": "customer_address",
+        "value_confidence": 0.9190243902439024
+      },
+      {
+        "row_id": "e1svkskf",
+        "bbox_left": 0.698589140658401,
+        "bbox_top": 0.16515426497277677,
+        "bbox_width": 0.08422402736212056,
+        "bbox_height": 0.0102843315184513,
+        "page": 1,
+        "field": "customer_vat_id",
+        "value_confidence": 0.91
+      },
+      {
+        "row_id": "wyzci299",
+        "bbox_left": 0.01795639162035058,
+        "bbox_top": 0.3647912885662432,
+        "bbox_width": 0.16502778965369816,
+        "bbox_height": 0.007864488808227465,
+        "page": 1,
+        "field": "description",
+        "value_confidence": 1
+      },
+      {
+        "row_id": "iro2gce4",
+        "bbox_left": 0.6883283454467721,
+        "bbox_top": 0.32244404113732605,
+        "bbox_width": 0.01795639162035058,
+        "bbox_height": 0.010889292196007259,
+        "page": 1,
+        "field": "currency",
+        "value_confidence": 0.988385796546936
+      },
+      {
+        "row_id": "yyi0wkeq",
+        "bbox_left": 0.9115006412997008,
+        "bbox_top": 0.837265577737447,
+        "bbox_width": 0.055151774262505344,
+        "bbox_height": 0.0102843315184513,
+        "page": 5,
+        "field": "total_amount_before_vat",
+        "value_confidence": 0.948385796546936
+      },
+      {
+        "row_id": "c5y16vma",
+        "bbox_left": 0,
+        "bbox_top": 0,
+        "bbox_width": 0,
+        "bbox_height": 0,
+        "page": 1,
+        "field": "vat_gst",
+        "value_confidence": 0
+      },
+      {
+        "row_id": "0oq6vmiv",
+        "bbox_left": 0.9115006412997008,
+        "bbox_top": 0.837265577737447,
+        "bbox_width": 0.055151774262505344,
+        "bbox_height": 0.0102843315184513,
+        "page": 5,
+        "field": "total_amount",
+        "value_confidence": 1
+      },
+      {
+        "row_id": "sbtbeuxq",
+        "bbox_left": 0,
+        "bbox_top": 0,
+        "bbox_width": 0,
+        "bbox_height": 0,
+        "page": 1,
+        "field": "wht",
+        "value_confidence": 0
+      },
+      {
+        "row_id": "edxm7nta",
+        "bbox_left": 0,
+        "bbox_top": 0,
+        "bbox_width": 0,
+        "bbox_height": 0,
+        "page": 1,
+        "field": "net_amount_after_wht",
+        "value_confidence": 0
+      },
+      {
+        "row_id": "yydho53e",
+        "bbox_left": 0,
+        "bbox_top": 0,
+        "bbox_width": 0,
+        "bbox_height": 0,
+        "page": 1,
+        "field": "vendor_bank_name",
+        "value_confidence": 0
+      },
+      {
+        "row_id": "a0sw5yd3",
+        "bbox_left": 0,
+        "bbox_top": 0,
+        "bbox_width": 0,
+        "bbox_height": 0,
+        "page": 1,
+        "field": "vendor_bank_account_name",
+        "value_confidence": 0
+      },
+      {
+        "row_id": "espg8o3z",
+        "bbox_left": 0,
+        "bbox_top": 0,
+        "bbox_width": 0,
+        "bbox_height": 0,
+        "page": 1,
+        "field": "vendor_bank_account_number",
+        "value_confidence": 0
+      },
+      {
+        "row_id": "80muiuwb",
+        "bbox_left": 0,
+        "bbox_top": 0,
+        "bbox_width": 0,
+        "bbox_height": 0,
+        "page": 1,
+        "field": "vendor_bank_swift",
+        "value_confidence": 0
+      },
+      {
+        "row_id": "v047ki0e",
+        "bbox_left": 0.6472851646002565,
+        "bbox_top": 0.43920145190562615,
+        "bbox_width": 0.010688328345446772,
+        "bbox_height": 0.007259528130671506,
+        "page": 1,
+        "field": "total_quantity",
+        "value_confidence": 0.938385796546936
+      }
+    ],
+    "line_items": [
+      {
+        "row_id": "k0zzzmuf",
+        "bbox_left": 0.01795639162035058,
+        "bbox_top": 0.3490623109497883,
+        "bbox_width": 0.9482684908080377,
+        "bbox_height": 0.023593466424682397,
+        "page": 1,
+        "item_code_confidence": 0.975,
+        "item_description_confidence": 0.9275,
+        "unit_of_measurement_confidence": 0.9677684903144836,
+        "quantity_confidence": 0.9885508418083191,
+        "unit_price_confidence": 0.9862672090530396,
+        "total_price_before_vat_confidence": 0.9333333333333332,
+        "row_page_confidence": 0.9677684903144836
+      },
+      {
+        "row_id": "yh07566k",
+        "bbox_left": 0.01795639162035058,
+        "bbox_top": 0.39019963702359345,
+        "bbox_width": 0.9491235570756734,
+        "bbox_height": 0.023593466424682397,
+        "page": 1,
+        "item_code_confidence": 0.975,
+        "item_description_confidence": 0.9388888888888889,
+        "unit_of_measurement_confidence": 0.9677684903144836,
+        "quantity_confidence": 0.9883098602294922,
+        "unit_price_confidence": 0.9888888888888889,
+        "total_price_before_vat_confidence": 0.9090909090909091,
+        "row_page_confidence": 0.9377684903144836
+      },
+      {
+        "row_id": "jf8moqhx",
+        "bbox_left": 0.01795639162035058,
+        "bbox_top": 0.4307320024198427,
+        "bbox_width": 0.9482684908080377,
+        "bbox_height": 0.024198427102238355,
+        "page": 1,
+        "item_code_confidence": 0.9417984485626221,
+        "item_description_confidence": 0.9533333333333334,
+        "unit_of_measurement_confidence": 0.9677684903144836,
+        "quantity_confidence": 0.9885508418083191,
+        "unit_price_confidence": 0.9913210272789001,
+        "total_price_before_vat_confidence": 0.9333333333333332,
+        "row_page_confidence": 0.9888888888888889
+      },
+      {
+        "row_id": "ixpfnxjv",
+        "bbox_left": 0.01795639162035058,
+        "bbox_top": 0.4791288566243194,
+        "bbox_width": 0.9482684908080377,
+        "bbox_height": 0.041742286751361164,
+        "page": 1,
+        "item_code_confidence": 0.9454254508018494,
+        "item_description_confidence": 0.9629411764705882,
+        "unit_of_measurement_confidence": 0.9677684903144836,
+        "quantity_confidence": 0.9885508418083191,
+        "unit_price_confidence": 0.9090909090909091,
+        "total_price_before_vat_confidence": 0.9857142857142858,
+        "row_page_confidence": 0.9677684903144836
+      },
+      {
+        "row_id": "plafmbvd",
+        "bbox_left": 0.01795639162035058,
+        "bbox_top": 0.5196612220205686,
+        "bbox_width": 0.9486960239418555,
+        "bbox_height": 0.04234724742891712,
+        "page": 1,
+        "item_code_confidence": 0.9459469318389893,
+        "item_description_confidence": 0.9352941176470588,
+        "unit_of_measurement_confidence": 0.9677684903144836,
+        "quantity_confidence": 0.9885508418083191,
+        "unit_price_confidence": 0.9090909090909091,
+        "total_price_before_vat_confidence": 0.9857142857142858,
+        "row_page_confidence": 0.9454254508018494
+      },
+      {
+        "row_id": "zz4maa4d",
+        "bbox_left": 0.01795639162035058,
+        "bbox_top": 0.5952813067150635,
+        "bbox_width": 0.9486960239418555,
+        "bbox_height": 0.024198427102238355,
+        "page": 1,
+        "item_code_confidence": 0.98,
+        "item_description_confidence": 0.9210526315789473,
+        "unit_of_measurement_confidence": 0.9677684903144836,
+        "quantity_confidence": 0.9884117841720581,
+        "unit_price_confidence": 0.9890090227127075,
+        "total_price_before_vat_confidence": 0.9333333333333332,
+        "row_page_confidence": 0.9454254508018494
+      },
+      {
+        "row_id": "uugp3ypz",
+        "bbox_left": 0.01795639162035058,
+        "bbox_top": 0.6025408348457351,
+        "bbox_width": 0.9486960239418555,
+        "bbox_height": 0.0411373260738052,
+        "page": 1,
+        "item_code_confidence": 0.9460089206695557,
+        "item_description_confidence": 0.9420526315789474,
+        "unit_of_measurement_confidence": 0.9677684903144836,
+        "quantity_confidence": 0.9884117841720581,
+        "unit_price_confidence": 0.9890090227127075,
+        "total_price_before_vat_confidence": 0.9333333333333332,
+        "row_page_confidence": 0.9460089206695557
+      },
+      {
+        "row_id": "aehi2z0x",
+        "bbox_left": 0.01795639162035058,
+        "bbox_top": 0.6436781609195402,
+        "bbox_width": 0.9486960239418555,
+        "bbox_height": 0.0411373260738052,
+        "page": 1,
+        "item_code_confidence": 0.9484895467758179,
+        "item_description_confidence": 0.9333333333333333,
+        "unit_of_measurement_confidence": 0.9677684903144836,
+        "quantity_confidence": 0.9640015363693237,
+        "unit_price_confidence": 0.9888888888888889,
+        "total_price_before_vat_confidence": 0.9090909090909091,
+        "row_page_confidence": 0.9333333333333333
+      },
+      {
+        "row_id": "9ghv2rpr",
+        "bbox_left": 0.01795639162035058,
+        "bbox_top": 0.6842105263157895,
+        "bbox_width": 0.9486960239418555,
+        "bbox_height": 0.01693889897156685,
+        "page": 1,
+        "item_code_confidence": 0.9496197700500488,
+        "item_description_confidence": 0.9728571428571429,
+        "unit_of_measurement_confidence": 0.9677684903144836,
+        "quantity_confidence": 0.9885508418083191,
+        "unit_price_confidence": 0.9890090227127075,
+        "total_price_before_vat_confidence": 0.9333333333333332,
+        "row_page_confidence": 0.9333333333333332
+      },
+      {
+        "row_id": "v06rj4m8",
+        "bbox_left": 0.01795639162035058,
+        "bbox_top": 0.3569267997580157,
+        "bbox_width": 0.9491235570756734,
+        "bbox_height": 0.0411373260738052,
+        "page": 2,
+        "item_code_confidence": 0.975,
+        "item_description_confidence": 0.9333333333333333,
+        "unit_of_measurement_confidence": 0.9677684903144836,
+        "quantity_confidence": 0.9885508418083191,
+        "unit_price_confidence": 0.9890090227127075,
+        "total_price_before_vat_confidence": 0.9333333333333332,
+        "row_page_confidence": 0.96
+      },
+      {
+        "row_id": "szzpp25m",
+        "bbox_left": 0.01838392475416845,
+        "bbox_top": 0.397459165154265,
+        "bbox_width": 0.9482684908080377,
+        "bbox_height": 0.04295220810647308,
+        "page": 2,
+        "item_code_confidence": 0.9499287605285645,
+        "item_description_confidence": 0.9625,
+        "unit_of_measurement_confidence": 0.9679121971130371,
+        "quantity_confidence": 0.9861435890197754,
+        "unit_price_confidence": 0.9090909090909091,
+        "total_price_before_vat_confidence": 0.9857142857142872,
+        "row_page_confidence": 0.97
+      },
+      {
+        "row_id": "620aihep",
+        "bbox_left": 0.01838392475416845,
+        "bbox_top": 0.4301270417422868,
+        "bbox_width": 0.9478409576742197,
+        "bbox_height": 0.024803387779794312,
+        "page": 2,
+        "item_code_confidence": 0.942915141582489,
+        "item_description_confidence": 0.9166666666666666,
+        "unit_of_measurement_confidence": 0.9679121971130371,
+        "quantity_confidence": 0.9906934499740601,
+        "unit_price_confidence": 0.9847314953804016,
+        "total_price_before_vat_confidence": 0.9411764705882352,
+        "row_page_confidence": 0.94
+      },
+      {
+        "row_id": "vc2dru3z",
+        "bbox_left": 0.01795639162035058,
+        "bbox_top": 0.47126436781609193,
+        "bbox_width": 0.9491235570756734,
+        "bbox_height": 0.025408348457350273,
+        "page": 2,
+        "item_code_confidence": 0.9458285570144653,
+        "item_description_confidence": 0.95,
+        "unit_of_measurement_confidence": 0.9679121971130371,
+        "quantity_confidence": 0.989429235458374,
+        "unit_price_confidence": 0.9847314953804016,
+        "total_price_before_vat_confidence": 0.9333333333333332,
+        "row_page_confidence": 0.97
+      },
+      {
+        "row_id": "u90k2lg0",
+        "bbox_left": 0.01795639162035058,
+        "bbox_top": 0.47973381730187536,
+        "bbox_width": 0.8691748610517315,
+        "bbox_height": 0.05989110707803993,
+        "page": 2,
+        "item_code_confidence": 0.9429067373275757,
+        "item_description_confidence": 0.95,
+        "unit_of_measurement_confidence": 0.9679121971130371,
+        "quantity_confidence": 0.9886347651481628,
+        "unit_price_confidence": 0.9847314953804016,
+        "total_price_before_vat_confidence": 0.9333333333333332,
+        "row_page_confidence": 0.98
+      },
+      {
+        "row_id": "l9fsdy78",
+        "bbox_left": 0.01838392475416845,
+        "bbox_top": 0.5620084694494858,
+        "bbox_width": 0.9486960239418555,
+        "bbox_height": 0.017543859649122806,
+        "page": 2,
+        "item_code_confidence": 0.9479248523712158,
+        "item_description_confidence": 0.9421052631789474,
+        "unit_of_measurement_confidence": 0.9679121971130371,
+        "quantity_confidence": 0.9855802655220032,
+        "unit_price_confidence": 0.9847314953804016,
+        "total_price_before_vat_confidence": 0.9333333333333332,
+        "row_page_confidence": 0.97
+      },
+      {
+        "row_id": "z7q70omz",
+        "bbox_left": 0.01838392475416845,
+        "bbox_top": 0.603145795523291,
+        "bbox_width": 0.9486960239418555,
+        "bbox_height": 0.01693889897156685,
+        "page": 2,
+        "item_code_confidence": 0.945525050163269,
+        "item_description_confidence": 0.9121052631789474,
+        "unit_of_measurement_confidence": 0.9679121971130371,
+        "quantity_confidence": 0.9904741048812866,
+        "unit_price_confidence": 0.9847314953804016,
+        "total_price_before_vat_confidence": 0.9333333333333332,
+        "row_page_confidence": 0.98
+      },
+      {
+        "row_id": "peop6y1h",
+        "bbox_left": 0.01838392475416845,
+        "bbox_top": 0.6358136721113128,
+        "bbox_width": 0.8687473279179136,
+        "bbox_height": 0.025408348457350273,
+        "page": 2,
+        "item_code_confidence": 0.975,
+        "item_description_confidence": 0.9387096774195484,
+        "unit_of_measurement_confidence": 0.9679121971130371,
+        "quantity_confidence": 0.9885347485542297,
+        "unit_price_confidence": 0.9090909090909091,
+        "total_price_before_vat_confidence": 0.975,
+        "row_page_confidence": 0.94
+      },
+      {
+        "row_id": "16gubxte",
+        "bbox_left": 0.01838392475416845,
+        "bbox_top": 0.6854204476709014,
+        "bbox_width": 0.9482684908080377,
+        "bbox_height": 0.01693889897156685,
+        "page": 2,
+        "item_code_confidence": 0.9453810453414917,
+        "item_description_confidence": 0.9545454545454454,
+        "unit_of_measurement_confidence": 0.9679121971130371,
+        "quantity_confidence": 0.9901890158653259,
+        "unit_price_confidence": 0.9847314953804016,
+        "total_price_before_vat_confidence": 0.9333333333333332,
+        "row_page_confidence": 0.97
+      },
+      {
+        "row_id": "h12dov65",
+        "bbox_left": 0.01838392475416845,
+        "bbox_top": 0.34785238959467635,
+        "bbox_width": 0.8687473279179136,
+        "bbox_height": 0.025408348457350273,
+        "page": 3,
+        "item_code_confidence": 0.939970076084137,
+        "item_description_confidence": 0.9628571428714287,
+        "unit_of_measurement_confidence": 0.9679121971130371,
+        "quantity_confidence": 0.9883788824081421,
+        "unit_price_confidence": 0.9090909090909091,
+        "total_price_before_vat_confidence": 0.975,
+        "row_page_confidence": 0.943
+      },
+      {
+        "row_id": "jc6tmuct",
+        "bbox_left": 0.01795639162035058,
+        "bbox_top": 0.396854204476709,
+        "bbox_width": 0.9486960239418555,
+        "bbox_height": 0.018148820326678767,
+        "page": 3,
+        "item_code_confidence": 0.98,
+        "item_description_confidence": 0.9461538461538616,
+        "unit_of_measurement_confidence": 0.9679121971130371,
+        "quantity_confidence": 0.9885347485542297,
+        "unit_price_confidence": 0.9903306365013123,
+        "total_price_before_vat_confidence": 0.9333333333333332,
+        "row_page_confidence": 0.9654
+      },
+      {
+        "row_id": "42xurtaj",
+        "bbox_left": 0.01795639162035058,
+        "bbox_top": 0.4307320024198427,
+        "bbox_width": 0.9482684908080377,
+        "bbox_height": 0.024198427102238355,
+        "page": 3,
+        "item_code_confidence": 0.9505184888839722,
+        "item_description_confidence": 0.9387096774135484,
+        "unit_of_measurement_confidence": 0.9679121971130371,
+        "quantity_confidence": 0.9812557697296143,
+        "unit_price_confidence": 0.9090909090909091,
+        "total_price_before_vat_confidence": 0.9857142857128572,
+        "row_page_confidence": 0.97
+      },
+      {
+        "row_id": "jqmnrllu",
+        "bbox_left": 0.01795639162035058,
+        "bbox_top": 0.48033877797943136,
+        "bbox_width": 0.9491235570756734,
+        "bbox_height": 0.0411373260738052,
+        "page": 3,
+        "item_code_confidence": 0.941220760345459,
+        "item_description_confidence": 0.9357142857128571,
+        "unit_of_measurement_confidence": 0.9679121971130371,
+        "quantity_confidence": 0.9884117841720581,
+        "unit_price_confidence": 0.9897477030754089,
+        "total_price_before_vat_confidence": 0.9333333333333332,
+        "row_page_confidence": 0.9574
+      },
+      {
+        "row_id": "wpuusvyg",
+        "bbox_left": 0.01838392475416845,
+        "bbox_top": 0.5202661826981246,
+        "bbox_width": 0.9478409576742197,
+        "bbox_height": 0.018148820326678767,
+        "page": 3,
+        "item_code_confidence": 0.9477735161781311,
+        "item_description_confidence": 0.9615384615346154,
+        "unit_of_measurement_confidence": 0.9679121971130371,
+        "quantity_confidence": 0.9816662073135376,
+        "unit_price_confidence": 0.9908726811408997,
+        "total_price_before_vat_confidence": 0.9333333333333332,
+        "row_page_confidence": 0.9545
+      },
+      {
+        "row_id": "k04utp9n",
+        "bbox_left": 0.01838392475416845,
+        "bbox_top": 0.5614035087719298,
+        "bbox_width": 0.9474134245404019,
+        "bbox_height": 0.01693889897156685,
+        "page": 3,
+        "item_code_confidence": 0.9417795538902283,
+        "item_description_confidence": 0.963157897368421,
+        "unit_of_measurement_confidence": 0.9679121971130371,
+        "quantity_confidence": 0.9841436147689819,
+        "unit_price_confidence": 0.9897477030754089,
+        "total_price_before_vat_confidence": 0.9333333333333332,
+        "row_page_confidence": 0.957854
+      },
+      {
+        "row_id": "nivfnegi",
+        "bbox_left": 0.01795639162035058,
+        "bbox_top": 0.6025408348457351,
+        "bbox_width": 0.9486960239418555,
+        "bbox_height": 0.0411373260738052,
+        "page": 3,
+        "item_code_confidence": 0.9435698986053467,
+        "item_description_confidence": 0.9545454544545454,
+        "unit_of_measurement_confidence": 0.9679121971130371,
+        "quantity_confidence": 0.9900866746902466,
+        "unit_price_confidence": 0.9847314953804016,
+        "total_price_before_vat_confidence": 0.9857142857142858,
+        "row_page_confidence": 0.957685
+      },
+      {
+        "row_id": "2mke9zid",
+        "bbox_left": 0.01838392475416845,
+        "bbox_top": 0.6436781609195402,
+        "bbox_width": 0.9478409576742197,
+        "bbox_height": 0.017543859649122806,
+        "page": 3,
+        "item_code_confidence": 0.9444920420646667,
+        "item_description_confidence": 0.9388888888888889,
+        "unit_of_measurement_confidence": 0.9679121971130371,
+        "quantity_confidence": 0.9884117841720581,
+        "unit_price_confidence": 0.9807358980178833,
+        "total_price_before_vat_confidence": 0.9333333333333332,
+        "row_page_confidence": 0.9578858
+      },
+      {
+        "row_id": "gbugtmur",
+        "bbox_left": 0.01838392475416845,
+        "bbox_top": 0.676950998185118,
+        "bbox_width": 0.9482684908080377,
+        "bbox_height": 0.024803387779794312,
+        "page": 3,
+        "item_code_confidence": 0.942539632320404,
+        "item_description_confidence": 0.9347826086565217,
+        "unit_of_measurement_confidence": 0.9679121971130371,
+        "quantity_confidence": 0.989429235458374,
+        "unit_price_confidence": 0.9807358980178833,
+        "total_price_before_vat_confidence": 0.9333333333333332,
+        "row_page_confidence": 0.95785
+      },
+      {
+        "row_id": "gocr614q",
+        "bbox_left": 0.01795639162035058,
+        "bbox_top": 0.3490623109497883,
+        "bbox_width": 0.9482684908080377,
+        "bbox_height": 0.023593466424682397,
+        "page": 4,
+        "item_code_confidence": 0.9401129484176636,
+        "item_description_confidence": 0.9461538461534615,
+        "unit_of_measurement_confidence": 0.9679121971130371,
+        "quantity_confidence": 0.989429235458374,
+        "unit_price_confidence": 0.9903306365013123,
+        "total_price_before_vat_confidence": 0.9333333333333332,
+        "row_page_confidence": 0.97568754
+      },
+      {
+        "row_id": "qupdlv37",
+        "bbox_left": 0.01795639162035058,
+        "bbox_top": 0.396854204476709,
+        "bbox_width": 0.9482684908080377,
+        "bbox_height": 0.018148820326678767,
+        "page": 4,
+        "item_code_confidence": 0.9497905373573303,
+        "item_description_confidence": 0.9476190476104761,
+        "unit_of_measurement_confidence": 0.9679121971130371,
+        "quantity_confidence": 0.9907289743423462,
+        "unit_price_confidence": 0.9875476956367493,
+        "total_price_before_vat_confidence": 0.9333333333333332,
+        "row_page_confidence": 0.967585757
+      },
+      {
+        "row_id": "zbo9a59l",
+        "bbox_left": 0.01795639162035058,
+        "bbox_top": 0.43859649122807015,
+        "bbox_width": 0.9486960239418555,
+        "bbox_height": 0.01693889897156685,
+        "page": 4,
+        "item_code_confidence": 0.9502606391906738,
+        "item_description_confidence": 0.9666666666666667,
+        "unit_of_measurement_confidence": 0.9679121971130371,
+        "quantity_confidence": 0.9896970391273499,
+        "unit_price_confidence": 0.9793394804000854,
+        "total_price_before_vat_confidence": 0.9333333333333332,
+        "row_page_confidence": 0.95755
+      },
+      {
+        "row_id": "qr0u9x05",
+        "bbox_left": 0.01838392475416845,
+        "bbox_top": 0.4791288566243194,
+        "bbox_width": 0.9482684908080377,
+        "bbox_height": 0.017543859649122806,
+        "page": 4,
+        "item_code_confidence": 0.9445425271987915,
+        "item_description_confidence": 0.9434782606956521,
+        "unit_of_measurement_confidence": 0.9679121971130371,
+        "quantity_confidence": 0.9907289743423462,
+        "unit_price_confidence": 0.9883207082748413,
+        "total_price_before_vat_confidence": 0.9333333333333332,
+        "row_page_confidence": 0.95785
+      },
+      {
+        "row_id": "5zl77wms",
+        "bbox_left": 0.01838392475416845,
+        "bbox_top": 0.5214761040532365,
+        "bbox_width": 0.9486960239418555,
+        "bbox_height": 0.01572897761645493,
+        "page": 4,
+        "item_code_confidence": 0.9832582473754883,
+        "item_description_confidence": 0.9444444444444444,
+        "unit_of_measurement_confidence": 0.9679121971130371,
+        "quantity_confidence": 0.9884103536605835,
+        "unit_price_confidence": 0.9903306365013123,
+        "total_price_before_vat_confidence": 0.9333333333333332,
+        "row_page_confidence": 0.976535
+      },
+      {
+        "row_id": "hgi2oika",
+        "bbox_left": 0.01838392475416845,
+        "bbox_top": 0.5620084694494858,
+        "bbox_width": 0.8691748610517315,
+        "bbox_height": 0.0411373260738052,
+        "page": 4,
+        "item_code_confidence": 0.9453929662704468,
+        "item_description_confidence": 0.9533333333333333,
+        "unit_of_measurement_confidence": 0.9677684903144836,
+        "quantity_confidence": 0.9884117841720581,
+        "unit_price_confidence": 0.9888888888888889,
+        "total_price_before_vat_confidence": 0.9453562,
+        "row_page_confidence": 0.947653
+      },
+      {
+        "row_id": "psza3bqu",
+        "bbox_left": 0.01838392475416845,
+        "bbox_top": 0.6025408348457351,
+        "bbox_width": 0.9478409576742197,
+        "bbox_height": 0.01693889897156685,
+        "page": 4,
+        "item_code_confidence": 0.9397064447402954,
+        "item_description_confidence": 0.9461538465384615,
+        "unit_of_measurement_confidence": 0.9677684903144836,
+        "quantity_confidence": 0.9885508418083191,
+        "unit_price_confidence": 0.987592339515686,
+        "total_price_before_vat_confidence": 0.9640735983848572,
+        "row_page_confidence": 0.9546734
+      },
+      {
+        "row_id": "1oi9lfyo",
+        "bbox_left": 0.01838392475416845,
+        "bbox_top": 0.603750756200847,
+        "bbox_width": 0.8687473279179136,
+        "bbox_height": 0.01572897761645493,
+        "page": 4,
+        "item_code_confidence": 0.9493554830551147,
+        "item_description_confidence": 0.9461538415384615,
+        "unit_of_measurement_confidence": 0.9677684903144836,
+        "quantity_confidence": 0.9871575832366943,
+        "unit_price_confidence": 0.987592339515686,
+        "total_price_before_vat_confidence": 0.9333333333333332,
+        "row_page_confidence": 0.956744
+      },
+      {
+        "row_id": "z60l0ysj",
+        "bbox_left": 0.01838392475416845,
+        "bbox_top": 0.6842105263157895,
+        "bbox_width": 0.9482684908080377,
+        "bbox_height": 0.017543859649122806,
+        "page": 4,
+        "item_code_confidence": 0.975,
+        "item_description_confidence": 0.9363636363633636,
+        "unit_of_measurement_confidence": 0.9677684903144836,
+        "quantity_confidence": 0.9871575832366943,
+        "unit_price_confidence": 0.9888888888888889,
+        "total_price_before_vat_confidence": 0.9857142857142858,
+        "row_page_confidence": 0.9674674
+      },
+      {
+        "row_id": "j9krbccz",
+        "bbox_left": 0.01795639162035058,
+        "bbox_top": 0.3490623109497883,
+        "bbox_width": 0.9486960239418555,
+        "bbox_height": 0.023593466424682397,
+        "page": 5,
+        "item_code_confidence": 0.975,
+        "item_description_confidence": 0.94,
+        "unit_of_measurement_confidence": 0.9679121971130371,
+        "quantity_confidence": 0.9900866746902466,
+        "unit_price_confidence": 0.9842435121536255,
+        "total_price_before_vat_confidence": 0.9857142857142858,
+        "row_page_confidence": 0.956784
+      },
+      {
+        "row_id": "s5kjplxx",
+        "bbox_left": 0.01838392475416845,
+        "bbox_top": 0.38898971566848156,
+        "bbox_width": 0.9482684908080377,
+        "bbox_height": 0.024803387779794312,
+        "page": 5,
+        "item_code_confidence": 0.9401997327804565,
+        "item_description_confidence": 0.9533333333333333,
+        "unit_of_measurement_confidence": 0.9677684903144836,
+        "quantity_confidence": 0.9885508418083191,
+        "unit_price_confidence": 0.9915749430656433,
+        "total_price_before_vat_confidence": 0.9870249629020691,
+        "row_page_confidence": 0.96754
+      }
+    ]
+  }
+}
