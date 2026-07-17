@@ -157,7 +157,16 @@ def _fixture_candidates() -> list[dict]:
                 # metadata_validation fixtures carry no vendor field — the PO
                 # belongs to the scenario's vendor, so borrow it from extraction.
                 cand["vendor_name"] = bundle_vendor
-            candidates.setdefault(cand["po_number"], cand)
+            existing = candidates.get(cand["po_number"])
+            if existing is None:
+                candidates[cand["po_number"]] = cand
+            else:
+                # Same PO seen again (fixtures share POs) — fill any gaps so a
+                # richer source (e.g. a PO sidecar with order_date/status) can
+                # complete a candidate first seeded from metadata_validation.
+                for k, v in cand.items():
+                    if existing.get(k) in (None, "") and v not in (None, ""):
+                        existing[k] = v
     return list(candidates.values())
 
 
