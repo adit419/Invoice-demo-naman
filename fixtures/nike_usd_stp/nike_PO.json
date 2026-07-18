@@ -1,8 +1,8 @@
 {
   "_unused_po_id": "3225354000000212679",
-  "po_number": "PO-00064",
+  "po_number": "PO-00058",
   "_unused_vendor_id": "3225354000000212641",
-  "vendor_name": "NIKE SALES (MALAYSIA) (USD)",
+  "vendor_name": "NIKE SALES (MALAYSIA)",
   "order_date": "2026-06-30T00:00:00",
   "status": "received",
   "items": [
@@ -1027,56 +1027,56 @@
       "description": "FZ1689-004 - Bella 7 Shoes-8",
       "quantity": 4,
       "discount": 0,
-      "unit_price": 220.86,
-      "total_amount": 883.44
+      "unit_price": 220.8,
+      "total_amount": 883.2
     },
     {
       "item_id": "3225354000000211555",
       "description": "FZ1689-004 - Bella 7 Shoes-6.5",
       "quantity": 4,
       "discount": 0,
-      "unit_price": 220.86,
-      "total_amount": 883.44
+      "unit_price": 220.8,
+      "total_amount": 883.2
     },
     {
       "item_id": "3225354000000211557",
       "description": "FZ1689-004 - Bella 7 Shoes-9",
       "quantity": 3,
       "discount": 0,
-      "unit_price": 220.86,
-      "total_amount": 662.58
+      "unit_price": 220.8,
+      "total_amount": 662.4
     },
     {
       "item_id": "3225354000000211559",
       "description": "FZ1689-004 - Bella 7 Shoes-8.5",
       "quantity": 3,
       "discount": 0,
-      "unit_price": 220.86,
-      "total_amount": 662.58
+      "unit_price": 220.8,
+      "total_amount": 662.4
     },
     {
       "item_id": "3225354000000211561",
       "description": "FZ1689-004 - Bella 7 Shoes-6",
       "quantity": 2,
       "discount": 0,
-      "unit_price": 220.86,
-      "total_amount": 441.72
+      "unit_price": 220.8,
+      "total_amount": 441.6
     },
     {
       "item_id": "3225354000000211563",
       "description": "FZ1689-004 - Bella 7 Shoes-7.5",
       "quantity": 4,
       "discount": 0,
-      "unit_price": 220.86,
-      "total_amount": 883.44
+      "unit_price": 220.8,
+      "total_amount": 883.2
     },
     {
       "item_id": "3225354000000211565",
       "description": "FZ1689-004 - Bella 7 Shoes-7",
       "quantity": 4,
       "discount": 0,
-      "unit_price": 220.86,
-      "total_amount": 883.44
+      "unit_price": 220.8,
+      "total_amount": 883.2
     },
     {
       "item_id": "3225354000000211643",
@@ -1680,9 +1680,9 @@
     }
   ],
   "_unused_sub_total": 155091.24,
-  "total_amount": 155091.24,
+  "total_amount": 155089.8,
   "_unused_tax_total": 0,
   "total_quantity": 808,
   "discount_amount": 0,
-  "currency": "USD"
+  "currency": "INR"
 }
