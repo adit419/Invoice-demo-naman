@@ -174,6 +174,45 @@ async def get_tax_exemptions(client: ZohoApiClient, org_id: str) -> list[dict]:
         return []
 
 
+# Zoho GST treatments that identify a *registered* vendor. Only these may carry a
+# tax_id or tax_exemption_id on bill line items — Zoho rejects both for
+# unregistered vendors with error 71510 ("Tax Exemption should not be applied for
+# unregistered vendors transactions"). An empty/absent treatment (the default for
+# vendors this service auto-creates) means unregistered.
+_REGISTERED_GST_TREATMENTS = frozenset({
+    "business_gst",
+    "business_sez",
+    "overseas",
+    "sez",
+    "sez_developer",
+    "deemed_export",
+    "tax_deductor",
+})
+
+
+async def get_vendor_tax_profile(client: ZohoApiClient, org_id: str, vendor_id: str) -> dict:
+    """Return {gst_treatment, currency_code} for a vendor contact.
+
+    Used to decide whether tax fields may be sent on line items. On any lookup
+    failure we report an empty treatment, which callers read as "unregistered" —
+    the safe default, since omitting tax fields posts successfully for both
+    registered and unregistered vendors.
+    """
+    try:
+        body = await client.get(f"/contacts/{vendor_id}", params={"organization_id": org_id})
+        contact = body.get("contact", {}) or {}
+        return {
+            "gst_treatment": (contact.get("gst_treatment") or "").strip(),
+            "currency_code": (contact.get("currency_code") or "").upper(),
+        }
+    except Exception as exc:
+        logger.warning(
+            "Vendor %s tax profile lookup failed (%s); treating as unregistered.",
+            vendor_id, exc,
+        )
+        return {"gst_treatment": "", "currency_code": ""}
+
+
 def _build_account_maps(accounts: list[dict]) -> tuple[dict, dict]:
     """Returns (by_code, by_name) lookup dicts mapping to account_id."""
     by_code: dict[str, str] = {}
@@ -302,10 +341,38 @@ async def _post_bill_live(
 
         is_foreign = bool(currency_code and currency_code.upper() != "INR")
 
+        # Zoho refuses tax_id / tax_exemption_id on line items when the vendor
+        # contact is unregistered (error 71510), which is the case for every
+        # vendor this service auto-creates. Resolve the vendor's real GST
+        # treatment and skip all tax fields unless it is registered.
+        vendor_profile = await get_vendor_tax_profile(client, org_id, vendor_id)
+        vendor_gst_treatment = vendor_profile["gst_treatment"]
+        vendor_is_registered = vendor_gst_treatment in _REGISTERED_GST_TREATMENTS
+        if not vendor_is_registered:
+            logger.info(
+                "[zoho_bill] vendor %s is unregistered (gst_treatment=%r) — "
+                "omitting tax_id/tax_exemption_id from line items.",
+                vendor_id, vendor_gst_treatment,
+            )
+
+        # Zoho books a bill in the *vendor contact's* currency and silently ignores
+        # a mismatched currency_code, so warn loudly: the amounts are correct in
+        # magnitude but denominated in the vendor's currency, not the invoice's.
+        vendor_currency = vendor_profile["currency_code"]
+        if currency_code and vendor_currency and vendor_currency != currency_code.upper():
+            logger.warning(
+                "[zoho_bill] currency mismatch — invoice is %s but vendor %s is %s; "
+                "Zoho will book this bill in %s WITHOUT FX conversion.",
+                currency_code.upper(), vendor_id, vendor_currency, vendor_currency,
+            )
+
         default_tax_id: str | None = None
         default_exemption_id: str | None = None
 
-        if is_foreign:
+        if not vendor_is_registered:
+            # Unregistered vendor — no tax fields are permitted at all.
+            pass
+        elif is_foreign:
             # Foreign vendor bills must use tax exemption (applying domestic Indian
             # GST/IGST to overseas vendors causes Zoho error 3032/71512).
             exemptions = await get_tax_exemptions(client, org_id)
@@ -405,7 +472,9 @@ async def _post_bill_live(
             payload["reference_number"] = reference_number
         if currency_code:
             payload["currency_code"] = currency_code
-        if is_foreign and not default_tax_id:
+        # Reverse charge is only meaningful for a registered vendor; Zoho drops the
+        # flag for unregistered ones, so don't send noise it will ignore.
+        if is_foreign and vendor_is_registered and not default_tax_id:
             payload["is_reverse_charge_applicable"] = True
 
         logger.info("[zoho_bill] posting bill payload (excl line_items): %s", {k: v for k, v in payload.items() if k != "line_items"})
@@ -418,6 +487,17 @@ async def _post_bill_live(
 
         bill = body.get("bill", {})
         bill_id = str(bill.get("bill_id", ""))
+        posted_currency = (bill.get("currency_code") or "").upper()
+        logger.info(
+            "[zoho_bill] created bill %s (%s) — booked in %s, total %s",
+            bill.get("bill_number", ""), bill_id, posted_currency or "?", bill.get("total"),
+        )
+        if currency_code and posted_currency and posted_currency != currency_code.upper():
+            logger.warning(
+                "[zoho_bill] bill %s was booked in %s but the invoice is %s — "
+                "fix the vendor contact's currency in Zoho to post in %s.",
+                bill_id, posted_currency, currency_code.upper(), currency_code.upper(),
+            )
         return {
             "bill_id": bill_id,
             "bill_number": bill.get("bill_number", ""),
