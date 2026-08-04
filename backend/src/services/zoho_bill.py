@@ -44,11 +44,31 @@ def _demo_post_bill(vendor_name: str, bill_date: str, reference_number: str) -> 
 
 
 async def _get_org_id(client: ZohoApiClient) -> str:
+    """Resolve the Zoho Books organisation to post into.
+
+    Prefers the explicitly configured ZOHO_ORGANIZATION_ID. Falling back to
+    "first org in the list" is unsafe: /organizations is unordered, so adding an
+    organisation to the Zoho account silently redirects every posting to a
+    different set of books. That is exactly what happened on 2026-07-28, when two
+    new orgs appeared and postings moved to an unconfigured org whose vendors,
+    account codes and tax settings were all missing.
+    """
+    configured = (settings.zoho_organization_id or "").strip()
+    if configured:
+        return configured
+
     body = await client.get("/organizations")
     orgs = body.get("organizations", [])
     if not orgs:
         raise RuntimeError("No Zoho organisations found")
-    return str(orgs[0]["organization_id"])
+    org_id = str(orgs[0]["organization_id"])
+    if len(orgs) > 1:
+        logger.warning(
+            "ZOHO_ORGANIZATION_ID is not set and this token can see %d organisations; "
+            "falling back to %s (%r). Set ZOHO_ORGANIZATION_ID to pin the target org.",
+            len(orgs), org_id, orgs[0].get("name", ""),
+        )
+    return org_id
 
 
 async def _find_all_vendors_by_name(
@@ -83,6 +103,38 @@ async def _find_all_vendors_by_name(
     return matches
 
 
+async def _get_org_base_currency(client: ZohoApiClient, org_id: str) -> str:
+    """Return the organisation's base currency code (e.g. 'INR'), or '' if unknown."""
+    try:
+        body = await client.get(f"/organizations/{org_id}")
+        return (body.get("organization", {}).get("currency_code") or "").upper()
+    except Exception:
+        return ""
+
+
+async def _get_currency_id(client: ZohoApiClient, org_id: str, currency_code: str) -> str | None:
+    """Resolve a currency code to its Zoho currency_id.
+
+    Contact creation requires ``currency_id``; ``currency_code`` is read-only on
+    that endpoint and is silently ignored, which is how vendors ended up on the
+    org's base currency instead of the invoice currency.
+    """
+    if not currency_code:
+        return None
+    try:
+        body = await client.get("/settings/currencies", params={"organization_id": org_id})
+        for cur in body.get("currencies", []):
+            if (cur.get("currency_code") or "").upper() == currency_code.upper():
+                return str(cur["currency_id"])
+    except Exception as exc:
+        logger.warning("Currency lookup for %s failed: %s", currency_code, exc)
+    logger.warning(
+        "Currency %s is not enabled in Zoho org %s; new vendors will use the base currency.",
+        currency_code, org_id,
+    )
+    return None
+
+
 async def _get_or_create_vendor(
     client: ZohoApiClient, org_id: str, vendor_name: str, currency_code: str = ""
 ) -> str:
@@ -111,11 +163,33 @@ async def _get_or_create_vendor(
         )
         return matches[0]["contact_id"]
 
-    # No vendor found — create one with the right currency
-    logger.info("Vendor '%s' not found; creating with currency %s.", vendor_name, want_ccy)
+    # No vendor found — create one with the right currency and GST treatment.
     payload: dict = {"contact_name": vendor_name, "contact_type": "vendor"}
-    if want_ccy:
-        payload["currency_code"] = want_ccy
+
+    # currency_id, NOT currency_code: the latter is ignored on this endpoint.
+    currency_id = await _get_currency_id(client, org_id, want_ccy) if want_ccy else None
+    if currency_id:
+        payload["currency_id"] = currency_id
+
+    # A vendor created without a gst_treatment is "unregistered", which bars any
+    # tax_id / tax_exemption_id on its bills (Zoho error 71510). Bills in a
+    # currency other than the org's base currency are treated as overseas
+    # supplies — the correct GST treatment for imports, and what the manually
+    # configured foreign vendors in this org use.
+    #
+    # Caveat: currency is only a proxy for the supplier's country. A foreign
+    # supplier invoicing in the base currency is left unregistered, and a
+    # domestic supplier invoicing in foreign currency would be mislabelled here;
+    # both need the treatment set by hand in Zoho.
+    base_ccy = await _get_org_base_currency(client, org_id)
+    if want_ccy and base_ccy and want_ccy != base_ccy:
+        payload["gst_treatment"] = "overseas"
+
+    logger.info(
+        "Vendor '%s' not found; creating with currency=%s (currency_id=%s) gst_treatment=%s.",
+        vendor_name, want_ccy or "(org default)", currency_id,
+        payload.get("gst_treatment", "(unset → unregistered)"),
+    )
     try:
         body = await client.post("/contacts", params={"organization_id": org_id}, json=payload)
         contact_id = str(body.get("contact", {}).get("contact_id", ""))

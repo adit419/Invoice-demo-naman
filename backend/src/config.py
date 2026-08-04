@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     zoho_client_id: str = ""
     zoho_client_secret: str = ""
     zoho_refresh_token: str = ""
+    # Target Zoho Books organisation. Leave blank only for single-org accounts —
+    # /organizations is unordered, so an unpinned org can silently change.
+    zoho_organization_id: str = ""
 
     # Anthropic / Claude
     anthropic_api_key: str = ""
