@@ -97,7 +97,7 @@ async def seed_demo(current_user: CurrentUser):
             "document_id": doc_result.inserted_id,
             "file_name": f"{key}.pdf",
             "content_hash": key,
-            "storage_path": f"fixtures/{key}/invoice.pdf",
+            "storage_path": f"fixtures/p2p_invoices/{key}/invoice.pdf",
             "created_at": now,
         })
 

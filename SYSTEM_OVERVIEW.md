@@ -148,21 +148,27 @@ All routes are prefixed with `/api/v1`.
 
 ```
 fixtures/
-├── nike/
-│   ├── extraction.json         # Simulated OCR output
-│   ├── vendor_validation.json  # (deprecated stage data)
-│   ├── metadata_validation.json # PO / GRN field comparisons
-│   ├── fp_extraction.json      # Faktur Pajak data (IDR only)
-│   ├── line_item.json          # GRN candidate matches per line item
-│   ├── bill_posting.json       # GL account + tax code mappings
-│   ├── erp_result.json         # Mock Zoho API response
-│   ├── nike_PO.json            # Sidecar: PO details
-│   └── nike_grn.json           # Sidecar: GRN receipts
-├── nike_usd/
-├── CATERSPOT/
-├── PT_NAU_CORP/
-└── ... (8 scenarios total)
+├── loader.py                       # FixtureLoader — scans p2p_invoices/
+└── p2p_invoices/
+    ├── nike/
+    │   ├── extraction.json         # Simulated OCR output
+    │   ├── vendor_validation.json  # (deprecated stage data)
+    │   ├── metadata_validation.json # PO / GRN field comparisons
+    │   ├── fp_extraction.json      # Faktur Pajak data (IDR only)
+    │   ├── line_item.json          # GRN candidate matches per line item
+    │   ├── bill_posting.json       # GL account + tax code mappings
+    │   ├── erp_result.json         # Mock Zoho API response
+    │   ├── nike_PO.json            # Sidecar: PO details
+    │   └── nike_grn.json           # Sidecar: GRN receipts
+    ├── nike_usd/
+    ├── CATERSPOT/
+    ├── PT_NAU_CORP/
+    └── ... (13 scenarios total)
 ```
+
+Scenario folders live under `fixtures/p2p_invoices/`. The loader takes either the
+fixtures root or that subfolder, so `FIXTURES_DIR` and the Docker mount keep
+pointing at `/fixtures`.
 
 ### Fixture Resolution
 

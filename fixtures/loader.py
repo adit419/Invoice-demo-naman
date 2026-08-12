@@ -1,14 +1,17 @@
 """
 FixtureLoader — auto-discovers fixture scenario folders.
 
+Scenario bundles live in fixtures/p2p_invoices/{key}/ (see BUNDLES_SUBDIR); the
+loader accepts either the fixtures root or that subfolder as its directory.
+
 Usage:
-    loader = FixtureLoader("/fixtures")
+    loader = FixtureLoader("/fixtures")   # or "/fixtures/p2p_invoices"
     bundle = loader.resolve("nike.pdf")
     data   = bundle.extraction          # dict
     is_ph  = loader.is_placeholder(bundle, "vendor_validation")
 
 Adding a new scenario:
-    1. Create fixtures/{new_key}/ with the 6 required JSON files.
+    1. Create fixtures/p2p_invoices/{new_key}/ with the 6 required JSON files.
     2. Restart the backend — discover() picks it up automatically.
     Zero code changes.
 """
@@ -21,6 +24,9 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+# Scenario bundles live under this subdirectory of the fixtures root.
+BUNDLES_SUBDIR = "p2p_invoices"
 
 STAGE_FILES = {
     "extraction": "extraction.json",
@@ -83,7 +89,13 @@ class FixtureLoader:
             fixtures_dir = os.environ.get("FIXTURES_DIR", "/fixtures")
             if not Path(fixtures_dir).exists():
                 fixtures_dir = Path(__file__).parent
-        self._root = Path(fixtures_dir)
+        root = Path(fixtures_dir)
+        # Scenario bundles live in the BUNDLES_SUBDIR subfolder of the fixtures
+        # root. Accept either that subfolder directly or the root above it, so
+        # FIXTURES_DIR / the Docker mount can keep pointing at /fixtures.
+        if root.name != BUNDLES_SUBDIR and (root / BUNDLES_SUBDIR).is_dir():
+            root = root / BUNDLES_SUBDIR
+        self._root = root
         self._bundles: dict[str, FixtureBundle] | None = None
 
     def discover(self) -> dict[str, FixtureBundle]:
