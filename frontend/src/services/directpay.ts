@@ -158,6 +158,7 @@ export interface DpBillPostingErp {
 export interface DpBillPostingData {
   id: string;
   status: "bill_posting" | "posted";
+  contract_id?: string | null;
   vendor_name?: string | null;
   invoice_number?: string | null;
   invoice_date?: string | null;

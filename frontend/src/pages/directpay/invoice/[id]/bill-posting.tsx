@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/router";
-import dynamic from "next/dynamic";
 import {
   CalendarOutlined,
   CheckCircleOutlined,
@@ -10,26 +9,17 @@ import {
   TagOutlined,
   UserOutlined,
 } from "@ant-design/icons";
-import { Alert, Button as AntButton, Modal, Space } from "antd";
+import { Alert, Button as AntButton, Space } from "antd";
 import { withAuthGuard } from "@/components/AuthGuard";
 import { ComponentHeaderAntd } from "@/components/matching";
-import { SourceViewerToolbar, ZOOM_MIN, ZOOM_MAX, ZOOM_STEP } from "@/components/SourceViewerToolbar";
 import { Loader, useToast } from "@/components/ui";
 import { RejectModal } from "@/components/RejectModal";
 import { DpBillPostingMetadataGrid } from "@/components/directpay/DpBillPostingMetadataGrid";
+import { DocumentPreviewModal } from "@/components/directpay/DocumentPreviewModal";
 import { ApiError } from "@/services/api";
 import { directpayService, DpBillPostingData, DpBillPostingLineItem } from "@/services/directpay";
 import { BillPostingTable, VAT_OPTIONS_FALLBACK } from "@/components/BillPosting";
 import type { BillLineItem, LineItemEdit } from "@/components/BillPosting";
-
-const PdfViewer = dynamic(() => import("@/components/PdfViewer").then((m) => m.PdfViewer), {
-  ssr: false,
-  loading: () => (
-    <div className="flex h-full items-center justify-center text-gray-400">
-      <Loader size="large" />
-    </div>
-  ),
-});
 
 // Same page/layout as Invoice Processing's own bill-posting.tsx — unified
 // card with Metadata grid stacked above the Line Items table (BillPostingTable
@@ -64,12 +54,9 @@ function InvoiceBillPostingPage() {
   const [loading, setLoading] = useState(true);
   const [posting, setPosting] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
-  const [pdfOpen, setPdfOpen] = useState(false);
-  const [pdfPage, setPdfPage] = useState(1);
-  const [numPages, setNumPages] = useState(1);
+  const [invoicePdfOpen, setInvoicePdfOpen] = useState(false);
+  const [contractPdfOpen, setContractPdfOpen] = useState(false);
   const [pdfToken, setPdfToken] = useState<string | null>(null);
-  const [pdfScale, setPdfScale] = useState(0.8);
-  const [pdfRotate, setPdfRotate] = useState(0);
 
   // Metadata edits (Reference, Text, Ref Keys, Doc Header...) — client-side
   // only for now, same mock-data caveat as DpBillPostingMetadataGrid itself.
@@ -186,9 +173,15 @@ function InvoiceBillPostingPage() {
   const metaItems = [
     { icon: <TagOutlined />, text: "Manual Upload" },
     data.invoice_number
-      ? { icon: <FileTextOutlined />, text: data.invoice_number, onClick: () => { setPdfPage(1); setPdfOpen(true); } }
+      ? { icon: <FileTextOutlined />, text: data.invoice_number, onClick: () => setInvoicePdfOpen(true) }
       : null,
-    data.vendor_name ? { icon: <UserOutlined />, text: data.vendor_name } : null,
+    data.vendor_name
+      ? {
+          icon: <UserOutlined />,
+          text: data.vendor_name,
+          onClick: data.contract_id ? () => setContractPdfOpen(true) : undefined,
+        }
+      : null,
     data.invoice_date ? { icon: <CalendarOutlined />, text: data.invoice_date } : null,
   ].filter(Boolean) as { icon: React.ReactNode; text: string; onClick?: () => void }[];
 
@@ -311,45 +304,24 @@ function InvoiceBillPostingPage() {
 
       <RejectModal open={rejectOpen} onClose={() => setRejectOpen(false)} onConfirm={handleReject} stage="bill_posting" />
 
-      <Modal
-        open={pdfOpen}
-        onCancel={() => setPdfOpen(false)}
-        title={data.invoice_number ? `Invoice ${data.invoice_number}` : "Invoice Preview"}
-        width="80vw"
-        style={{ top: 24 }}
-        styles={{ body: { display: "flex", flexDirection: "column", height: "82vh", padding: 0, overflow: "hidden" } }}
-        footer={null}
-        destroyOnHidden
-      >
-        {pdfOpen && id && (
-          <>
-            <div className="flex-1 overflow-auto py-4 px-5" style={{ background: "#f8fafc" }}>
-              <PdfViewer
-                pdfUrl={directpayService.invoicePdfUrl(id)}
-                authToken={pdfToken}
-                page={pdfPage}
-                scale={pdfScale}
-                rotate={pdfRotate}
-                onNumPages={setNumPages}
-                activeBbox={null}
-              />
-            </div>
-            <SourceViewerToolbar
-              scale={pdfScale}
-              onZoomOut={() => setPdfScale((s) => Math.max(ZOOM_MIN, parseFloat((s - ZOOM_STEP).toFixed(1))))}
-              onZoomIn={() => setPdfScale((s) => Math.min(ZOOM_MAX, parseFloat((s + ZOOM_STEP).toFixed(1))))}
-              rotate={pdfRotate}
-              onRotateLeft={() => setPdfRotate((r) => (r - 90 + 360) % 360)}
-              onRotateRight={() => setPdfRotate((r) => (r + 90) % 360)}
-              currentPage={pdfPage}
-              totalPages={numPages}
-              onPrev={() => setPdfPage((p) => Math.max(1, p - 1))}
-              onNext={() => setPdfPage((p) => Math.min(numPages, p + 1))}
-              label={data.invoice_number ?? "Invoice Preview"}
-            />
-          </>
-        )}
-      </Modal>
+      {id && (
+        <DocumentPreviewModal
+          open={invoicePdfOpen}
+          onClose={() => setInvoicePdfOpen(false)}
+          title={data.invoice_number ? `Invoice ${data.invoice_number}` : "Invoice Preview"}
+          pdfUrl={directpayService.invoicePdfUrl(id)}
+          authToken={pdfToken}
+        />
+      )}
+      {data.contract_id && (
+        <DocumentPreviewModal
+          open={contractPdfOpen}
+          onClose={() => setContractPdfOpen(false)}
+          title={data.vendor_name ? `Contract — ${data.vendor_name}` : "Contract Preview"}
+          pdfUrl={directpayService.contractPdfUrl(data.contract_id)}
+          authToken={pdfToken}
+        />
+      )}
     </div>
   );
 }

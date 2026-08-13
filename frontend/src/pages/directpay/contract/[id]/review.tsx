@@ -3,7 +3,6 @@ import { useRouter } from "next/router";
 import dynamic from "next/dynamic";
 import {
   CalendarOutlined,
-  CheckCircleOutlined,
   TagOutlined,
   UserOutlined,
 } from "@ant-design/icons";
@@ -117,15 +116,11 @@ function ContractReviewPage() {
     fields.actual_start ? { icon: <CalendarOutlined />, text: fields.actual_start } : null,
   ].filter(Boolean) as { icon: React.ReactNode; text: string }[];
 
-  const actionButtons = isSaved ? (
-    <span
-      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium"
-      style={{ background: "#ecfdf5", color: "#059669", border: "1px solid #a7f3d0" }}
-    >
-      <CheckCircleOutlined />
-      Saved
-    </span>
-  ) : (
+  // Mirrors Invoice Extraction's own pattern exactly: once actioned, a plain
+  // primary button (no colored pill) that moves forward — for a contract
+  // there's no further contract-specific stage, so "Next" just means back to
+  // the dashboard, same as handleApprove's existing isSaved branch already does.
+  const actionButtons = (
     <Space>
       <AntButton
         type="primary"
@@ -133,7 +128,7 @@ function ContractReviewPage() {
         loading={saving}
         disabled={saving}
       >
-        Approve &amp; Save
+        {isSaved ? "Next" : "Approve & Save"}
       </AntButton>
     </Space>
   );

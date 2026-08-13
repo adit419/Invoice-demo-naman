@@ -15,6 +15,7 @@ import {
 } from "@/services/directpay";
 import { isFindingResolved, MatchingTable } from "@/components/directpay/MatchingTable";
 import AiContractBanner from "@/components/directpay/AiContractBanner";
+import { DocumentPreviewModal } from "@/components/directpay/DocumentPreviewModal";
 
 function InvoiceMatchPage() {
   const router = useRouter();
@@ -28,6 +29,13 @@ function InvoiceMatchPage() {
   const [busy, setBusy] = useState(false);
   const [busyLabel, setBusyLabel] = useState("Saving…");
   const [rejectOpen, setRejectOpen] = useState(false);
+  const [invoicePdfOpen, setInvoicePdfOpen] = useState(false);
+  const [contractPdfOpen, setContractPdfOpen] = useState(false);
+  const [pdfToken, setPdfToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPdfToken(localStorage.getItem("access_token"));
+  }, []);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -143,10 +151,18 @@ function InvoiceMatchPage() {
 
   const metaItems = [
     { icon: <TagOutlined />, text: "Manual Upload" },
-    run.extracted.invoice_number ? { icon: <FileTextOutlined />, text: run.extracted.invoice_number } : null,
-    run.extracted.vendor_name ? { icon: <UserOutlined />, text: run.extracted.vendor_name } : null,
+    run.extracted.invoice_number
+      ? { icon: <FileTextOutlined />, text: run.extracted.invoice_number, onClick: () => setInvoicePdfOpen(true) }
+      : null,
+    run.extracted.vendor_name
+      ? {
+          icon: <UserOutlined />,
+          text: run.extracted.vendor_name,
+          onClick: run.contract_id ? () => setContractPdfOpen(true) : undefined,
+        }
+      : null,
     run.extracted.invoice_date ? { icon: <CalendarOutlined />, text: run.extracted.invoice_date } : null,
-  ].filter(Boolean) as { icon: React.ReactNode; text: string }[];
+  ].filter(Boolean) as { icon: React.ReactNode; text: string; onClick?: () => void }[];
 
   const findings = run.findings ?? [];
   // Every finding is acknowledgeable regardless of severity (mirrors P2P's
@@ -332,6 +348,23 @@ function InvoiceMatchPage() {
         onConfirm={handleReject}
         stage="matching"
       />
+
+      <DocumentPreviewModal
+        open={invoicePdfOpen}
+        onClose={() => setInvoicePdfOpen(false)}
+        title={run.extracted.invoice_number ? `Invoice ${run.extracted.invoice_number}` : "Invoice Preview"}
+        pdfUrl={directpayService.invoicePdfUrl(run.id)}
+        authToken={pdfToken}
+      />
+      {run.contract_id && (
+        <DocumentPreviewModal
+          open={contractPdfOpen}
+          onClose={() => setContractPdfOpen(false)}
+          title={run.extracted.vendor_name ? `Contract — ${run.extracted.vendor_name}` : "Contract Preview"}
+          pdfUrl={directpayService.contractPdfUrl(run.contract_id)}
+          authToken={pdfToken}
+        />
+      )}
     </div>
   );
 }
