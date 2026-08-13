@@ -10,6 +10,7 @@ import { ApiError } from "@/services";
 
 const ALL_MODULES = [
   { key: "dashboard",        label: "Dashboard" },
+  { key: "directPay",        label: "DirectPay" },
   { key: "reporting",        label: "Reporting" },
   { key: "arForecast",       label: "AR Forecast" },
   { key: "cashApplication",  label: "Cash Application" },

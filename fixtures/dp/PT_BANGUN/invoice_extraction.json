@@ -1,0 +1,26 @@
+{
+  "invoice_number": "RES-FAK/VII/2026/002",
+  "invoice_date": "2026-07-09",
+  "vendor_name": "PT.Bangun Era Sejahtera",
+  "customer_name": "BUMI BERKAH BOGA, PT",
+  "vendor_gstin": null,
+  "customer_gstin": null,
+  "billing_period_start": "2026-08-13",
+  "billing_period_end": "2031-08-29",
+  "payment_due_days": null,
+  "payment_due_date": null,
+  "subtotal": 675675676.0,
+  "gst_total": 74324324.0,
+  "tds_total": null,
+  "grand_total": 750000000.0,
+  "gst_rate": 0.11,
+  "currency": "IDR",
+  "line_items": [
+    {
+      "label": "SEWA BANGUNAN JATI SQUARE NO.13-14 PERIODE 13 AGUSTUS 2026 S.D 29 AGUSTUS 2031",
+      "charge_type": "rental_fee",
+      "quantity": 1.0,
+      "amount": 675675676.0
+    }
+  ]
+}

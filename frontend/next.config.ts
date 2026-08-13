@@ -35,6 +35,10 @@ const nextConfig: NextConfig = {
         source: "/claim-api/:path*",
         destination: `${backendUrl}/claim-api/:path*`,
       },
+      {
+        source: "/dp-api/:path*",
+        destination: `${backendUrl}/dp-api/:path*`,
+      },
     ];
   },
 };

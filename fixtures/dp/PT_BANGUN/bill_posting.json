@@ -1,0 +1,11 @@
+{
+  "line_items": [
+    {
+      "charge_type": "rental_fee",
+      "gl_account_code": "6100-RENT",
+      "vat_tax_code": "PPN11",
+      "wht_tax_code": ""
+    }
+  ],
+  "wht_applicable": false
+}

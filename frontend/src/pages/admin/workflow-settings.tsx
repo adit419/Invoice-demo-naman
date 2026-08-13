@@ -3,6 +3,7 @@ import { withAuthGuard } from "@/components/AuthGuard";
 import { Spinner } from "@/components/ui";
 import { useAuth } from "@/hooks/useAuth";
 import { ApiError, settingsService } from "@/services";
+import { directpayService } from "@/services/directpay";
 import { useToast } from "@/components/ui";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -576,6 +577,233 @@ function AckThresholdPanel({ isAdmin }: { isAdmin: boolean }) {
   );
 }
 
+// ── DirectPay Auto-Process (STP) panel ────────────────────────────────────────
+// Independent of Invoice Processing's own STP toggle above — its own setting,
+// its own learned-acknowledgement memory, applies to DirectPay invoices only.
+
+function DpStpPanel({ isAdmin }: { isAdmin: boolean }) {
+  const { toast } = useToast();
+  const [enabled, setEnabled] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    directpayService.getStp()
+      .then(d => setEnabled(d.stp_enabled))
+      .catch(() => { /* fall back to off */ })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const toggle = async () => {
+    if (!isAdmin || saving) return;
+    const next = !enabled;
+    setSaving(true);
+    setEnabled(next); // optimistic
+    try {
+      await directpayService.setStp(next);
+    } catch (err) {
+      setEnabled(!next);
+      toast(err instanceof ApiError ? err.message : "Failed to update Auto-Process", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ border: "1px solid #E6E6E6", borderRadius: 8, background: "#ffffff" }}>
+      <div className="flex items-center justify-between" style={{ padding: "16px 20px" }}>
+        <div className="flex items-start gap-3 min-w-0">
+          <div
+            style={{
+              width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+              background: enabled ? "#ECFDF5" : "#F5F5F5",
+              border: `1px solid ${enabled ? "#A7F3D0" : "#E6E6E6"}`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              color: enabled ? "#059669" : "#8D92A6", transition: "all 0.2s",
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M2 8l3 3 7-7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M14 8l-2 2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+            </svg>
+          </div>
+          <div className="min-w-0">
+            <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "#101828", fontFamily: "Inter, sans-serif" }}>
+              DirectPay Auto-Process (STP)
+            </h3>
+            <p style={{ color: "#717680", fontSize: 12, margin: "2px 0 0", maxWidth: 560, fontFamily: "Inter, sans-serif" }}>
+              When enabled, newly uploaded DirectPay invoices run end-to-end automatically — extraction →
+              AI contract match → accept — holding for human review only when the AI can&apos;t confidently
+              match a contract or the comparison has unresolved issues. Contracts always require a manual
+              Approve, Auto-Process or not.
+            </p>
+          </div>
+        </div>
+
+        {loading ? (
+          <div style={{ width: 36, height: 20, borderRadius: 10, background: "#F0F0F0" }} />
+        ) : (
+          <Toggle
+            on={enabled}
+            onClick={toggle}
+            disabled={!isAdmin || saving}
+            color="#059669"
+            title={!isAdmin ? "Viewers cannot edit settings" : enabled ? "Disable Auto-Process" : "Enable Auto-Process"}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── DirectPay Acknowledge Threshold panel ─────────────────────────────────────
+// Its own learned-acknowledgement memory, isolated from P2P's — see
+// backend/src/directpay/store.py's dp_field_acknowledgement_memory docstring.
+
+function DpAckThresholdPanel({ isAdmin }: { isAdmin: boolean }) {
+  const { toast } = useToast();
+  const [value, setValue] = useState<number>(3);
+  const [inputVal, setInputVal] = useState<string>("3");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+
+  useEffect(() => {
+    directpayService.getAckThreshold()
+      .then(d => {
+        setValue(d.ack_threshold);
+        setInputVal(String(d.ack_threshold));
+      })
+      .catch(() => { /* fall back to default 3 */ })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!isAdmin) return;
+    setInputVal(e.target.value);
+    const parsed = parseInt(e.target.value, 10);
+    if (!isNaN(parsed) && parsed >= 1) {
+      setDirty(parsed !== value);
+    }
+  };
+
+  const handleSave = async () => {
+    const parsed = parseInt(inputVal, 10);
+    if (isNaN(parsed) || parsed < 1) {
+      toast("Threshold must be a whole number ≥ 1", "error");
+      return;
+    }
+    setSaving(true);
+    try {
+      await directpayService.setAckThreshold(parsed);
+      setValue(parsed);
+      setDirty(false);
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : "Failed to update threshold", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDiscard = () => {
+    setInputVal(String(value));
+    setDirty(false);
+  };
+
+  const parsedInput = parseInt(inputVal, 10);
+  const inputValid = !isNaN(parsedInput) && parsedInput >= 1;
+
+  return (
+    <div style={{ border: "1px solid #E6E6E6", borderRadius: 8, background: "#ffffff" }}>
+      <div className="flex items-center justify-between" style={{ padding: "16px 20px" }}>
+        <div className="flex items-start gap-3 min-w-0">
+          <div
+            style={{
+              width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+              background: "#F0F4FF",
+              border: "1px solid #C7D7FD",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              color: "#3B5BDB",
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M8 2a6 6 0 100 12A6 6 0 008 2z" stroke="currentColor" strokeWidth="1.4" />
+              <path d="M5.5 8l1.8 1.8L10.5 6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+          <div className="min-w-0">
+            <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "#101828", fontFamily: "Inter, sans-serif" }}>
+              DirectPay Acknowledge Threshold
+            </h3>
+            <p style={{ color: "#717680", fontSize: 12, margin: "2px 0 0", maxWidth: 560, fontFamily: "Inter, sans-serif" }}>
+              Number of times a reviewer must manually acknowledge a mismatched invoice-vs-contract field
+              before DirectPay auto-approves it on future invoices with the same value pair (shown as
+              purple &ldquo;Auto-approved&rdquo; badge on the Matching page). Isolated from Invoice
+              Processing&apos;s own threshold above. Default is 3.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3" style={{ flexShrink: 0, marginLeft: 24 }}>
+          {loading ? (
+            <div style={{ width: 56, height: 32, borderRadius: 6, background: "#F0F0F0" }} />
+          ) : (
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={inputVal}
+              disabled={!isAdmin}
+              onChange={handleChange}
+              style={{
+                width: 56,
+                padding: "5px 8px",
+                borderRadius: 6,
+                border: `1px solid ${dirty && inputValid ? "#1876FF" : "#D5D5D5"}`,
+                background: !isAdmin ? "#F5F5F5" : "#ffffff",
+                color: !isAdmin ? "#8D92A6" : "#414651",
+                fontSize: 14,
+                fontWeight: 500,
+                textAlign: "center",
+                outline: "none",
+                fontFamily: "Inter, sans-serif",
+                cursor: !isAdmin ? "not-allowed" : "text",
+              }}
+            />
+          )}
+          {isAdmin && dirty && (
+            <>
+              <button
+                onClick={handleDiscard}
+                style={{
+                  height: 30, padding: "0 12px", fontSize: 13, fontWeight: 500,
+                  color: "#414651", background: "#ffffff", border: "1px solid #D5D5D5",
+                  borderRadius: 6, cursor: "pointer", fontFamily: "Inter, sans-serif",
+                }}
+              >
+                Discard
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving || !inputValid}
+                style={{
+                  height: 30, padding: "0 14px", fontSize: 13, fontWeight: 500,
+                  background: "#1876FF", color: "#fff", border: "none", borderRadius: 6,
+                  cursor: saving || !inputValid ? "not-allowed" : "pointer",
+                  fontFamily: "Inter, sans-serif",
+                  opacity: saving || !inputValid ? 0.6 : 1,
+                }}
+              >
+                {saving ? "Saving…" : "Save"}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 const SECTION_ORDER = [
@@ -890,6 +1118,16 @@ function WorkflowSettingsPage() {
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 <StpPanel isAdmin={isAdmin} />
                 <AckThresholdPanel isAdmin={isAdmin} />
+
+                <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "8px 0 -4px" }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: "#8D92A6", letterSpacing: "0.4px", textTransform: "uppercase", fontFamily: "Inter, sans-serif" }}>
+                    DirectPay
+                  </span>
+                  <div style={{ flex: 1, height: 1, background: "#EBEDF0" }} />
+                </div>
+                <DpStpPanel isAdmin={isAdmin} />
+                <DpAckThresholdPanel isAdmin={isAdmin} />
+
                 {settings && orderedSections.map(key => (
                   <SectionPanel
                     key={key}
