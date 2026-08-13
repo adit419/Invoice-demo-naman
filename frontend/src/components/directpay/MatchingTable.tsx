@@ -92,7 +92,8 @@ export function MatchingTable({
       {
         title: "Field",
         key: "field",
-        onHeaderCell: () => ({ style: { background: "#F4F4F4", borderRight: "1px solid #E5E7EB", minWidth: 260 } }),
+        width: 260,
+        onHeaderCell: () => ({ style: { background: "#F4F4F4", borderRight: "1px solid #E5E7EB" } }),
         onCell: (record) => ({
           style: {
             background: "#F4F4F4",
@@ -104,7 +105,6 @@ export function MatchingTable({
               ? "inset 2px 0 0 #D97706"
               : undefined,
             borderRight: "1px solid #E5E7EB",
-            minWidth: 260,
           },
         }),
         render: (_, f) => (
@@ -119,8 +119,7 @@ export function MatchingTable({
       {
         title: "Invoice",
         key: "invoice",
-        onHeaderCell: () => ({ style: { minWidth: 280 } }),
-        onCell: () => ({ style: { minWidth: 280 } }),
+        width: 280,
         render: (_, f) => {
           const acked = isAcked(f);
           const systemAcked = isSystemAcked(f);
@@ -190,8 +189,7 @@ export function MatchingTable({
       {
         title: "Contract",
         key: "contract",
-        onHeaderCell: () => ({ style: { minWidth: 220 } }),
-        onCell: () => ({ style: { minWidth: 220 } }),
+        width: 220,
         render: (_, f) => (
           <span style={{ color: f.expected ? "#414651" : "#9CA3AF", fontSize: 14, wordBreak: "break-word" }}>
             {f.expected ?? ""}
@@ -247,6 +245,7 @@ export function MatchingTable({
         rowClassName={(record) => getRowClassName(record)}
         bordered
         size="middle"
+        tableLayout="fixed"
         locale={{ emptyText: "No discrepancies found — invoice and contract fully match." }}
       />
     </>

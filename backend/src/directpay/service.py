@@ -476,6 +476,7 @@ def _bill_posting_out(doc: dict) -> dict:
     return {
         "id": str(doc["_id"]),
         "status": doc.get("status"),
+        "contract_id": str(doc["contract_id"]) if doc.get("contract_id") else None,
         "vendor_name": extracted.get("vendor_name"),
         "invoice_number": extracted.get("invoice_number"),
         "invoice_date": extracted.get("invoice_date"),
@@ -532,16 +533,36 @@ async def post_bill(db, oid: ObjectId) -> dict:
 
 
 # ── Simulate (debit/credit journal preview) ───────────────────────────────────
-# Mirrors P2P's POST .../bill_posting/simulate — that endpoint has no real n8n
-# call either (see backend/src/api/v1/bill_posting.py's own docstring: "This
+# Mirrors P2P's POST .../bill_posting/simulate function-for-function (see
+# backend/src/api/v1/bill_posting.py's _build_simulate_document /
+# simulate_bill_posting) — that endpoint has no real n8n call either ("This
 # demo has no n8n, so we synthesize the same FE-ready contract... directly
 # from the bill-posting fixture"), so this is the same kind of synthesis,
 # built from the invoice's own extracted totals instead of a fixture-supplied
 # bill_header (DirectPay has no separate bill_header — the underlying invoice
 # extraction already carries subtotal/gst_total/tds_total/grand_total).
+#
+# Scoped adaptation: P2P's WHT-code enforcement (required_wht_code) validates
+# against Philippine BIR SAP codes, which have no analog for an Indonesian
+# PPN lease invoice — that half of P2P's enforcement isn't replicated here.
+# The VAT-code enforcement (required_vat_code) IS replicated, since DirectPay's
+# vat_tax_code values are real and meaningful (e.g. "PPN11").
+
+_COUNTRY_BY_CCY = {
+    "INR": "IN", "PHP": "PH", "USD": "US", "EUR": "DE",
+    "GBP": "GB", "MYR": "MY", "IDR": "ID", "JPY": "JP",
+}
+
 
 async def simulate_bill_posting(db, oid: ObjectId) -> dict:
-    bp = await get_bill_posting(db, oid)
+    doc = await get_invoice_doc(db, oid)
+    if doc.get("status") not in ("bill_posting", "posted"):
+        raise InvalidStateError("This invoice has not reached the Bill Posting stage")
+
+    extracted = _merge(doc.get("base_extracted") or {}, doc.get("edited_extracted"))
+    bundle = get_dp_loader().discover().get(doc["fixture_key"])
+    defaults = (bundle.bill_posting if bundle else {}) or {}
+    bp = _bill_posting_out(doc)
 
     currency = bp.get("currency") or "IDR"
     vendor_name = bp.get("vendor_name") or "Vendor"
@@ -552,6 +573,11 @@ async def simulate_bill_posting(db, oid: ObjectId) -> dict:
     wht_amount = float(bp.get("wht_amount") or 0) if bp.get("wht_applicable") else 0.0
     net_payable = grand_total - wht_amount
     line_items = bp.get("line_items") or []
+    # The invoice's own extracted GST rate (e.g. 0.11) — labels the Input VAT
+    # row with a percentage, mirroring P2P's vat_codes.json percentage lookup.
+    # DirectPay has the real rate on the invoice itself, so no lookup table
+    # is needed the way P2P's SAP-code system requires one.
+    gst_rate = extracted.get("gst_rate")
 
     headers = [
         {"id": "position", "label": "#", "type": "text", "width": 56},
@@ -579,13 +605,18 @@ async def simulate_bill_posting(db, oid: ObjectId) -> dict:
         })
         pos += 1
 
+    # Input tax debit — shown for ANY invoice with a VAT code set, including a
+    # 0% rate (mirrors P2P exactly: gated on the code being present, not on
+    # tax_amount > 0).
     input_vat_code = next((it.get("vat_tax_code") for it in line_items if it.get("vat_tax_code")), "—")
-    if tax_amount > 0:
+    if any(it.get("vat_tax_code") for it in line_items):
+        vat_pct = f"{gst_rate * 100:.0f}%" if gst_rate else ""
+        input_vat_desc = f"Input tax · {vat_pct}" if vat_pct else "Input tax"
         rows.append({
             "position": pos,
             "posting_key": "40 · Debit",
             "account": "1170 · Input VAT (recoverable)",
-            "description": "Input tax",
+            "description": input_vat_desc,
             "tax_code": input_vat_code,
             "debit": round(tax_amount, 2),
             "credit": 0,
@@ -595,11 +626,13 @@ async def simulate_bill_posting(db, oid: ObjectId) -> dict:
 
     wht_code = next((it.get("wht_tax_code") for it in line_items if it.get("wht_tax_code")), "—")
     if wht_amount > 0:
+        wht_pct = f"{(wht_amount / subtotal * 100):.0f}%" if subtotal else ""
+        wht_desc = f"WHT deduction at source · {wht_pct}" if wht_pct else "WHT deduction at source"
         rows.append({
             "position": pos,
             "posting_key": "50 · Credit",
             "account": "2230 · Withholding Tax Payable",
-            "description": "WHT deduction at source",
+            "description": wht_desc,
             "tax_code": wht_code,
             "debit": 0,
             "credit": round(wht_amount, 2),
@@ -630,7 +663,7 @@ async def simulate_bill_posting(db, oid: ObjectId) -> dict:
             "run_id": str(oid),
             "bill_number": bill_number,
             "currency": currency,
-            "country_code": "",
+            "country_code": _COUNTRY_BY_CCY.get(currency.upper(), ""),
             "line_item_count": len(line_items),
             "calculated_at": _now().isoformat(),
         },
@@ -643,6 +676,22 @@ async def simulate_bill_posting(db, oid: ObjectId) -> dict:
     else:
         status = "error"
         message = f"Simulation failed — the document is not balanced (difference {balance:,.2f} {currency})."
+
+    # VAT code enforcement — mirrors P2P's fixture-driven required_vat_code
+    # check exactly, sourced from the bill_posting fixture's own defaults.
+    required_vat_code = defaults.get("required_vat_code")
+    if required_vat_code and status == "success":
+        invalid_codes = [
+            it.get("vat_tax_code")
+            for it in line_items
+            if it.get("vat_tax_code") and it.get("vat_tax_code") != required_vat_code
+        ]
+        if invalid_codes:
+            status = "error"
+            message = (
+                f"Simulation failed — invalid VAT/GST Tax Code '{invalid_codes[0]}' on line item. "
+                f"This invoice requires '{required_vat_code}'."
+            )
 
     return {"status": status, "message": message, "document": document}
 

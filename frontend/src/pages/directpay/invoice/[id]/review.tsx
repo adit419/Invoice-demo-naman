@@ -9,6 +9,7 @@ import { SourceViewerToolbar, ZOOM_MIN, ZOOM_MAX, ZOOM_STEP } from "@/components
 import { Loader, useToast } from "@/components/ui";
 import { RejectModal } from "@/components/RejectModal";
 import { DpEditHistory } from "@/components/directpay/DpEditHistory";
+import { DocumentPreviewModal } from "@/components/directpay/DocumentPreviewModal";
 import { ApiError } from "@/services/api";
 import { directpayService, DpInvoiceExtracted, DpInvoiceRun, DpLineItem } from "@/services/directpay";
 
@@ -55,6 +56,7 @@ function InvoiceReviewPage() {
   const [numPages, setNumPages] = useState(1);
   const [scale, setScale] = useState(0.8);
   const [rotate, setRotate] = useState(0);
+  const [contractPdfOpen, setContractPdfOpen] = useState(false);
 
   useEffect(() => {
     setToken(localStorage.getItem("access_token"));
@@ -191,9 +193,15 @@ function InvoiceReviewPage() {
   const metaItems = [
     { icon: <TagOutlined />, text: "Manual Upload" },
     extracted.invoice_number ? { icon: <FileTextOutlined />, text: extracted.invoice_number } : null,
-    extracted.vendor_name ? { icon: <UserOutlined />, text: extracted.vendor_name } : null,
+    extracted.vendor_name
+      ? {
+          icon: <UserOutlined />,
+          text: extracted.vendor_name,
+          onClick: run.contract_id ? () => setContractPdfOpen(true) : undefined,
+        }
+      : null,
     extracted.invoice_date ? { icon: <CalendarOutlined />, text: extracted.invoice_date } : null,
-  ].filter(Boolean) as { icon: React.ReactNode; text: string }[];
+  ].filter(Boolean) as { icon: React.ReactNode; text: string; onClick?: () => void }[];
 
   // Mirrors P2P's own Extraction page exactly: once the stage is no longer
   // actionable it's just a plain "Next" button, no colored pill. P2P has no
@@ -473,6 +481,16 @@ function InvoiceReviewPage() {
         onConfirm={handleReject}
         stage="extraction"
       />
+
+      {run.contract_id && (
+        <DocumentPreviewModal
+          open={contractPdfOpen}
+          onClose={() => setContractPdfOpen(false)}
+          title={extracted.vendor_name ? `Contract — ${extracted.vendor_name}` : "Contract Preview"}
+          pdfUrl={directpayService.contractPdfUrl(run.contract_id)}
+          authToken={token}
+        />
+      )}
     </div>
   );
 }
