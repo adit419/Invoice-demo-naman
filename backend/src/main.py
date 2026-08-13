@@ -36,6 +36,7 @@ from .api.v1 import pipeline_nav as pipeline_nav_router
 from .api.v1 import settings as settings_router
 from .cash.router import router as cash_router, startup as cash_startup
 from .claim.router import router as claim_router, startup as claim_startup
+from .directpay.router import router as directpay_router
 
 
 @asynccontextmanager
@@ -47,6 +48,9 @@ async def lifespan(app: FastAPI):
     from .api.v1.settings import ensure_settings_indexes
     await ensure_settings_indexes(db)
     await seed_pipeline(db)
+
+    from .directpay.store import ensure_dp_indexes
+    await ensure_dp_indexes(db)
 
     # Start Gmail poller if configured
     from .config import settings as _cfg
@@ -120,6 +124,7 @@ app.include_router(pipeline_nav_router.router, prefix="/api/v1")
 app.include_router(settings_router.router, prefix="/api/v1")
 app.include_router(cash_router, prefix="/cash-api")
 app.include_router(claim_router, prefix="/claim-api")
+app.include_router(directpay_router, prefix="/dp-api")
 
 
 @app.get("/health")

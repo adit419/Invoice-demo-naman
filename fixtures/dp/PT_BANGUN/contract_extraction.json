@@ -1,0 +1,15 @@
+{
+  "contract_type": "lease_agreement",
+  "vendor_name": "PT Bangun Era Sejahtera",
+  "customer_name": "PT Bumi Berkah Boga",
+  "premises_address": null,
+  "floor": null,
+  "base_fee": 1250000000.0,
+  "currency": "IDR",
+  "fee_type": "rental_fee",
+  "escalation_rate": null,
+  "payment_due_days": null,
+  "actual_start": "2026-08-30",
+  "term_months": null,
+  "contract_id": "UP-1A646C48"
+}

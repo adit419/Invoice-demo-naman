@@ -118,6 +118,16 @@ function IconSwitch() {
   );
 }
 
+function IconDirectPay() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+      <path d="M3 9h8M9 5l4 4-4 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="1.5" y="2.5" width="4" height="13" rx="1" stroke="currentColor" strokeWidth="1.4" />
+      <rect x="12.5" y="2.5" width="4" height="13" rx="1" stroke="currentColor" strokeWidth="1.4" />
+    </svg>
+  );
+}
+
 function IconAskNeoflo() {
   return (
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -361,7 +371,7 @@ interface NavSidebarProps {
 const NAV_CONFIG_KEY = 'nav_view_config';
 // Bump this whenever the default nav order changes so stale localStorage
 // configs get wiped and reset to the new default ordering.
-const NAV_CONFIG_VERSION = 14;
+const NAV_CONFIG_VERSION = 15;
 
 const NAV_CONFIG_VERSION_KEY = 'nav_view_config_version';
 
@@ -369,6 +379,7 @@ interface NavItemConfig { key: string; label: string; }
 
 const DEFAULT_NAV_CONFIG: NavItemConfig[] = [
   { key: 'dashboard',           label: 'Invoice Processing Dashboard' },
+  { key: 'directPay',           label: 'DirectPay'              },
   { key: 'reporting',           label: 'AP Reporting'           },
   { key: 'arForecast',          label: 'AR Forecast'            },
   { key: 'cashApplication',     label: 'Cash Application'       },
@@ -383,6 +394,7 @@ const DEFAULT_NAV_CONFIG: NavItemConfig[] = [
 
 const NAV_HREF: Record<string, string> = {
   dashboard:         '/dashboard',
+  directPay:         '/directpay/dashboard',
   reporting:         '/insights',
   arForecast:        '/forecasting',
   cashApplication:   '/cash-app-v2',
@@ -397,6 +409,7 @@ const NAV_HREF: Record<string, string> = {
 
 const NAV_ICON: Record<string, React.ReactNode> = {
   dashboard:         <IconDashboard />,
+  directPay:         <IconDirectPay />,
   reporting:         <IconInsights />,
   arForecast:        <IconForecast />,
   cashApplication:   <IconCash />,
@@ -408,6 +421,12 @@ const NAV_ICON: Record<string, React.ReactNode> = {
   driverOnboarding:  <IconVendorOnboarding />,
   freight:           <IconFreight />,
 };
+
+// DirectPay sub-sections
+const DIRECT_PAY_CHILDREN = [
+  { label: "Invoices",  href: "/directpay/dashboard?tab=invoices",  dot: "#3b82f6" },
+  { label: "Contracts", href: "/directpay/dashboard?tab=contracts", dot: "#8b5cf6" },
+];
 
 // Vendor Onboarding sub-sections
 const VENDOR_ONBOARDING_CHILDREN = [
@@ -512,6 +531,10 @@ export function NavSidebar({ collapsed, onCollapse }: NavSidebarProps) {
   const isOnFreight = router.pathname.startsWith("/freight");
   const [freightOpen, setFreightOpen] = useState(false);
   useEffect(() => { if (isOnFreight) setFreightOpen(true); }, [isOnFreight]);
+
+  const isOnDirectPay = router.pathname.startsWith("/directpay");
+  const [directPayOpen, setDirectPayOpen] = useState(false);
+  useEffect(() => { if (isOnDirectPay) setDirectPayOpen(true); }, [isOnDirectPay]);
 
   const isOnCashApp = router.pathname.startsWith("/cash-app-v2");
   const [cashAppOpen, setCashAppOpen] = useState(false);
@@ -810,6 +833,69 @@ export function NavSidebar({ collapsed, onCollapse }: NavSidebarProps) {
                         const childActive = child.href === "/freight"
                           ? router.pathname === "/freight"
                           : router.pathname.startsWith(child.href);
+                        return (
+                          <Link key={child.href} href={child.href}
+                            style={{
+                              display: "flex", alignItems: "center", gap: 10,
+                              padding: "7px 12px 7px 36px", borderRadius: 7,
+                              color: childActive ? "#fff" : "rgba(255,255,255,0.6)",
+                              fontSize: 13, fontWeight: childActive ? 500 : 400,
+                              textDecoration: "none",
+                              background: childActive ? "rgba(255,255,255,0.1)" : "transparent",
+                              transition: "background 0.13s, color 0.13s",
+                            }}
+                            onMouseEnter={e => { if (!childActive) { (e.currentTarget as HTMLAnchorElement).style.background = "rgba(255,255,255,0.06)"; (e.currentTarget as HTMLAnchorElement).style.color = "#fff"; } }}
+                            onMouseLeave={e => { if (!childActive) { (e.currentTarget as HTMLAnchorElement).style.background = "transparent"; (e.currentTarget as HTMLAnchorElement).style.color = "rgba(255,255,255,0.6)"; } }}
+                          >
+                            <span style={{ width: 6, height: 6, borderRadius: "50%", background: childActive ? child.dot : "rgba(255,255,255,0.25)", flexShrink: 0 }} />
+                            <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{child.label}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
+            if (item.pageKey === "directPay") {
+              const active = isOnDirectPay;
+              return (
+                <div key="directPay">
+                  <button
+                    onClick={() => setDirectPayOpen(o => !o)}
+                    title={collapsed ? "DirectPay" : undefined}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 12,
+                      width: collapsed ? 40 : "calc(100% - 16px)",
+                      height: collapsed ? 40 : "auto",
+                      margin: collapsed ? "2px auto" : "2px 8px",
+                      padding: collapsed ? 0 : "10px 12px",
+                      justifyContent: collapsed ? "center" : "flex-start",
+                      background: active ? ACTIVE_BG : "transparent",
+                      borderRadius: 8, color: "#fff", fontSize: 14, fontWeight: 400,
+                      border: "none", cursor: "pointer", transition: "background 0.15s", textAlign: "left",
+                    }}
+                    onMouseEnter={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.08)"; }}
+                    onMouseLeave={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
+                  >
+                    <span style={{ flexShrink: 0 }}>{item.icon}</span>
+                    {!collapsed && (
+                      <>
+                        <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.label}</span>
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"
+                          style={{ flexShrink: 0, transition: "transform 0.18s", transform: directPayOpen ? "rotate(180deg)" : "rotate(0deg)" }}>
+                          <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </>
+                    )}
+                  </button>
+                  {directPayOpen && !collapsed && (
+                    <div style={{ marginLeft: 8, marginRight: 8, marginBottom: 4 }}>
+                      {DIRECT_PAY_CHILDREN.map(child => {
+                        const childTab = child.href.endsWith("tab=contracts") ? "contracts" : "invoices";
+                        const currentTab = typeof router.query.tab === "string" ? router.query.tab : "invoices";
+                        const childActive = router.pathname === "/directpay/dashboard" && currentTab === childTab;
                         return (
                           <Link key={child.href} href={child.href}
                             style={{

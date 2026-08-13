@@ -1,0 +1,339 @@
+import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/router";
+import { CalendarOutlined, FileTextOutlined, TagOutlined, UserOutlined } from "@ant-design/icons";
+import { Button as AntButton, Select as AntSelect, Space } from "antd";
+import { withAuthGuard } from "@/components/AuthGuard";
+import { ComponentHeaderAntd } from "@/components/matching";
+import { Loader, useToast } from "@/components/ui";
+import { RejectModal } from "@/components/RejectModal";
+import { ApiError } from "@/services/api";
+import {
+  directpayService,
+  DpContractRecommendation,
+  DpContractRun,
+  DpInvoiceRun,
+} from "@/services/directpay";
+import { isFindingResolved, MatchingTable } from "@/components/directpay/MatchingTable";
+import AiContractBanner from "@/components/directpay/AiContractBanner";
+
+function InvoiceMatchPage() {
+  const router = useRouter();
+  const { id } = router.query as { id?: string };
+  const { toast } = useToast();
+
+  const [run, setRun] = useState<DpInvoiceRun | null>(null);
+  const [contracts, setContracts] = useState<DpContractRun[]>([]);
+  const [recommendation, setRecommendation] = useState<DpContractRecommendation | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [busyLabel, setBusyLabel] = useState("Saving…");
+  const [rejectOpen, setRejectOpen] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!id) return;
+    try {
+      let [inv, con] = await Promise.all([directpayService.getInvoice(id), directpayService.listContracts()]);
+      setContracts(con.items.filter((c) => c.status === "saved"));
+      // Always call this (unless already decided) — it's idempotent (never
+      // re-picks once a contract is set) and is the only way to learn
+      // whether the CURRENT contract traces back to an AI pick, which
+      // drives the sparkle banner below. Covers both the common case
+      // (Extraction screen already applied it) and the fallback case
+      // (confirmed before any contract existed). Skipped once terminal —
+      // an invoice rejected straight from Extraction (before ever having a
+      // contract) must never get retroactively matched just by being viewed.
+      const isTerminalNow = ["bill_posting", "posted", "rejected"].includes(inv.status);
+      if (!isTerminalNow) {
+        try {
+          const rec = await directpayService.getContractRecommendation(id);
+          setRecommendation(rec);
+          if (rec.current_contract_id && !inv.contract_id) {
+            inv = await directpayService.getInvoice(id);
+          }
+        } catch {
+          // No saved contracts yet — the "No contract matched yet" banner covers this.
+        }
+      }
+      setRun(inv);
+    } catch {
+      toast("Invoice not found", "error");
+    } finally {
+      setLoading(false);
+    }
+  }, [id, toast]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const isTerminal = run ? ["bill_posting", "posted", "rejected"].includes(run.status) : false;
+  const isRejected = run?.status === "rejected";
+
+  // Selecting a different contract from the header dropdown re-runs the
+  // match immediately — no separate "Confirm Match" screen.
+  const handleContractChange = async (contractId: string) => {
+    if (!id || !contractId) return;
+    setBusyLabel("Matching against contract…");
+    setBusy(true);
+    try {
+      const updated = await directpayService.matchInvoice(id, contractId);
+      setRun(updated);
+    } catch {
+      toast("Could not match invoice to contract", "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleToggleAcknowledge = async (findingId: string, acknowledged: boolean) => {
+    if (!id) return;
+    try {
+      const res = await directpayService.acknowledgeFinding(id, findingId, acknowledged);
+      setRun((r) => (r ? { ...r, acknowledged_findings: res.acknowledged_findings } : r));
+    } catch {
+      toast("Could not acknowledge finding", "error");
+    }
+  };
+
+  const submitAction = async (action: "approve" | "reject", force = false, reason?: string) => {
+    if (!id) return;
+    setBusyLabel(action === "reject" ? "Rejecting…" : "Saving decision…");
+    setBusy(true);
+    try {
+      await directpayService.reviewAction(id, action, force, reason);
+      if (action === "reject") {
+        const updated = await directpayService.getInvoice(id);
+        setRun(updated);
+        setRejectOpen(false);
+      } else {
+        // Approving moves the invoice on to Bill Posting — the redirect
+        // effect above would also catch this on next render, but navigating
+        // directly here avoids a flash of this page in its terminal-looking
+        // state first.
+        router.push(`/directpay/invoice/${id}/bill-posting`);
+      }
+    } catch (err) {
+      // P2P has no "approve anyway" override for a blocked mismatch — a
+      // mandatory field is either fixed or acknowledged, never bypassed. The
+      // Approve button below is disabled whenever blockingCount > 0 so this
+      // 409 shouldn't normally be reachable by clicking it; it's a safety
+      // net in case findings changed between render and click.
+      if (err instanceof ApiError && err.status === 409) {
+        toast("Fix the value or acknowledge each mismatch before proceeding.", "error");
+      } else {
+        toast("Could not save review decision", "error");
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleReject = async (reason: string) => {
+    await submitAction("reject", false, reason);
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-surface-page flex items-center justify-center">
+        <Loader size="large" />
+      </div>
+    );
+  }
+  if (!run) return null;
+
+  const metaItems = [
+    { icon: <TagOutlined />, text: "Manual Upload" },
+    run.extracted.invoice_number ? { icon: <FileTextOutlined />, text: run.extracted.invoice_number } : null,
+    run.extracted.vendor_name ? { icon: <UserOutlined />, text: run.extracted.vendor_name } : null,
+    run.extracted.invoice_date ? { icon: <CalendarOutlined />, text: run.extracted.invoice_date } : null,
+  ].filter(Boolean) as { icon: React.ReactNode; text: string }[];
+
+  const findings = run.findings ?? [];
+  // Every finding is acknowledgeable regardless of severity (mirrors P2P's
+  // MetadataTab, where Acknowledge is exactly how a mandatory-field mismatch
+  // gets unblocked) — so "blocking" means any finding still neither resolved
+  // nor acknowledged, same set the backend's has_open_issues() gate checks.
+  const blockingCount = findings.filter(
+    (f) =>
+      !run.acknowledged_findings.includes(f.finding_id) &&
+      !run.system_acknowledged_findings.includes(f.finding_id) &&
+      !isFindingResolved(f, run.extracted)
+  ).length;
+  const hasContract = !!run.contract_id;
+  // Traces the current contract selection back to the AI's pick — reverting
+  // once a human picks a different contract from the dropdown, same property
+  // as P2P's AI-filled PO number losing its styling on manual override.
+  const showAiBanner =
+    !isTerminal &&
+    recommendation?.status === "applied" &&
+    recommendation.recommended?.contract_id === run.contract_id;
+
+  // Mirrors P2P's own header exactly: once nothing is left "in review" it
+  // shows a single plain "Next" button — no colored badge/pill at all. There
+  // being no P2P state to mirror for "rejected" (P2P navigates straight back
+  // to the dashboard on reject, it never lingers on this page), that's the
+  // one case DirectPay still needs its own static indicator for.
+  const actionButtons = isRejected ? (
+    <span
+      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium"
+      style={{ background: "#fef2f2", color: "#b91c1c", border: "1px solid #fca5a5" }}
+    >
+      Rejected
+    </span>
+  ) : isTerminal ? (
+    <AntButton type="primary" onClick={() => router.push(`/directpay/invoice/${id}/bill-posting`)}>
+      Next
+    </AntButton>
+  ) : (
+    <Space>
+      <AntButton danger onClick={() => setRejectOpen(true)} disabled={busy}>
+        Reject
+      </AntButton>
+      <AntButton
+        type="primary"
+        onClick={() => submitAction("approve")}
+        loading={busy}
+        disabled={busy || !hasContract || blockingCount > 0}
+        title={blockingCount > 0 ? "Fix the value or acknowledge each mismatch before proceeding" : undefined}
+      >
+        Approve
+      </AntButton>
+    </Space>
+  );
+
+  return (
+    <div className="min-h-screen flex flex-col bg-white" style={{ fontFamily: "Inter, -apple-system, BlinkMacSystemFont, sans-serif" }}>
+      {busy && (
+        <div
+          style={{
+            position: "fixed", inset: 0, zIndex: 1000, background: "rgba(255,255,255,0.85)",
+            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16,
+          }}
+        >
+          <svg className="animate-spin" width="40" height="40" viewBox="0 0 1024 1024" style={{ color: "#1876FF" }}>
+            <path
+              fill="currentColor"
+              d="M988 548c-19.9 0-36-16.1-36-36 0-59.4-11.6-117-34.6-171.3a440.45 440.45 0 0 0-94.3-139.9 437.71 437.71 0 0 0-139.9-94.3C629 83.6 571.4 72 512 72c-19.9 0-36-16.1-36-36s16.1-36 36-36c69.1 0 136.2 13.5 199.3 40.3C772.3 66 827 103 874 150c47 47 83.9 101.8 109.7 162.7 26.7 63.1 40.2 130.2 40.2 199.3.1 19.9-16 36-35.9 36z"
+            />
+          </svg>
+          <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: "#101828" }}>{busyLabel}</p>
+        </div>
+      )}
+
+      <ComponentHeaderAntd
+        title="Matching"
+        onBack={() => router.push(`/directpay/invoice/${id}/review`)}
+        metaItems={metaItems}
+        right={actionButtons}
+      />
+
+      {/* Sits where P2P's Metadata/Line Items tab bar would go — DirectPay only
+          has one comparison view, so this bar holds the Contract picker instead. */}
+      <div
+        className="flex items-center justify-end gap-2"
+        style={{ padding: "10px 24px", borderBottom: "1px solid #E6E6E6", background: "#ffffff" }}
+      >
+        <span className="text-xs font-medium text-gray-500">Contract</span>
+        <AntSelect
+          value={run.contract_id ?? undefined}
+          placeholder="Select a contract…"
+          style={{ width: 280 }}
+          size="small"
+          showSearch
+          disabled={isTerminal}
+          optionFilterProp="label"
+          onChange={(v) => handleContractChange(v)}
+          options={contracts.map((c) => ({
+            value: c.id,
+            label: `${c.fields.vendor_name ?? c.file_name} — ${c.fields.contract_type ?? ""}`,
+          }))}
+        />
+      </div>
+
+      <div className="flex-1 overflow-y-auto">
+        <div className="px-6 py-6">
+          {showAiBanner && recommendation && <AiContractBanner rec={recommendation} />}
+
+          {isRejected ? (
+            <div
+              style={{
+                display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderRadius: 8, marginBottom: 16,
+                background: "#FEF2F2", border: "1px dashed #FCA5A5", color: "#B91C1C", fontSize: 14,
+              }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.5" />
+                <path d="M12 7v6M12 16v.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+              </svg>
+              <span>
+                <strong>Rejected</strong> — decision recorded, this invoice is final.
+              </span>
+            </div>
+          ) : !hasContract ? (
+            <div
+              style={{
+                display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderRadius: 8, marginBottom: 16,
+                background: "#FFFBEB", border: "1px dashed #FCD34D", color: "#92400E", fontSize: 14,
+              }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.5" />
+                <path d="M12 7v6M12 16v.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+              </svg>
+              <span><strong>No contract matched yet.</strong> Pick one from the Contract dropdown above to run the comparison.</span>
+            </div>
+          ) : (
+            <div
+              style={{
+                display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderRadius: 8, marginBottom: 16,
+                background: blockingCount === 0 ? "#F0FDF4" : "#FEF2F2",
+                border: `1px dashed ${blockingCount === 0 ? "#86EFAC" : "#FCA5A5"}`,
+                color: blockingCount === 0 ? "#15803D" : "#B91C1C", fontSize: 14,
+              }}
+            >
+              {blockingCount === 0 ? (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.5" />
+                  <path d="M8 12l3 3 5-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.5" />
+                  <path d="M12 7v6M12 16v.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                </svg>
+              )}
+              {blockingCount === 0 ? (
+                <><strong>All fields are complete.</strong> You&apos;re good to go!</>
+              ) : (
+                <span>
+                  <strong>
+                    {blockingCount} field{blockingCount === 1 ? "" : "s"} need{blockingCount === 1 ? "s" : ""} attention.
+                  </strong>{" "}
+                  Fix the value or acknowledge each mismatch before proceeding.
+                </span>
+              )}
+            </div>
+          )}
+
+          <MatchingTable
+            findings={findings}
+            acknowledgedFindings={run.acknowledged_findings}
+            systemAcknowledgedFindings={run.system_acknowledged_findings}
+            extracted={run.extracted}
+            readonly={isTerminal}
+            onToggleAcknowledge={handleToggleAcknowledge}
+          />
+        </div>
+      </div>
+
+      <RejectModal
+        open={rejectOpen}
+        onClose={() => setRejectOpen(false)}
+        onConfirm={handleReject}
+        stage="matching"
+      />
+    </div>
+  );
+}
+
+export default withAuthGuard(InvoiceMatchPage);

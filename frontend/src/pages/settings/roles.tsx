@@ -8,6 +8,7 @@ import { useToast } from "@/components/ui";
 
 const ALL_PAGES = [
   { key: "dashboard",        label: "Dashboard",             description: "Main invoice dashboard and overview" },
+  { key: "directPay",        label: "DirectPay",             description: "Contract-aware invoice matching" },
   { key: "reporting",        label: "Reporting",             description: "AR insights and analytics" },
   { key: "arForecast",       label: "AR Forecast",           description: "Accounts receivable forecasting" },
   { key: "cashApplication",  label: "Cash Application",      description: "Cash application module" },
