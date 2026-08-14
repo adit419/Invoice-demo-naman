@@ -28,7 +28,7 @@ from fastapi.responses import Response
 from ..auth.deps import CurrentUser, get_current_user
 from ..database import get_db
 from ..api.v1._common import _envelope, _oid
-from . import service
+from . import field_mapping, service
 from .fixtures import get_dp_loader
 from .models import (
     DpAckThresholdRequest,
@@ -41,6 +41,7 @@ from .models import (
     DpInvoiceMatchRequest,
     DpReviewActionRequest,
     DpStpRequest,
+    DpTriggerUploadRequest,
 )
 from .store import dp_contract_runs, dp_invoice_runs
 from .stp import get_dp_ack_threshold, get_global_dp_stp, run_dp_stp_for_invoice, set_dp_ack_threshold, set_global_dp_stp
@@ -63,6 +64,13 @@ async def list_fixtures():
             {"key": key, "label": bundle.display_label()}
             for key, bundle in bundles.items()
         ]
+    })
+
+
+@router.get("/field-mapping")
+async def get_field_mapping():
+    return _envelope(data={
+        "mappings": [field_mapping.field_mapping_out(m) for m in field_mapping.get_field_mappings()]
     })
 
 
@@ -158,18 +166,42 @@ async def approve_contract(run_id: str, body: DpContractApproveRequest):
 
 # ── Invoices ───────────────────────────────────────────────────────────────────
 
-@router.post("/invoices/upload")
-async def upload_invoice(file: UploadFile = File(...)):
+async def _upload_invoice_by_filename(filename: str, email: str | None = None, tag: str | None = None) -> dict:
+    """Shared by /invoices/upload and /ingestion/trigger-upload — both just
+    resolve a fixture by name and kick off Auto-Process the same way; the
+    only difference is where the name comes from (a real upload vs. a
+    trigger request body)."""
     db = get_db()
     try:
-        result = await service.upload_invoice(db, file.filename or "")
+        result = await service.upload_invoice(db, filename or "", email, tag)
     except service.NotFoundError as exc:
         _not_found(exc)
-        return
+        return {}
     if await get_global_dp_stp(db):
         from bson import ObjectId
         asyncio.create_task(run_dp_stp_for_invoice(ObjectId(result["id"])))
-    return _envelope(data=result)
+    return result
+
+
+@router.post("/invoices/upload")
+async def upload_invoice(file: UploadFile = File(...)):
+    return _envelope(data=await _upload_invoice_by_filename(file.filename or ""))
+
+
+# ── Ingestion (trigger by filename, no file bytes) ────────────────────────────
+# Mirrors P2P's own POST /api/v1/ingestion/trigger-upload: same effect as a
+# real upload, but the invoice is referenced by a fixture-resolvable file
+# name instead of actual bytes — DirectPay's fixture resolution already
+# works off the filename alone, so this is the exact same call the multipart
+# endpoint above makes.
+
+@router.post("/ingestion/trigger-upload")
+async def trigger_upload_invoice(body: DpTriggerUploadRequest):
+    if not body.file_name.strip():
+        raise HTTPException(status_code=422, detail="file_name is required")
+    if body.email and "@" not in body.email:
+        raise HTTPException(status_code=422, detail="Invalid notification email address")
+    return _envelope(data=await _upload_invoice_by_filename(body.file_name.strip(), body.email, body.tag))
 
 
 @router.get("/invoices")

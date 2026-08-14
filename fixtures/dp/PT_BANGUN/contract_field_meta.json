@@ -1,0 +1,296 @@
+{
+  "premises_address": {
+    "label": "Property / Premises Address",
+    "section": "PROPERTY & PARTIES",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "vendor_name": {
+    "label": "Lessor Name",
+    "section": "PROPERTY & PARTIES",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": "1900032072_1607RentRukoJatiuwu: MATCH"
+  },
+  "lessor_phone": {
+    "label": "Lessor Phone",
+    "section": "PROPERTY & PARTIES",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "vendor_email": {
+    "label": "Lessor Email",
+    "section": "PROPERTY & PARTIES",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "lessor_npwp": {
+    "label": "Lessor NPWP",
+    "section": "PROPERTY & PARTIES",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": "1900032072_1607RentRukoJatiuwu: MATCH"
+  },
+  "customer_name": {
+    "label": "Tenant Name",
+    "section": "PROPERTY & PARTIES",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": "1900032072_1607RentRukoJatiuwu: MATCH"
+  },
+  "actual_start": {
+    "label": "Lease Commencement Date",
+    "section": "AGREEMENT DATES & TERM",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": "1900032072_1607RentRukoJatiuwu: MATCH — billing period start matches commencement"
+  },
+  "lease_expiry_date": {
+    "label": "Lease Expiry Date",
+    "section": "AGREEMENT DATES & TERM",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": "1900032072_1607RentRukoJatiuwu: MATCH — billing period end matches expiry"
+  },
+  "lock_in_period_months": {
+    "label": "Lock-in Period (Months)",
+    "section": "AGREEMENT DATES & TERM",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "term_months": {
+    "label": "Tenure (Months)",
+    "section": "AGREEMENT DATES & TERM",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "base_fee": {
+    "label": "Monthly Rent",
+    "section": "RENT & DEPOSIT",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": "1900032072_1607RentRukoJatiuwu: MATCH — Invoice gross Rp 750,000,000 / 36 months = Rp 20,833,333/month. Installment 1 covers 3 yrs (Pasal 3(2)(b))"
+  },
+  "annual_rent": {
+    "label": "Annual Rent",
+    "section": "RENT & DEPOSIT",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": "1900032072_1607RentRukoJatiuwu: MATCH — Rp 750,000,000 / 3 years = Rp 250,000,000/year"
+  },
+  "rent_billing_day": {
+    "label": "Rent Billing Day",
+    "section": "RENT & DEPOSIT",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "security_deposit": {
+    "label": "Security Deposit",
+    "section": "RENT & DEPOSIT",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "escalation_rate": {
+    "label": "Escalation Clause (%)",
+    "section": "ESCALATION",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "escalation_frequency": {
+    "label": "Escalation Frequency",
+    "section": "ESCALATION",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "escalation_starts_after_months": {
+    "label": "Escalation Starts After (months)",
+    "section": "ESCALATION",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "next_escalation_date": {
+    "label": "Next Escalation Date",
+    "section": "ESCALATION",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "first_escalation_date": {
+    "label": "First Escalation Date",
+    "section": "ESCALATION",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "utilities_billing": {
+    "label": "Utilities Billing",
+    "section": "UTILITIES & TAX",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "wht_applicable": {
+    "label": "WHT Applicable",
+    "section": "UTILITIES & TAX",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "wht_rate_pct": {
+    "label": "WHT Rate (%)",
+    "section": "UTILITIES & TAX",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": "1900032072_1607RentRukoJatiuwu: PPN 11% via DPP Nilai Lain (DPP Rp 619,369,370 × 12%). PPh not shown on invoice."
+  },
+  "stamp_duty_registered": {
+    "label": "Stamp Duty / Registered",
+    "section": "LEGAL & COMPLIANCE",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": "Our extraction answered \"Yes\" because materai (Rp 10,000 stamp) is present on the contract. That's correct — materai exists. But materai is standard on virtually ALL Indonesian agreements; it's just a revenue stamp. The \"Registered\" part asks whether the agreement was formally registered with government authorities, which is a separate legal step most lease agreements DON'T go through"
+  },
+  "registration_number": {
+    "label": "Registration Number",
+    "section": "LEGAL & COMPLIANCE",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "notice_period_months": {
+    "label": "Notice Period (months)",
+    "section": "LEGAL & COMPLIANCE",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "renewal_option": {
+    "label": "Renewal Option",
+    "section": "LEGAL & COMPLIANCE",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "property_code": {
+    "label": "Property Code",
+    "section": "STATUS & TRACKING",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "days_to_expiry": {
+    "label": "Days to Expiry",
+    "section": "STATUS & TRACKING",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "computed_status": {
+    "label": "Computed Status",
+    "section": "STATUS & TRACKING",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "rent_commencement_date": {
+    "label": "Rent Commencement Date",
+    "section": "STATUS & TRACKING",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "rent_structure": {
+    "label": "Rent Structure",
+    "section": "PAYMENT STRUCTURE",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "rent_free_months": {
+    "label": "Rent Free Months",
+    "section": "PAYMENT STRUCTURE",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "co_landlord": {
+    "label": "Co-Landlord",
+    "section": "PAYMENT STRUCTURE",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "lessor_split_pct": {
+    "label": "Lessor Split (%)",
+    "section": "PAYMENT STRUCTURE",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "lessor_payment_share": {
+    "label": "Lessor Payment Share",
+    "section": "PAYMENT STRUCTURE",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": "1900032072_1607RentRukoJatiuwu: Invoice shows BCA; contract shows Bank Mandiri — different bank account"
+  },
+  "split_check": {
+    "label": "Split Check",
+    "section": "PAYMENT STRUCTURE",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "revenue_share_pct": {
+    "label": "Revenue Share (%)",
+    "section": "REVENUE & ADDITIONAL",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "revenue_threshold": {
+    "label": "Revenue Threshold",
+    "section": "REVENUE & ADDITIONAL",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "rent_scenario_notes": {
+    "label": "Rent Scenario Notes",
+    "section": "REVENUE & ADDITIONAL",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "contract_type": {
+    "label": "Contract Type",
+    "section": "OTHER",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "currency": {
+    "label": "Currency",
+    "section": "OTHER",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": "1900032072_1607RentRukoJatiuwu: MATCH"
+  },
+  "floor": {
+    "label": "Floor",
+    "section": "OTHER",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": "1900032072_1607RentRukoJatiuwu: MATCH"
+  }
+}

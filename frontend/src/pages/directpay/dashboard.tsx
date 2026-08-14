@@ -3,7 +3,42 @@ import { useRouter } from "next/router";
 import { withAuthGuard } from "@/components/AuthGuard";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/components/ui";
+import { StageTransitionOverlay } from "@/components/StageTransitionOverlay";
 import { directpayService, DpContractRun, DpInvoiceRun } from "@/services/directpay";
+
+// Every upload (invoice or contract, Auto-Process on or off) shows a focused
+// extraction loader and then lands the human straight on the review screen —
+// there's no reason to make them notice a dashboard row and click in
+// themselves once extraction is already done. For an Auto-Process invoice,
+// extraction is already running in the background (the upload endpoint kicked
+// off stp.py's cascade), so this polls for it rather than re-triggering it;
+// for a manual invoice there's no background task, so the dashboard calls
+// /extract directly. Poll instead of guessing a fixed delay so this holds
+// even if the simulated extraction latency changes.
+async function waitForExtraction(invoiceId: string, maxWaitMs = 10000, intervalMs = 500): Promise<void> {
+  const start = Date.now();
+  while (Date.now() - start < maxWaitMs) {
+    const inv = await directpayService.getInvoice(invoiceId);
+    if (inv.status !== "extraction") return;
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+}
+
+// Contracts have no separate extract/validate API steps — base_fields are
+// already populated at upload — so this is a simulated two-phase pacing
+// delay before handing off to the review screen, matching the same
+// extract-then-validate feel Invoice Processing shows for real.
+const CONTRACT_EXTRACTING_MS = 3000;
+const CONTRACT_VALIDATING_MS = 2000;
+
+// Invoices do have a real extract step (waited on above), but no separate
+// validate step of their own at upload time — this is a simulated pacing
+// delay for that phase, same idea as the contract side.
+const INVOICE_VALIDATING_MS = 2000;
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 type Tab = "invoices" | "contracts";
 
@@ -119,6 +154,10 @@ function contractRoute(c: DpContractRun): string {
 }
 
 function invoiceAction(inv: DpInvoiceRun): { label: string; primary: boolean; disabled: boolean } {
+  // A fresh upload never lingers on the dashboard long enough to see this in
+  // the tab that triggered it — the upload flow's own full-page loader
+  // covers that. This still matters for another tab/session polling the
+  // dashboard while this invoice's Auto-Process extraction is in flight.
   if (inv.stp_state === "processing") return { label: "Processing", primary: false, disabled: true };
   if (inv.status === "extraction") return { label: "Review", primary: true, disabled: false };
   if (INVOICE_CLOSED_STATUSES.has(inv.status)) return { label: "View", primary: false, disabled: false };
@@ -392,6 +431,13 @@ function DirectPayDashboard() {
   const [contracts, setContracts] = useState<DpContractRun[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  // Every upload (invoice or contract) replaces the dashboard with a focused
+  // full-page loader while extraction runs, then hands off straight to the
+  // review screen — "the user should not be taken through individual
+  // processing stages" applies regardless of Auto-Process being on or off.
+  const [autoExtracting, setAutoExtracting] = useState<"invoice" | "contract" | null>(null);
+  const [contractPhase, setContractPhase] = useState<"extracting" | "validating">("extracting");
+  const [invoicePhase, setInvoicePhase] = useState<"extracting" | "validating">("extracting");
   const fileRef = useRef<HTMLInputElement>(null);
 
   // DirectPay's own Auto-Process toggle — independent of Invoice Processing's,
@@ -491,15 +537,43 @@ function DirectPayDashboard() {
     try {
       if (tab === "invoices") {
         const run = await directpayService.uploadInvoice(file);
+        setUploading(false);
+        setAutoExtracting("invoice");
+        setInvoicePhase("extracting");
+        try {
+          if (stpEnabled) {
+            // Auto-Process: extraction runs in the background (the upload
+            // endpoint already kicked off stp.py's cascade) — poll for it
+            // rather than re-triggering it.
+            await waitForExtraction(run.id);
+          } else {
+            // Manual: no background task runs extraction for us — call it
+            // directly. The Extraction screen would otherwise do this same
+            // call on load; doing it here just means it's already done by
+            // the time we land there.
+            await directpayService.extractInvoice(run.id);
+          }
+          setInvoicePhase("validating");
+          await sleep(INVOICE_VALIDATING_MS);
+        } finally {
+          setAutoExtracting(null);
+        }
         router.push(`/directpay/invoice/${run.id}/review`);
-      } else {
-        const run = await directpayService.uploadContract(file);
-        router.push(`/directpay/contract/${run.id}/review`);
+        return;
       }
+      const run = await directpayService.uploadContract(file);
+      setUploading(false);
+      setAutoExtracting("contract");
+      setContractPhase("extracting");
+      await sleep(CONTRACT_EXTRACTING_MS);
+      setContractPhase("validating");
+      await sleep(CONTRACT_VALIDATING_MS);
+      setAutoExtracting(null);
+      router.push(`/directpay/contract/${run.id}/review`);
     } catch {
       toast(tab === "invoices" ? "Invoice upload failed" : "Contract upload failed", "error");
-    } finally {
       setUploading(false);
+      setAutoExtracting(null);
     }
   };
 
@@ -558,6 +632,56 @@ function DirectPayDashboard() {
 
   const toggleSet = (setter: React.Dispatch<React.SetStateAction<Set<string>>>, v: string) =>
     setter(prev => { const n = new Set(prev); n.has(v) ? n.delete(v) : n.add(v); return n; });
+
+  if (autoExtracting === "contract") {
+    return (
+      <StageTransitionOverlay
+        title={
+          contractPhase === "extracting"
+            ? "We're extracting the contract details."
+            : "We're validating the contract details."
+        }
+        subtitle="This may take a few minutes. Please keep this page open."
+        steps={
+          contractPhase === "extracting"
+            ? [
+                { label: "Uploading document", status: "done" },
+                { label: "Extracting contract data", status: "active" },
+              ]
+            : [
+                { label: "Uploading document", status: "done" },
+                { label: "Extracting contract data", status: "done" },
+                { label: "Validating contract terms", status: "active" },
+              ]
+        }
+      />
+    );
+  }
+
+  if (autoExtracting === "invoice") {
+    return (
+      <StageTransitionOverlay
+        title={
+          invoicePhase === "extracting"
+            ? "We're extracting the invoice data."
+            : "We're validating the invoice data."
+        }
+        subtitle="This may take a few minutes. Please keep this page open."
+        steps={
+          invoicePhase === "extracting"
+            ? [
+                { label: "Uploading document", status: "done" },
+                { label: "Extracting data from document", status: "active" },
+              ]
+            : [
+                { label: "Uploading document", status: "done" },
+                { label: "Extracting data from document", status: "done" },
+                { label: "Validating invoice data", status: "active" },
+              ]
+        }
+      />
+    );
+  }
 
   return (
     <div style={{ minHeight: "100vh", background: "#ffffff", display: "flex", flexDirection: "column", fontFamily: "Inter, sans-serif" }}>
@@ -858,8 +982,9 @@ function DirectPayDashboard() {
                                   <button
                                     disabled={action.disabled}
                                     onClick={() => { if (!action.disabled) router.push(invoiceRoute(inv)); }}
-                                    style={actionButtonStyle(action)}
+                                    style={{ ...actionButtonStyle(action), display: "inline-flex", alignItems: "center", gap: 6 }}
                                   >
+                                    {action.label === "Processing" && <ButtonSpinner />}
                                     {action.label}
                                   </button>
                                   <OpenInNewTab disabled={action.disabled} onClick={() => window.open(invoiceRoute(inv), "_blank", "noopener")} />
@@ -942,8 +1067,9 @@ function DirectPayDashboard() {
                                   <button
                                     disabled={action.disabled}
                                     onClick={() => { if (!action.disabled) router.push(contractRoute(c)); }}
-                                    style={actionButtonStyle(action)}
+                                    style={{ ...actionButtonStyle(action), display: "inline-flex", alignItems: "center", gap: 6 }}
                                   >
+                                    {action.label === "Processing" && <ButtonSpinner />}
                                     {action.label}
                                   </button>
                                   <OpenInNewTab disabled={action.disabled} onClick={() => window.open(contractRoute(c), "_blank", "noopener")} />
@@ -1048,6 +1174,21 @@ function actionButtonStyle(action: { primary: boolean; disabled: boolean }): Rea
     height: 30, padding: "0 18px", cursor: "pointer",
     fontFamily: "Inter, sans-serif",
   };
+}
+
+// The "loader in the row" for a Processing invoice/contract — mirrors P2P's
+// dashboard, whose row action button uses AntD's `loading` prop (a spinning
+// icon inline with the label) rather than a plain disabled button with no
+// visual feedback that something is actually happening.
+function ButtonSpinner() {
+  return (
+    <svg className="animate-spin" width="12" height="12" viewBox="0 0 1024 1024" style={{ flexShrink: 0 }}>
+      <path
+        fill="currentColor"
+        d="M988 548c-19.9 0-36-16.1-36-36 0-59.4-11.6-117-34.6-171.3a440.45 440.45 0 0 0-94.3-139.9 437.71 437.71 0 0 0-139.9-94.3C629 83.6 571.4 72 512 72c-19.9 0-36-16.1-36-36s16.1-36 36-36c69.1 0 136.2 13.5 199.3 40.3C772.3 66 827 103 874 150c47 47 83.9 101.8 109.7 162.7 26.7 63.1 40.2 130.2 40.2 199.3.1 19.9-16 36-35.9 36z"
+      />
+    </svg>
+  );
 }
 
 function OpenInNewTab({ disabled, onClick }: { disabled: boolean; onClick: () => void }) {

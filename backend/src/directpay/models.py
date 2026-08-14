@@ -53,5 +53,14 @@ class DpStpRequest(BaseModel):
     enabled: bool
 
 
+class DpTriggerUploadRequest(BaseModel):
+    """Mirrors P2P's own /ingestion/trigger-upload request shape exactly:
+    same result as /invoices/upload, but the invoice is referenced by
+    fixture-resolvable file name instead of an actual uploaded file."""
+    file_name: str
+    email: Optional[str] = None
+    tag: Optional[str] = None
+
+
 class DpAckThresholdRequest(BaseModel):
     value: int

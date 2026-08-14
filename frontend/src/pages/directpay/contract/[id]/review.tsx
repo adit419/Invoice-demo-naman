@@ -11,7 +11,9 @@ import { withAuthGuard } from "@/components/AuthGuard";
 import { ComponentHeaderAntd } from "@/components/matching";
 import { SourceViewerToolbar, ZOOM_MIN, ZOOM_MAX, ZOOM_STEP } from "@/components/SourceViewerToolbar";
 import { Loader, useToast } from "@/components/ui";
-import { directpayService, DpContractFields, DpContractRun } from "@/services/directpay";
+import { directpayService, DpContractRun } from "@/services/directpay";
+import type { ActiveBbox } from "@/components/PdfViewer";
+import { ContractFieldsTable, orderedFieldEntries } from "@/components/directpay/ContractFieldsTable";
 
 const PdfViewer = dynamic(() => import("@/components/PdfViewer").then((m) => m.PdfViewer), {
   ssr: false,
@@ -22,22 +24,13 @@ const PdfViewer = dynamic(() => import("@/components/PdfViewer").then((m) => m.P
   ),
 });
 
-const REQUIRED_FIELDS = new Set(["vendor_name", "customer_name", "base_fee"]);
+// Small pacing delay on Approve & Save so the button's own loading spinner is
+// visible — the real save call is fast enough that it would otherwise flash.
+const SAVE_DELAY_MS = 2000;
 
-const FIELD_DEFS: { key: keyof DpContractFields; label: string; type: "text" | "number" | "date" }[] = [
-  { key: "vendor_name", label: "Vendor", type: "text" },
-  { key: "customer_name", label: "Customer", type: "text" },
-  { key: "contract_type", label: "Contract Type", type: "text" },
-  { key: "premises_address", label: "Premises Address", type: "text" },
-  { key: "floor", label: "Floor", type: "text" },
-  { key: "base_fee", label: "Base Fee", type: "number" },
-  { key: "currency", label: "Currency", type: "text" },
-  { key: "fee_type", label: "Fee Type", type: "text" },
-  { key: "escalation_rate", label: "Escalation Rate (%)", type: "number" },
-  { key: "payment_due_days", label: "Payment Due (days)", type: "number" },
-  { key: "actual_start", label: "Start Date", type: "date" },
-  { key: "term_months", label: "Term (months)", type: "number" },
-];
+// Below this → red overlay, at/above → green. Mirrors P2P's own
+// review.tsx/PdfViewer convention exactly (same threshold value).
+const LOW_CONF = 0.85;
 
 function ContractReviewPage() {
   const router = useRouter();
@@ -83,16 +76,18 @@ function ContractReviewPage() {
     }
     setSaving(true);
     try {
-      const fields: Partial<DpContractFields> = {};
+      const fields: Record<string, string | null> = {};
       for (const [k, v] of Object.entries(edits)) {
-        const def = FIELD_DEFS.find((f) => f.key === k);
-        (fields as Record<string, unknown>)[k] = def?.type === "number" ? (v === "" ? null : Number(v)) : v;
+        fields[k] = v === "" ? null : v;
       }
-      const updated = await directpayService.approveContract(id, fields);
+      const [updated] = await Promise.all([
+        directpayService.approveContract(id, fields),
+        new Promise((resolve) => setTimeout(resolve, SAVE_DELAY_MS)),
+      ]);
       setRun(updated);
+      setSaving(false);
     } catch {
       toast("Could not save contract", "error");
-    } finally {
       setSaving(false);
     }
   };
@@ -107,8 +102,35 @@ function ContractReviewPage() {
   if (!run) return null;
 
   const fields = run.fields;
+  const fieldEntries = orderedFieldEntries(fields, run.field_meta);
   const isSaved = run.status === "saved";
   const canEdit = !isSaved;
+
+  // Selecting a field also jumps the PDF to the page its bbox lives on —
+  // mirrors P2P's own field-click behavior (see review.tsx's useEffect on
+  // activeKey), just done inline in the click handler instead of a separate
+  // effect, since there's only one place a field ever gets selected from.
+  const selectField = (key: string | null) => {
+    setActiveKey(key);
+    const bbox = key ? fieldEntries.find(([k]) => k === key)?.[1]?.bbox : null;
+    if (bbox) setPdfPage(bbox.page);
+  };
+
+  const activeFieldMeta = activeKey ? fieldEntries.find(([k]) => k === activeKey)?.[1] : null;
+  const activeBbox: ActiveBbox | null = activeFieldMeta?.bbox
+    ? {
+        bbox_left: activeFieldMeta.bbox.bbox_left,
+        bbox_top: activeFieldMeta.bbox.bbox_top,
+        bbox_width: activeFieldMeta.bbox.bbox_width,
+        bbox_height: activeFieldMeta.bbox.bbox_height,
+        page: activeFieldMeta.bbox.page,
+        confidence: activeFieldMeta.bbox.value_confidence,
+        confidenceThreshold: LOW_CONF,
+        id: `field-${activeKey}`,
+        label: activeFieldMeta.label,
+        value: (edits[activeKey as string] ?? (fields[activeKey as string] == null ? undefined : String(fields[activeKey as string]))) || undefined,
+      }
+    : null;
 
   const metaItems = [
     { icon: <TagOutlined />, text: "Manual Upload" },
@@ -153,7 +175,7 @@ function ContractReviewPage() {
               scale={scale}
               rotate={rotate}
               onNumPages={setNumPages}
-              activeBbox={null}
+              activeBbox={activeBbox}
             />
           </div>
           <SourceViewerToolbar
@@ -177,90 +199,15 @@ function ContractReviewPage() {
           </div>
 
           <div className="flex-1 overflow-y-auto px-5 py-4">
-            <div style={{ border: "1px solid #E9EAEC", borderRadius: 8, overflow: "hidden", background: "#ffffff" }}>
-              <table className="w-full text-sm" style={{ borderCollapse: "collapse", tableLayout: "fixed" }}>
-                <thead>
-                  <tr>
-                    <th
-                      style={{
-                        textAlign: "left", fontSize: 13, fontWeight: 500, color: "#414651",
-                        padding: "10px 14px", lineHeight: "20px",
-                        backgroundColor: "#F4F4F4", borderBottom: "1px solid #EBEDF0",
-                        borderRight: "1px solid #EBEDF0", width: "32%",
-                      }}
-                    >
-                      Field
-                    </th>
-                    <th
-                      style={{
-                        textAlign: "left", fontSize: 13, fontWeight: 500, color: "#414651",
-                        padding: "10px 14px", lineHeight: "20px",
-                        backgroundColor: "#F4F4F4", borderBottom: "1px solid #EBEDF0",
-                      }}
-                    >
-                      Value
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {FIELD_DEFS.map((f) => {
-                    const raw = fields[f.key];
-                    const value = edits[f.key] ?? (raw == null ? "" : String(raw));
-                    const isEmpty = !value;
-                    const isRequired = REQUIRED_FIELDS.has(f.key);
-                    const cellBg = isEmpty && isRequired ? "#FEF3C7" : "transparent";
-                    const leftBarColor = isEmpty && isRequired ? "#F59E0B" : null;
-                    const isActive = activeKey === f.key;
-                    return (
-                      <tr
-                        key={f.key}
-                        onClick={() => setActiveKey(isActive ? null : f.key)}
-                        style={{
-                          borderBottom: "1px solid #EBEDF0",
-                          background: isActive ? "rgba(24,118,255,0.06)" : undefined,
-                          cursor: "pointer",
-                        }}
-                        onMouseEnter={(e) => {
-                          if (!isActive) (e.currentTarget as HTMLElement).style.background = "#FAFAFA";
-                        }}
-                        onMouseLeave={(e) => {
-                          if (!isActive) (e.currentTarget as HTMLElement).style.background = "";
-                        }}
-                      >
-                        <td
-                          style={{
-                            textAlign: "left", fontSize: 13, color: "#414651",
-                            boxShadow: leftBarColor ? `inset 3px 0 0 ${leftBarColor}` : undefined,
-                            padding: "10px 14px", lineHeight: "20px",
-                            backgroundColor: "#F4F4F4", borderRight: "1px solid #EBEDF0", width: "32%",
-                          }}
-                        >
-                          {f.label}
-                          {isRequired && <span style={{ color: "#E02D3C", fontWeight: 600, marginLeft: 3 }}>*</span>}
-                        </td>
-                        <td style={{ textAlign: "left", fontSize: 13, color: "#414651", padding: "10px 14px", lineHeight: "20px", background: cellBg }}>
-                          {canEdit ? (
-                            <input
-                              className="w-full focus:outline-none"
-                              type={f.type === "number" ? "number" : f.type === "date" ? "date" : "text"}
-                              style={{ fontSize: 13, lineHeight: "20px", padding: 0, background: "transparent", border: "none", color: "#414651", width: "100%" }}
-                              value={value}
-                              onChange={(e) => setEdits((prev) => ({ ...prev, [f.key]: e.target.value }))}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setActiveKey(f.key);
-                              }}
-                            />
-                          ) : (
-                            <span>{value || ""}</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <ContractFieldsTable
+              fields={fields}
+              fieldMeta={run.field_meta}
+              edits={edits}
+              setEdits={setEdits}
+              activeKey={activeKey}
+              onSelectField={selectField}
+              canEdit={canEdit}
+            />
           </div>
         </div>
       </div>

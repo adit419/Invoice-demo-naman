@@ -10,6 +10,7 @@ import { Loader, useToast } from "@/components/ui";
 import { RejectModal } from "@/components/RejectModal";
 import { DpEditHistory } from "@/components/directpay/DpEditHistory";
 import { DocumentPreviewModal } from "@/components/directpay/DocumentPreviewModal";
+import { StageTransitionOverlay } from "@/components/StageTransitionOverlay";
 import { ApiError } from "@/services/api";
 import { directpayService, DpInvoiceExtracted, DpInvoiceRun, DpLineItem } from "@/services/directpay";
 
@@ -24,17 +25,51 @@ const PdfViewer = dynamic(() => import("@/components/PdfViewer").then((m) => m.P
 
 const REQUIRED_FIELDS = new Set(["invoice_number", "vendor_name", "grand_total"]);
 
+// Simulated processing latency for the forward transition into Matching —
+// mirrors P2P's own review.tsx exactly: after Confirm Extraction succeeds, it
+// shows StageTransitionOverlay (not a plain spinner) for a fixed delay before
+// navigating, framed as "the next stage is now processing" rather than as
+// part of the confirm action itself. Two distinct phases so the loader
+// actually shows extraction happening, not just matching for the whole delay.
+const EXTRACTING_PHASE_MS = 3000;
+const MATCHING_PHASE_MS = 2000;
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Field names/labels mirror "Contract Invoice Mapping - Field Mapping.csv"'s
+// own "Invoice Field" column — see backend/src/directpay/field_mapping.py
+// for the full invoice<->contract mapping this schema is drawn from.
+// Field set matches "PT_BANGUN_INVOICE_EXTRACTION - Sheet1.csv" (the real
+// invoice extraction). Dates are the fixture's own human-readable strings
+// (e.g. "9 Jul 2026"), not ISO — typed "text" rather than "date" so a native
+// <input type="date"> (which only renders strict YYYY-MM-DD) doesn't just
+// show blank for them.
 const FIELD_DEFS: { key: keyof DpInvoiceExtracted; label: string; type: "text" | "number" | "date" }[] = [
   { key: "invoice_number", label: "Invoice Number", type: "text" },
-  { key: "invoice_date", label: "Invoice Date", type: "date" },
+  { key: "invoice_date", label: "Invoice Date", type: "text" },
   { key: "vendor_name", label: "Vendor", type: "text" },
+  { key: "vendor_npwp", label: "Vendor NPWP", type: "text" },
   { key: "customer_name", label: "Customer", type: "text" },
-  { key: "billing_period_start", label: "Billing Period Start", type: "date" },
-  { key: "billing_period_end", label: "Billing Period End", type: "date" },
+  { key: "customer_npwp", label: "Customer NPWP", type: "text" },
+  { key: "billing_period_start", label: "Billing Period Start", type: "text" },
+  { key: "billing_period_end", label: "Billing Period End", type: "text" },
+  { key: "store_location", label: "Store Location", type: "text" },
+  { key: "payment_due_days", label: "Payment Due Days", type: "text" },
+  { key: "payment_due_date", label: "Payment Due Date", type: "text" },
   { key: "subtotal", label: "Subtotal", type: "number" },
-  { key: "gst_total", label: "Tax Total", type: "number" },
+  { key: "tax_type", label: "Tax Type", type: "text" },
+  { key: "tax_rate", label: "Tax Rate", type: "number" },
+  { key: "tax_total", label: "Tax Total", type: "number" },
+  { key: "wht_rate", label: "WHT Rate", type: "number" },
+  { key: "wht_total", label: "WHT Total", type: "number" },
   { key: "grand_total", label: "Grand Total", type: "number" },
   { key: "currency", label: "Currency", type: "text" },
+  { key: "bank_details", label: "Bank Details", type: "text" },
+  { key: "faktur_pajak_number", label: "Faktur Pajak Number", type: "text" },
+  { key: "dpp_amount", label: "DPP Amount", type: "number" },
+  { key: "notes", label: "Notes", type: "text" },
 ];
 
 function InvoiceReviewPage() {
@@ -57,6 +92,8 @@ function InvoiceReviewPage() {
   const [scale, setScale] = useState(0.8);
   const [rotate, setRotate] = useState(0);
   const [contractPdfOpen, setContractPdfOpen] = useState(false);
+  const [transitioning, setTransitioning] = useState(false);
+  const [transitionPhase, setTransitionPhase] = useState<"extracting" | "matching">("extracting");
 
   useEffect(() => {
     setToken(localStorage.getItem("access_token"));
@@ -150,10 +187,15 @@ function InvoiceReviewPage() {
         // No contracts available yet — Matching screen will prompt the user
         // to pick one once a contract has been uploaded.
       }
+      setSaving(false);
+      setTransitionPhase("extracting");
+      setTransitioning(true);
+      await sleep(EXTRACTING_PHASE_MS);
+      setTransitionPhase("matching");
+      await sleep(MATCHING_PHASE_MS);
       router.push(`/directpay/invoice/${updated.id}/match`);
     } catch {
       toast("Could not confirm extraction", "error");
-    } finally {
       setSaving(false);
     }
   };
@@ -172,7 +214,7 @@ function InvoiceReviewPage() {
   const setLineItem = (idx: number, patch: Partial<DpLineItem>) => {
     setLineItems((items) => items.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
   };
-  const addLineItem = () => setLineItems((items) => [...items, { label: "", charge_type: "service_fee", quantity: 1, amount: 0 }]);
+  const addLineItem = () => setLineItems((items) => [...items, { label: "", charge_type: "service_fee", quantity: 1, unit_price: 0, amount: 0 }]);
   const removeLineItem = (idx: number) => {
     const next = lineItems.filter((_, i) => i !== idx);
     setLineItems(next);
@@ -188,6 +230,27 @@ function InvoiceReviewPage() {
   }
   if (!run) return null;
 
+  if (transitioning) {
+    return (
+      <StageTransitionOverlay
+        title={
+          transitionPhase === "extracting"
+            ? "We're extracting the invoice data."
+            : "We're matching the invoice against the contract."
+        }
+        subtitle="This may take a few minutes. Please keep this page open."
+        steps={
+          transitionPhase === "extracting"
+            ? [{ label: "Extracting data from document", status: "active" }]
+            : [
+                { label: "Extracting data from document", status: "done" },
+                { label: "Matching against contract", status: "active" },
+              ]
+        }
+      />
+    );
+  }
+
   const extracted = run.extracted;
 
   const metaItems = [
@@ -197,7 +260,15 @@ function InvoiceReviewPage() {
       ? {
           icon: <UserOutlined />,
           text: extracted.vendor_name,
-          onClick: run.contract_id ? () => setContractPdfOpen(true) : undefined,
+          // A contract gets attached to the invoice as soon as Matching
+          // starts (AI auto-pick or a manual dropdown choice) — long before
+          // the human has approved that match. Only once Matching is
+          // approved (status has moved on to Bill Posting/Posted) has the
+          // contract actually been confirmed as the right one, so that's
+          // the earliest point this hyperlink should appear here.
+          onClick: run.contract_id && ["bill_posting", "posted"].includes(run.status)
+            ? () => setContractPdfOpen(true)
+            : undefined,
         }
       : null,
     extracted.invoice_date ? { icon: <CalendarOutlined />, text: extracted.invoice_date } : null,
@@ -351,8 +422,8 @@ function InvoiceReviewPage() {
                           const value = edits[f.key] ?? (raw == null ? "" : String(raw));
                           const isEmpty = !value;
                           const isRequired = REQUIRED_FIELDS.has(f.key);
-                          const cellBg = isEmpty && isRequired ? "#FEF3C7" : "transparent";
-                          const leftBarColor = isEmpty && isRequired ? "#F59E0B" : null;
+                          const cellBg = isEmpty ? "#FEF3C7" : "transparent";
+                          const leftBarColor = isEmpty ? "#F59E0B" : null;
                           const isActive = activeKey === f.key;
                           return (
                             <tr
@@ -394,11 +465,11 @@ function InvoiceReviewPage() {
                     <table className="text-sm" style={{ borderCollapse: "collapse", width: "100%" }}>
                       <thead>
                         <tr>
-                          {["#", "Description", "Charge Type", "Qty", "Amount", ""].map((h, i) => (
+                          {["#", "Description", "Charge Type", "Qty", "Unit Price", "Amount", ""].map((h, i) => (
                             <th
                               key={h}
                               style={{
-                                textAlign: i >= 3 && i <= 4 ? "right" : "left",
+                                textAlign: i >= 3 && i <= 5 ? "right" : "left",
                                 padding: "8px 12px", fontSize: 13, fontWeight: 500, color: "#414651",
                                 lineHeight: "20px", backgroundColor: "#F4F4F4", border: "1px solid #EBEDF0",
                                 whiteSpace: "nowrap",
@@ -433,6 +504,20 @@ function InvoiceReviewPage() {
                             </td>
                             <td style={{ padding: "8px 12px", border: "1px solid #EBEDF0", textAlign: "right", fontSize: 13, color: "#414651", fontVariantNumeric: "tabular-nums" }}>
                               {item.quantity ?? 1}
+                            </td>
+                            <td style={{ padding: "8px 12px", border: "1px solid #EBEDF0", textAlign: "right" }}>
+                              {isEditable ? (
+                                <input
+                                  type="number"
+                                  className="w-full focus:outline-none"
+                                  style={{ fontSize: 13, background: "transparent", border: "none", color: "#414651", width: "100%", textAlign: "right", fontVariantNumeric: "tabular-nums" }}
+                                  value={item.unit_price ?? 0}
+                                  onChange={(e) => setLineItem(idx, { unit_price: Number(e.target.value) })}
+                                  onKeyDown={(e) => { if (e.key === "Enter") void saveLineItems(lineItems); }}
+                                />
+                              ) : (
+                                <span style={{ fontSize: 13, color: "#414651", fontVariantNumeric: "tabular-nums" }}>{item.unit_price ?? 0}</span>
+                              )}
                             </td>
                             <td style={{ padding: "8px 12px", border: "1px solid #EBEDF0", textAlign: "right" }}>
                               {isEditable ? (

@@ -19,15 +19,25 @@ const tableClassName = "dp-matching-table";
 // title-cased version of the key for any field without an explicit label.
 const FIELD_LABELS: Record<string, string> = {
   vendor_name: "Vendor Name",
-  billing_period_start: "Billing Period Start",
-  billing_period_end: "Billing Period End",
-  subtotal: "Subtotal",
-  gst_total: "Tax Total",
-  gst_rate: "GST Rate",
-  grand_total: "Grand Total",
+  vendor_npwp: "Vendor NPWP",
+  customer_name: "Customer Name",
+  customer_npwp: "Customer NPWP",
+  store_location: "Store Location",
+  bank_details: "Bank Details (Account Name & Number)",
+  billing_period_start: "Billing / Service Period Start",
+  billing_period_end: "Billing / Service Period End",
+  payment_due_days: "Payment Due Days",
+  payment_due_date: "Payment Due Date",
+  // Business-checklist labels — see field_mapping.CORE_CROSS_VALIDATION_FIELDS.
+  subtotal: "Total Amount Before VAT",
+  tax_type: "Tax Type",
+  tax_rate: "Tax Rate",
+  tax_total: "Tax Amount",
+  wht_rate: "WHT Rate",
+  wht_total: "WHT (Withholding Tax)",
+  grand_total: "Net Amount After WHT (Total Amount Payable)",
   invoice_number: "Invoice Number",
   invoice_date: "Invoice Date",
-  customer_name: "Customer Name",
   currency: "Currency",
 };
 
@@ -39,10 +49,13 @@ function fieldLabel(f: DpFinding): string {
 
 /** A finding is "resolved" once its mapped invoice field already equals the
  * contract's expected value — e.g. after a manual edit on the Extraction
- * screen. Exported so pages can derive the same blocking-count logic the
- * table itself uses. */
+ * screen. A finding with no expected_value at all (a core cross-validation
+ * field with no literal contract-side figure to compare against, e.g. Tax
+ * Amount) has nothing to reconcile and counts as resolved. Exported so
+ * pages can derive the same blocking-count logic the table itself uses. */
 export function isFindingResolved(f: DpFinding, extracted: DpInvoiceExtracted): boolean {
-  if (!f.field || f.expected_value === undefined || f.expected_value === null) return false;
+  if (!f.field) return false;
+  if (f.expected_value === undefined || f.expected_value === null) return true;
   const current = (extracted as Record<string, unknown>)[f.field];
   if (current === undefined || current === null) return false;
   return String(current) === String(f.expected_value);

@@ -10,6 +10,7 @@ from typing import Optional
 
 from bson import ObjectId
 
+from . import field_mapping
 from .contract_recommendation import build_recommendation
 from .fixtures import get_dp_loader
 from .store import (
@@ -18,12 +19,6 @@ from .store import (
     dp_field_acknowledgement_memory,
     dp_invoice_runs,
 )
-
-# Invoice fields that must be non-empty before STP will consider an invoice
-# ready to match/accept — mirrors the frontend's own REQUIRED_FIELDS
-# (pages/directpay/invoice/[id]/review.tsx) so the STP gate and the
-# Extraction screen's red-asterisk/empty-highlight rules never disagree.
-REQUIRED_INVOICE_FIELDS = ("invoice_number", "vendor_name", "grand_total")
 
 # A posted/rejected invoice is final — nothing should mutate its contract
 # match or extracted data after this. Rejecting straight from the Extraction
@@ -141,22 +136,146 @@ async def _apply_extracted_patch(db, oid: ObjectId, doc: dict, extracted_patch: 
 
 def contract_out(doc: dict) -> dict:
     fields = _merge(doc.get("base_fields", {}), doc.get("edited_fields"))
+    bundle = get_dp_loader().discover().get(doc.get("fixture_key"))
     return {
         "id": str(doc["_id"]),
         "fixture_key": doc.get("fixture_key"),
         "file_name": doc.get("file_name"),
         "status": doc.get("status"),
         "fields": fields,
+        # Per-field label/section/mandatory/audit-trail/AI-match-reasoning —
+        # static extraction metadata from the fixture, never touched by edits
+        # (only the values in `fields` above change when a user edits).
+        "field_meta": bundle.contract_field_meta if bundle else {},
         "pdf_url": f"/dp-api/contracts/{doc['_id']}/pdf",
         "created_at": doc.get("created_at"),
         "updated_at": doc.get("updated_at"),
     }
 
 
+def _format_finding_invoice_value(field: str, value, currency: Optional[str]) -> str:
+    if field in ("tax_rate", "wht_rate"):
+        try:
+            return f"{float(value) * 100:.1f}%"
+        except (TypeError, ValueError):
+            return str(value)
+    if field in ("subtotal", "tax_total", "wht_total", "grand_total"):
+        try:
+            amount = f"{float(value):,.2f}"
+        except (TypeError, ValueError):
+            return str(value)
+        return f"{currency} {amount}" if currency else amount
+    return str(value)
+
+
+def _refresh_findings_from_extracted(findings: list[dict], extracted: dict) -> list[dict]:
+    """Mirrors P2P's own metadata_validation recompute (overlay the latest
+    edit_history value onto the fixture's static comparison row on every
+    GET): the invoice-side "found" value always reflects the CURRENT
+    extracted data, not whatever was in effect when the match first ran."""
+    if not findings:
+        return findings
+    currency = extracted.get("currency")
+    refreshed = []
+    for f in findings:
+        field = f.get("field")
+        if not field or extracted.get(field) is None:
+            refreshed.append(f)
+            continue
+        refreshed.append({**f, "found": _format_finding_invoice_value(field, extracted[field], currency)})
+    return refreshed
+
+
+def _is_finding_resolved(f: dict, extracted: dict) -> bool:
+    """Same "resolved" definition the frontend's isFindingResolved uses: the
+    field's current live value already equals the contract's expected
+    value — e.g. after a manual edit, or because it always matched.
+
+    A finding with no `expected_value` at all (a core cross-validation field
+    with no literal contract-side figure to compare against, e.g. Tax
+    Amount — see field_mapping.CORE_CROSS_VALIDATION_FIELDS) has nothing to
+    reconcile and so can never be "a mismatch" — it counts as resolved."""
+    field = f.get("field")
+    if not field:
+        return False
+    if f.get("expected_value") is None:
+        return True
+    current = extracted.get(field)
+    if current is None:
+        return False
+    return str(current) == str(f["expected_value"])
+
+
+async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], extracted: dict) -> list[dict]:
+    """The Matching page always shows a fixed, product-defined checklist of
+    cross-validation fields (field_mapping.CORE_CROSS_VALIDATION_FIELDS) —
+    Vendor Name, Bank Details, Store Location, Billing/Service Period, and
+    the four key amounts — regardless of what matching.json's fixture
+    happens to author findings for.
+
+    1. An existing real finding (e.g. matching.json's Subtotal mismatch)
+       for a checklist field is tagged `mandatory` per the checklist and
+       otherwise left as-is — its richer fixture title/detail survives.
+    2. Any checklist field the fixture didn't already flag gets a row
+       synthesized here from the invoice's live value vs. the matched
+       contract's, so a field that simply matches still shows up (as an
+       ordinary matched row) instead of only ever appearing when something's
+       wrong. Fields with no contract counterpart at all (the three amount
+       fields, which are computed, not literal contract data) still get a
+       row — just with nothing to reconcile against (never a mismatch, see
+       _is_finding_resolved).
+    """
+    contract_fields: dict = {}
+    contract_id = doc.get("contract_id")
+    if contract_id:
+        contract_doc = await dp_contract_runs(db).find_one({"_id": contract_id})
+        if contract_doc:
+            contract_fields = _merge(contract_doc.get("base_fields") or {}, contract_doc.get("edited_fields"))
+
+    core_by_field = {c.invoice_field: c for c in field_mapping.CORE_CROSS_VALIDATION_FIELDS}
+
+    annotated = []
+    covered_invoice_fields: set[str] = set()
+    for f in findings:
+        invoice_field = f.get("field") or ""
+        covered_invoice_fields.add(invoice_field)
+        core = core_by_field.get(invoice_field)
+        # `core` = "belongs on the Matching page's always-shown checklist"
+        # (drives display); `mandatory` = "can block approval" — Bank
+        # Details is core but NOT mandatory, so these can't be collapsed
+        # into one flag.
+        annotated.append({**f, "core": bool(core), "mandatory": bool(core and core.mandatory)})
+
+    currency = extracted.get("currency")
+    for core in field_mapping.CORE_CROSS_VALIDATION_FIELDS:
+        if core.invoice_field in covered_invoice_fields:
+            continue
+        contract_value = contract_fields.get(core.contract_field) if core.contract_field else None
+        invoice_value = extracted.get(core.invoice_field)
+        # Always shown, even with nothing on either side (e.g. WHT is
+        # genuinely null when no withholding tax applies) — a blank row is
+        # itself the answer ("no WHT on this invoice"), not something to hide.
+        annotated.append({
+            "finding_id": f"CORE-{core.invoice_field}",
+            "severity": "error" if core.mandatory else "info",
+            "title": f"{core.label} comparison",
+            "detail": f"Compares the invoice's {core.label} against the contract.",
+            "expected": str(contract_value) if contract_value is not None else None,
+            "found": _format_finding_invoice_value(core.invoice_field, invoice_value, currency)
+                if invoice_value is not None else None,
+            "field": core.invoice_field,
+            "expected_value": contract_value,
+            "core": True,
+            "mandatory": core.mandatory,
+        })
+    return annotated
+
+
 async def invoice_out(db, doc: dict) -> dict:
     extracted = _merge(doc.get("base_extracted") or {}, doc.get("edited_extracted"))
     match_result = doc.get("match_result")
-    findings = (match_result or {}).get("findings") or []
+    findings = _refresh_findings_from_extracted((match_result or {}).get("findings") or [], extracted)
+    findings = await _apply_mandatory_field_coverage(db, doc, findings, extracted)
     system_acknowledged = await _apply_dp_ack_memory(db, findings, extracted)
     return {
         "id": str(doc["_id"]),
@@ -172,6 +291,8 @@ async def invoice_out(db, doc: dict) -> dict:
         "acknowledged_findings": doc.get("acknowledged_findings", []),
         "system_acknowledged_findings": system_acknowledged,
         "has_edit_history": bool(doc.get("edit_history")),
+        "tag": doc.get("tag"),
+        "notify_email": (doc.get("source_meta") or {}).get("sender"),
         "stp_state": doc.get("stp_state"),
         "stp_failure_reason": doc.get("stp_failure_reason"),
         "review": doc.get("review"),
@@ -181,17 +302,26 @@ async def invoice_out(db, doc: dict) -> dict:
     }
 
 
-def has_open_issues(match_result: Optional[dict], acknowledged: list[str], system_acknowledged: list[str]) -> bool:
-    findings = (match_result or {}).get("findings") or []
+def has_open_issues(findings: list[dict], acknowledged: list[str], system_acknowledged: list[str], extracted: dict) -> bool:
+    """Only MANDATORY findings (see _apply_mandatory_field_coverage) can
+    block approval — a non-mandatory mismatch (e.g. tax_rate, which has no
+    literal contract counterpart) is informational only and never needs an
+    explicit Acknowledge to get past. `findings` must already carry the
+    `mandatory` flag (i.e. be the output of _apply_mandatory_field_coverage).
+
+    A mandatory finding whose live value already matches the contract's
+    (`_is_finding_resolved`) is never open either — this matters now that
+    synthesized "this mandatory field already matches" rows exist
+    (see _apply_mandatory_field_coverage) and are never explicitly
+    acknowledged, only ever resolved by already being equal."""
     handled = set(acknowledged) | set(system_acknowledged)
     for f in findings:
-        if f.get("finding_id") not in handled:
-            return True
+        if not f.get("mandatory") or f.get("finding_id") in handled:
+            continue
+        if _is_finding_resolved(f, extracted):
+            continue
+        return True
     return False
-
-
-def missing_required_fields(extracted: dict) -> list[str]:
-    return [f for f in REQUIRED_INVOICE_FIELDS if not extracted.get(f)]
 
 
 # ── Contracts ──────────────────────────────────────────────────────────────────
@@ -269,7 +399,9 @@ async def get_invoice_doc(db, oid: ObjectId) -> dict:
     return doc
 
 
-async def upload_invoice(db, filename: str) -> dict:
+async def upload_invoice(
+    db, filename: str, email: Optional[str] = None, tag: Optional[str] = None
+) -> dict:
     bundle = get_dp_loader().resolve(filename or "")
     if bundle is None:
         raise NotFoundError("No DirectPay fixture scenarios configured")
@@ -290,6 +422,12 @@ async def upload_invoice(db, filename: str) -> dict:
         "bill_posting_overrides": {},
         "erp": None,
         "review": {"status": "pending", "updated_at": now},
+        # Notification/tag metadata — same shape as P2P's pipeline_runs.tag /
+        # source_meta.sender, carried through for parity with its own
+        # ingestion/trigger-upload request even though DirectPay's own UI
+        # doesn't yet surface either.
+        "tag": tag,
+        "source_meta": {"sender": email} if email else {},
         "created_at": now,
         "updated_at": now,
     }
@@ -373,7 +511,14 @@ async def match_invoice(db, oid: ObjectId, contract_oid: ObjectId) -> dict:
 
 async def acknowledge_finding(db, oid: ObjectId, finding_id: str, acknowledged: bool) -> list[str]:
     doc = await get_invoice_doc(db, oid)
-    findings = (doc.get("match_result") or {}).get("findings") or []
+    extracted = _merge(doc.get("base_extracted") or {}, doc.get("edited_extracted"))
+    # Must look this up through the same coverage pass invoice_out()/
+    # review_action() use — a CORE-* id (a checklist field the fixture
+    # didn't already author a finding for) only ever exists as a synthesized
+    # row, never in match_result.findings itself, so searching that raw list
+    # alone would 404 on every core-checklist field.
+    raw_findings = (doc.get("match_result") or {}).get("findings") or []
+    findings = await _apply_mandatory_field_coverage(db, doc, raw_findings, extracted)
     finding = next((f for f in findings if f.get("finding_id") == finding_id), None)
     if not finding:
         raise NotFoundError("Finding not found")
@@ -397,7 +542,6 @@ async def acknowledge_finding(db, oid: ObjectId, finding_id: str, acknowledged: 
     # DirectPay Acknowledge Threshold is cleared. Only on a fresh manual ACK
     # (not on revert), and only for findings with a resolvable field mapping.
     if acknowledged and finding.get("field") and finding.get("expected_value") is not None:
-        extracted = _merge(doc.get("base_extracted") or {}, doc.get("edited_extracted"))
         await record_dp_acknowledgement(
             db, finding["field"], finding["expected_value"], extracted.get(finding["field"])
         )
@@ -427,9 +571,10 @@ async def review_action(db, oid: ObjectId, action: str, force: bool, reason: Opt
     extracted = _merge(doc.get("base_extracted") or {}, doc.get("edited_extracted"))
     match_result = doc.get("match_result")
     findings = (match_result or {}).get("findings") or []
+    findings = await _apply_mandatory_field_coverage(db, doc, findings, extracted)
     system_acknowledged = await _apply_dp_ack_memory(db, findings, extracted)
     acknowledged = doc.get("acknowledged_findings") or []
-    open_issues = has_open_issues(match_result, acknowledged, system_acknowledged)
+    open_issues = has_open_issues(findings, acknowledged, system_acknowledged, extracted)
     if open_issues and not force:
         raise NeedsConfirmationError()
 
@@ -482,8 +627,8 @@ def _bill_posting_out(doc: dict) -> dict:
         "invoice_date": extracted.get("invoice_date"),
         "currency": extracted.get("currency"),
         "subtotal": extracted.get("subtotal"),
-        "tax_amount": extracted.get("gst_total"),
-        "wht_amount": extracted.get("tds_total"),
+        "tax_amount": extracted.get("tax_total"),
+        "wht_amount": extracted.get("wht_total"),
         "grand_total": extracted.get("grand_total"),
         "wht_applicable": defaults.get("wht_applicable", False),
         "line_items": line_items,
@@ -529,7 +674,71 @@ async def post_bill(db, oid: ObjectId) -> dict:
         {"_id": oid},
         {"$set": {"status": "posted", "erp": erp, "review": review, "updated_at": now}},
     )
-    return await get_bill_posting(db, oid)
+    result = await get_bill_posting(db, oid)
+    await _notify_dp_bill_posted(db, doc, erp)
+    return result
+
+
+async def _resolve_dp_notification_email(db, doc: dict, extracted: dict) -> Optional[str]:
+    """Three equivalent ways to land on "the vendor's email", in order of
+    how explicit/authoritative they are:
+      1. Explicitly given at upload time (/ingestion/trigger-upload's
+         `email` field) — an operator said "notify this address", so it wins.
+      2. The vendor's own email as extracted from the invoice itself.
+      3. The vendor's own email as extracted from the matched contract —
+         falls back here only if the invoice's own extraction didn't have it.
+    """
+    explicit = (doc.get("source_meta") or {}).get("sender")
+    if explicit:
+        return explicit
+    if extracted.get("vendor_email"):
+        return extracted["vendor_email"]
+    contract_id = doc.get("contract_id")
+    if contract_id:
+        contract_doc = await dp_contract_runs(db).find_one({"_id": contract_id})
+        if contract_doc:
+            contract_fields = _merge(contract_doc.get("base_fields") or {}, contract_doc.get("edited_fields"))
+            if contract_fields.get("vendor_email"):
+                return contract_fields["vendor_email"]
+    return None
+
+
+async def _notify_dp_bill_posted(db, doc: dict, erp: dict) -> None:
+    """Mirrors P2P's own post_bill_to_erp notification (see
+    backend/src/api/v1/bill_posting.py): fire-and-forget an email once
+    bill-posting completes. Unlike P2P (whose only source is the upload-time
+    sender address), DirectPay also has a real vendor email available from
+    extraction — see _resolve_dp_notification_email for the full priority
+    order. Any Gmail/config failure is caught and logged, never surfaced to
+    the caller, since a mocked ERP-post should still succeed."""
+    extracted = _merge(doc.get("base_extracted") or {}, doc.get("edited_extracted"))
+    recipient = await _resolve_dp_notification_email(db, doc, extracted)
+    if not recipient:
+        return
+    try:
+        from ..services import gmail_client
+        from ..services.email_templates import directpay_posted_html
+
+        currency = extracted.get("currency") or ""
+        total = extracted.get("grand_total")
+        total_fmt = f"{float(total):,.2f}" if total is not None else "—"
+        html = directpay_posted_html(
+            invoice_number=erp["bill_number"],
+            vendor_name=extracted.get("vendor_name") or "",
+            currency=currency,
+            total_amount=total_fmt,
+            posted_date=erp["posted_at"].strftime("%d %b %Y"),
+        )
+        await gmail_client.send_html_email(
+            to=recipient,
+            subject=f"Invoice {erp['bill_number']} Posted Successfully",
+            html_body=html,
+        )
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception(
+            "DirectPay bill posting notification email failed to %s", recipient
+        )
 
 
 # ── Simulate (debit/credit journal preview) ───────────────────────────────────
@@ -540,7 +749,7 @@ async def post_bill(db, oid: ObjectId) -> dict:
 # from the bill-posting fixture"), so this is the same kind of synthesis,
 # built from the invoice's own extracted totals instead of a fixture-supplied
 # bill_header (DirectPay has no separate bill_header — the underlying invoice
-# extraction already carries subtotal/gst_total/tds_total/grand_total).
+# extraction already carries subtotal/tax_total/wht_total/grand_total).
 #
 # Scoped adaptation: P2P's WHT-code enforcement (required_wht_code) validates
 # against Philippine BIR SAP codes, which have no analog for an Indonesian
@@ -573,11 +782,11 @@ async def simulate_bill_posting(db, oid: ObjectId) -> dict:
     wht_amount = float(bp.get("wht_amount") or 0) if bp.get("wht_applicable") else 0.0
     net_payable = grand_total - wht_amount
     line_items = bp.get("line_items") or []
-    # The invoice's own extracted GST rate (e.g. 0.11) — labels the Input VAT
+    # The invoice's own extracted tax rate (e.g. 0.11) — labels the Input VAT
     # row with a percentage, mirroring P2P's vat_codes.json percentage lookup.
     # DirectPay has the real rate on the invoice itself, so no lookup table
     # is needed the way P2P's SAP-code system requires one.
-    gst_rate = extracted.get("gst_rate")
+    tax_rate = extracted.get("tax_rate")
 
     headers = [
         {"id": "position", "label": "#", "type": "text", "width": 56},
@@ -610,7 +819,7 @@ async def simulate_bill_posting(db, oid: ObjectId) -> dict:
     # tax_amount > 0).
     input_vat_code = next((it.get("vat_tax_code") for it in line_items if it.get("vat_tax_code")), "—")
     if any(it.get("vat_tax_code") for it in line_items):
-        vat_pct = f"{gst_rate * 100:.0f}%" if gst_rate else ""
+        vat_pct = f"{tax_rate * 100:.0f}%" if tax_rate else ""
         input_vat_desc = f"Input tax · {vat_pct}" if vat_pct else "Input tax"
         rows.append({
             "position": pos,
