@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/components/ui";
 import { StageTransitionOverlay } from "@/components/StageTransitionOverlay";
 import { directpayService, DpContractRun, DpInvoiceRun } from "@/services/directpay";
+import { invoiceRoute } from "@/utils/directpayRoutes";
 
 // Every upload (invoice or contract, Auto-Process on or off) shows a focused
 // extraction loader and then lands the human straight on the review screen —
@@ -64,6 +65,7 @@ const INVOICE_STAGE_TAG: Record<string, { label: string; tone: keyof typeof ANTD
 
 const CONTRACT_STAGE_TAG: Record<string, { label: string; tone: keyof typeof ANTD_TAG }> = {
   review: { label: "Review", tone: "cyan" },
+  postprocessing: { label: "Postprocessing", tone: "cyan" },
   saved: { label: "Saved", tone: "green" },
 };
 
@@ -134,30 +136,11 @@ function formatTimestamp(iso: string): string {
   }
 }
 
-function invoiceRoute(inv: DpInvoiceRun): string {
-  // Only a genuinely un-extracted upload goes back to the extraction screen.
-  // "extracted"/"matching" (including "no contract matched yet") live on the
-  // Matching screen, which has its own Contract picker. Once Matching has
-  // been approved, the invoice moves on to Bill Posting — rejected invoices
-  // stay wherever they were rejected from, but we only ever land here from
-  // the dashboard, so Bill Posting (which also renders the posted summary)
-  // is the right destination for both "bill_posting" and "posted".
-  if (inv.status === "extraction") {
-    return `/directpay/invoice/${inv.id}/review`;
-  }
-  if (inv.status === "fp_extraction") {
-    return `/directpay/invoice/${inv.id}/fp-extraction`;
-  }
-  if (inv.status === "postprocessing") {
-    return `/directpay/invoice/${inv.id}/extraction-postprocessing`;
-  }
-  if (inv.status === "bill_posting" || inv.status === "posted") {
-    return `/directpay/invoice/${inv.id}/bill-posting`;
-  }
-  return `/directpay/invoice/${inv.id}/match`;
-}
 
 function contractRoute(c: DpContractRun): string {
+  if (c.status === "postprocessing") {
+    return `/directpay/contract/${c.id}/extraction-postprocessing`;
+  }
   return `/directpay/contract/${c.id}/review`;
 }
 
@@ -174,6 +157,7 @@ function invoiceAction(inv: DpInvoiceRun): { label: string; primary: boolean; di
 
 function contractAction(c: DpContractRun): { label: string; primary: boolean; disabled: boolean } {
   if (c.status === "review") return { label: "Review", primary: true, disabled: false };
+  if (c.status === "postprocessing") return { label: "Continue", primary: true, disabled: false };
   return { label: "View", primary: false, disabled: false };
 }
 

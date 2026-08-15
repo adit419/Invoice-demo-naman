@@ -13,6 +13,7 @@ import { DocumentPreviewModal } from "@/components/directpay/DocumentPreviewModa
 import { StageTransitionOverlay } from "@/components/StageTransitionOverlay";
 import { ApiError } from "@/services/api";
 import { directpayService, DpInvoiceExtracted, DpInvoiceRun, DpLineItem } from "@/services/directpay";
+import { invoiceRoute } from "@/utils/directpayRoutes";
 
 const PdfViewer = dynamic(() => import("@/components/PdfViewer").then((m) => m.PdfViewer), {
   ssr: false,
@@ -125,16 +126,21 @@ function InvoiceReviewPage() {
   const isTerminal = run ? ["posted", "rejected"].includes(run.status) : false;
   const isRejected = run?.status === "rejected";
   // Mirrors Invoice Processing's Extraction page exactly: the Reject/Confirm
-  // pair is only available before the invoice has moved on to Matching —
-  // once a contract is set (by AI or a human), this page shows "Next"
-  // instead, same as P2P's isActionable → Next split. Fields themselves stay
-  // editable through Matching too (only locked once terminal), same as P2P's
-  // separate isEditable gate — an edit here is picked up live by Matching's
-  // own resolved-field logic next time that page is viewed. The `!isRejected`
-  // guard matters: an invoice rejected straight from here (before ever being
-  // matched) still has no contract_id, so without this it would keep showing
-  // an active Reject/Confirm toolbar on an already-decided invoice.
-  const isActionable = run ? !run.contract_id && !isRejected : false;
+  // pair is only available before a human has confirmed extraction — once
+  // confirmed, this page shows "Next" instead, same as P2P's isActionable →
+  // Next split. Fields themselves stay editable through Matching too (only
+  // locked once terminal), same as P2P's separate isEditable gate — an edit
+  // here is picked up live by Matching's own resolved-field logic next time
+  // that page is viewed.
+  //
+  // Gated on extraction_confirmed, NOT contract_id — contract_id isn't set
+  // until Matching, several stages after Faktur Pajak + Extraction
+  // Postprocessing now sit in between, so it would still read "not yet
+  // confirmed" long after a human already confirmed and moved on. It's also
+  // NOT gated on status === "extracted", since that status is reused for
+  // two different moments (freshly extracted, not yet confirmed; and
+  // post-Postprocessing, ready for Matching).
+  const isActionable = run ? !run.extraction_confirmed && !isRejected : false;
   const isEditable = !isTerminal;
 
   // Individual field saves persist immediately on Enter (same as P2P's
@@ -214,7 +220,7 @@ function InvoiceReviewPage() {
   const handleReject = async (reason: string) => {
     if (!id) return;
     try {
-      await directpayService.reviewAction(id, "reject", false, reason);
+      await directpayService.reviewAction(id, "reject", reason);
       setRejectOpen(false);
       router.push("/directpay/dashboard");
     } catch (err) {
@@ -307,7 +313,7 @@ function InvoiceReviewPage() {
       Rejected
     </span>
   ) : (
-    <AntButton type="primary" onClick={() => router.push(`/directpay/invoice/${id}/match`)}>
+    <AntButton type="primary" onClick={() => router.push(invoiceRoute(run))}>
       Next
     </AntButton>
   );

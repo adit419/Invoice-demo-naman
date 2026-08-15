@@ -66,9 +66,12 @@ class InvalidStateError(Exception):
 
 
 class NeedsConfirmationError(Exception):
-    """Raised by review_action when open issues exist and the caller hasn't
-    passed force=True — the HTTP layer turns this into a 409; STP treats it
-    as a hold signal."""
+    """Raised by review_action whenever open mandatory issues exist — no
+    override exists for Matching's approve (see review_action's docstring);
+    this is purely a defensive signal for a state the disabled Approve
+    button shouldn't normally let a human reach. Also raised by
+    approve_faktur_pajak, which — unlike Matching — does accept its own
+    `force` to let a human proceed past an acknowledged mismatch."""
     message = "This invoice still has open issues. Do you still want to approve it?"
 
 
@@ -176,6 +179,11 @@ def contract_out(doc: dict) -> dict:
         # static extraction metadata from the fixture, never touched by edits
         # (only the values in `fields` above change when a user edits).
         "field_meta": bundle.contract_field_meta if bundle else {},
+        # Drives whether approving Contract Review lands on the Extraction
+        # Postprocessing stage or goes straight to "saved" (see
+        # approve_contract) — surfaced here too so the frontend can decide
+        # navigation without guessing at a bundle it can't see directly.
+        "has_payment_schedule": bool(bundle and bundle.payment_schedule),
         "pdf_url": f"/dp-api/contracts/{doc['_id']}/pdf",
         "created_at": doc.get("created_at"),
         "updated_at": doc.get("updated_at"),
@@ -232,9 +240,46 @@ def _is_finding_resolved(f: dict, extracted: dict) -> bool:
     if f.get("expected_value") is None:
         return False
     current = extracted.get(field)
-    if current is None:
-        return False
-    return str(current) == str(f["expected_value"])
+    if current is not None and str(current) == str(f["expected_value"]):
+        return True
+    # WHT / Net Amount After WHT are never written back onto the invoice's
+    # own extraction record even once derived (see
+    # approve_extraction_postprocessing) — their "found" value instead falls
+    # back, display-only, to the same matched-installment figure the
+    # "expected" (contract) value shows (see _apply_mandatory_field_coverage).
+    # When that fallback numerically equals the contract's own figure, the
+    # two formatted display strings come out identical too — treat that the
+    # same as a real extracted-data match, so this can never disagree with
+    # the frontend's own isFindingResolved and permanently deadlock Approve.
+    return f.get("found") is not None and f["found"] == f.get("expected")
+
+
+# Total Amount Before VAT / Tax Amount / WHT / Net Amount After WHT have no
+# single flat contract field to compare against for a lumpsum-installment
+# lease (that's what base_fee/"Monthly Rent" would be for a plain monthly
+# rent contract) — the real per-installment figures live in the payment
+# schedule instead (see fixtures/dp/<KEY>/payment_schedule.json and the
+# Contract Extraction Postprocessing stage, which reviews these same four
+# fields before a contract is saved).
+_INSTALLMENT_MATCH_FIELD_MAP = {
+    "total_amount_before_vat": "amount_excl_tax",
+    "vat_gst": "vat_amount",
+    "wht": "wht_amount",
+    "net_amount_after_wht": "net_payment_to_lessor",
+}
+
+
+def _resolve_contract_value(core, contract_fields: dict, installment: Optional[dict]):
+    if installment and core.invoice_field in _INSTALLMENT_MATCH_FIELD_MAP:
+        return installment.get(_INSTALLMENT_MATCH_FIELD_MAP[core.invoice_field])
+    contract_value = contract_fields.get(core.contract_field) if core.contract_field else None
+    # base_fee (Monthly Rent) is literally 0 for a lumpsum-installment
+    # contract with no true monthly-rent concept — that's "not
+    # applicable", not "the expected amount is zero rupiah", so treat it
+    # the same as no contract figure at all (blank, non-mandatory).
+    if core.contract_field == "base_fee" and contract_value == 0:
+        contract_value = None
+    return contract_value
 
 
 async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], extracted: dict) -> list[dict]:
@@ -263,6 +308,12 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
         if contract_doc:
             contract_fields = _merge(contract_doc.get("base_fields") or {}, contract_doc.get("edited_fields"))
 
+    bundle = get_dp_loader().discover().get(doc.get("fixture_key"))
+    installment = (
+        _match_payment_installment(bundle.payment_schedule, extracted)
+        if bundle and bundle.payment_schedule else None
+    )
+
     core_by_field = {c.invoice_field: c for c in field_mapping.CORE_CROSS_VALIDATION_FIELDS}
 
     annotated = []
@@ -281,14 +332,16 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
     for core in field_mapping.CORE_CROSS_VALIDATION_FIELDS:
         if core.invoice_field in covered_invoice_fields:
             continue
-        contract_value = contract_fields.get(core.contract_field) if core.contract_field else None
-        # base_fee (Monthly Rent) is literally 0 for a lumpsum-installment
-        # contract with no true monthly-rent concept — that's "not
-        # applicable", not "the expected amount is zero rupiah", so treat it
-        # the same as no contract figure at all (blank, non-mandatory).
-        if core.contract_field == "base_fee" and contract_value == 0:
-            contract_value = None
+        contract_value = _resolve_contract_value(core, contract_fields, installment)
         invoice_value = extracted.get(core.invoice_field)
+        # wht / net_amount_after_wht are never printed on the invoice itself
+        # and (per explicit instruction) never get back-populated into the
+        # invoice's own extraction record either — so the Invoice column
+        # falls back here, display-only, to the same matched-installment
+        # figure Extraction Postprocessing showed (see _SCHEDULE_FIELD_MAP),
+        # without ever writing it onto the invoice.
+        if invoice_value is None and installment and core.invoice_field in _SCHEDULE_FIELD_MAP:
+            invoice_value = installment.get(_SCHEDULE_FIELD_MAP[core.invoice_field])
         # Always shown, even with nothing on either side (e.g. WHT is
         # genuinely null when no withholding tax applies) — a blank row is
         # itself the answer ("no WHT on this invoice"), not something to hide.
@@ -355,6 +408,7 @@ async def invoice_out(db, doc: dict) -> dict:
         "acknowledged_findings": doc.get("acknowledged_findings", []),
         "system_acknowledged_findings": system_acknowledged,
         "has_edit_history": bool(doc.get("edit_history")),
+        "extraction_confirmed": bool(doc.get("extraction_confirmed")),
         "tag": doc.get("tag"),
         "notify_email": (doc.get("source_meta") or {}).get("sender"),
         "stp_state": doc.get("stp_state"),
@@ -445,11 +499,100 @@ async def approve_contract(db, oid: ObjectId, fields: Optional[dict]) -> dict:
     edited = doc.get("edited_fields") or {}
     if fields:
         edited = _merge(edited, fields)
+    # A lumpsum lease with a real payment schedule gets an extra review step
+    # (Contract Extraction Postprocessing) before it's terminal — everything
+    # else (no payment_schedule.json for this vendor) goes straight to
+    # "saved", same as before this stage existed.
+    bundle = get_dp_loader().discover().get(doc.get("fixture_key"))
+    next_status = "postprocessing" if bundle and bundle.payment_schedule else "saved"
     await dp_contract_runs(db).update_one(
         {"_id": oid},
-        {"$set": {"edited_fields": edited, "status": "saved", "updated_at": _now()}},
+        {"$set": {"edited_fields": edited, "status": next_status, "updated_at": _now()}},
     )
     doc["edited_fields"] = edited
+    doc["status"] = next_status
+    return contract_out(doc)
+
+
+# ── Contract Extraction Postprocessing ─────────────────────────────────────────
+# Review-only stage between Contract Review and the final Approve & Save,
+# shown only when the vendor has a real payment_schedule.json (see
+# fixtures.py) — surfaces the schedule's own per-installment figures so a
+# reviewer can confirm them before they start driving invoice Matching (see
+# _resolve_contract_value above, which pulls these same four fields for
+# whichever installment an invoice's amount matches). Columns the real
+# tracker's payment-schedule table carries for TRACKING an already-received
+# invoice (Invoice Number, Invoice Received Date, Date of Payment, Amount
+# Paid) are deliberately excluded — no invoice exists yet at contract-approval
+# time, so those facts aren't knowable here.
+_CONTRACT_DERIVED_COLUMNS = [
+    ("due_date", "Due Date"),
+    ("amount_excl_tax", "Total Amount Before VAT"),
+    ("vat_rate", "VAT Rate"),
+    ("vat_amount", "Tax Amount"),
+    ("total_amount_incl_tax", "Total Amount (Incl. VAT)"),
+    ("wht_rate", "WHT Rate"),
+    ("wht_amount", "WHT (Withholding Tax)"),
+    ("net_payment_to_lessor", "Net Amount After WHT (Total Amount Payable)"),
+    ("payment_status", "Payment Status"),
+]
+
+
+def _format_contract_derived_value(key: str, value) -> str:
+    if value is None:
+        return "—"
+    if key in ("vat_rate", "wht_rate"):
+        try:
+            return f"{float(value) * 100:.0f}%"
+        except (TypeError, ValueError):
+            return str(value)
+    if key in ("amount_excl_tax", "vat_amount", "total_amount_incl_tax", "wht_amount", "net_payment_to_lessor"):
+        try:
+            return f"{float(value):,.2f}"
+        except (TypeError, ValueError):
+            return str(value)
+    return str(value)
+
+
+async def get_contract_extraction_postprocessing(db, oid: ObjectId) -> dict:
+    doc = await get_contract_doc(db, oid)
+    bundle = get_dp_loader().discover().get(doc.get("fixture_key"))
+    schedule = bundle.payment_schedule if bundle else None
+    installments = (schedule or {}).get("installments") or []
+    fields = _merge(doc.get("base_fields") or {}, doc.get("edited_fields"))
+
+    rows = [
+        {
+            "description": inst.get("description"),
+            "fields": [
+                {
+                    "field_name": key,
+                    "display_name": label,
+                    "value": inst.get(key),
+                    "formatted_value": _format_contract_derived_value(key, inst.get(key)),
+                }
+                for key, label in _CONTRACT_DERIVED_COLUMNS
+            ],
+        }
+        for inst in installments
+    ]
+
+    return {
+        "id": str(doc["_id"]),
+        "status": doc.get("status"),
+        "vendor_name": fields.get("vendor_name"),
+        "has_payment_schedule": bool(schedule),
+        "installments": rows,
+    }
+
+
+async def approve_contract_extraction_postprocessing(db, oid: ObjectId) -> dict:
+    doc = await get_contract_doc(db, oid)
+    if doc.get("status") != "postprocessing":
+        raise InvalidStateError("This contract is not at the Extraction Postprocessing stage")
+    await dp_contract_runs(db).update_one(
+        {"_id": oid}, {"$set": {"status": "saved", "updated_at": _now()}}
+    )
     doc["status"] = "saved"
     return contract_out(doc)
 
@@ -545,39 +688,21 @@ async def edit_invoice(db, oid: ObjectId, extracted_patch: Optional[dict], user_
     return await invoice_out(db, doc)
 
 
-async def copy_field_from_contract(db, oid: ObjectId, field_name: str, user_email: str = "unknown") -> dict:
-    """Matching page's "Copy" action — only ever offered for a checklist field
-    the invoice has NO value for at all (see MatchingTable.tsx's canCopy),
-    never for a real mismatch (that's what Acknowledge is for). Goes through
-    the same _apply_extracted_patch every other edit does, so the copied
-    value shows up everywhere the invoice's extracted data is read
-    (Extraction, Faktur Pajak, Bill Posting) and logs a normal edit_history
-    entry — a copy is just an edit whose new value happens to come from the
-    contract instead of a human typing it in."""
-    doc = await get_invoice_doc(db, oid)
-    contract_id = doc.get("contract_id")
-    if not contract_id:
-        raise InvalidStateError("This invoice has not been matched to a contract yet")
-
-    core = field_mapping.find_core_field(field_name)
-    if not core or not core.contract_field:
-        raise NotFoundError(f"'{field_name}' has no contract field to copy from")
-
-    contract_doc = await dp_contract_runs(db).find_one({"_id": contract_id})
-    if not contract_doc:
-        raise NotFoundError("Matched contract not found")
-    contract_fields = _merge(contract_doc.get("base_fields") or {}, contract_doc.get("edited_fields"))
-    contract_value = contract_fields.get(core.contract_field)
-    if contract_value is None:
-        raise InvalidStateError(f"The contract has no value for '{core.label}' to copy")
-
-    doc = await _apply_extracted_patch(db, oid, doc, {field_name: contract_value}, user_email)
-    return await invoice_out(db, doc)
-
-
 async def confirm_extraction(db, oid: ObjectId, extracted_patch: Optional[dict], user_email: str = "unknown") -> dict:
     doc = await get_invoice_doc(db, oid)
     doc = await _apply_extracted_patch(db, oid, doc, extracted_patch, user_email)
+
+    # Explicit one-way flag for "a human has clicked Confirm Extraction at
+    # least once" — the Extraction page's own isActionable needs this
+    # directly rather than inferring it from `status`, because "extracted"
+    # is reused for two different moments (fresh extraction, not yet
+    # confirmed; and post-Postprocessing, ready for Matching) and
+    # `contract_id` isn't set until Matching, several stages later. Without
+    # this flag the Extraction page would keep showing itself as still
+    # actionable ("Confirm Extraction") after a human has already confirmed,
+    # moved through Faktur Pajak and Postprocessing, and come back here.
+    await dp_invoice_runs(db).update_one({"_id": oid}, {"$set": {"extraction_confirmed": True}})
+    doc["extraction_confirmed"] = True
 
     # Mirrors P2P's approve_stage: confirming extraction auto-advances into
     # fp_extraction for an IDR invoice (the only currency DP's Indonesian
@@ -687,19 +812,18 @@ async def get_extraction_postprocessing(db, oid: ObjectId) -> dict:
     }
 
 
-async def approve_extraction_postprocessing(db, oid: ObjectId, user_email: str = "unknown") -> dict:
+async def approve_extraction_postprocessing(db, oid: ObjectId) -> dict:
     doc = await get_invoice_doc(db, oid)
     if doc.get("status") != "postprocessing":
         raise InvalidStateError("This invoice is not at the Extraction Postprocessing stage")
 
-    data = await get_extraction_postprocessing(db, oid)
-    patch = {
-        f["field_name"]: f["derived_value"]
-        for f in data["fields"]
-        if f["derived_value"] is not None
-    }
-    if patch:
-        doc = await _apply_extracted_patch(db, oid, doc, patch, user_email)
+    # Derived fields (see get_extraction_postprocessing) are shown for
+    # reference only — approving this stage never writes them onto the
+    # invoice's own extraction record. The payment schedule is a different
+    # document (the contract's), matched to this invoice only by amount
+    # proximity, not a verified fact this specific invoice states about
+    # itself — back-populating extracted_* with it would silently fabricate
+    # data the invoice never actually contained.
 
     # Sits after Faktur Pajak now, so approving here lands back at
     # "extracted" — the same status a non-IDR invoice (no FP, no
@@ -915,11 +1039,17 @@ async def acknowledge_finding(db, oid: ObjectId, finding_id: str, acknowledged: 
     return acked
 
 
-async def review_action(db, oid: ObjectId, action: str, force: bool, reason: Optional[str]) -> dict:
+async def review_action(db, oid: ObjectId, action: str, reason: Optional[str]) -> dict:
     """Matching-stage decision. There is no "accept"/"validate" split and no
     "validated" terminal status — approving here is a mid-pipeline transition
     (matching -> bill_posting), same as P2P's line_item_matching approval
-    moves the invoice on to bill_posting rather than ending the pipeline."""
+    moves the invoice on to bill_posting rather than ending the pipeline.
+
+    Every mandatory field check (see _apply_mandatory_field_coverage) must be
+    resolved or acknowledged before approving — this is a hard rule with no
+    override: unlike Faktur Pajak's approve (which does take a `force` to
+    let a human proceed past its own mismatches), Matching's mandatory
+    checklist can never be bypassed, only fixed or acknowledged."""
     doc = await get_invoice_doc(db, oid)
     if action not in ("approve", "reject"):
         raise ValueError("Invalid action")
@@ -940,13 +1070,12 @@ async def review_action(db, oid: ObjectId, action: str, force: bool, reason: Opt
     findings = await _apply_mandatory_field_coverage(db, doc, findings, extracted)
     system_acknowledged = await _apply_dp_ack_memory(db, findings, extracted)
     acknowledged = doc.get("acknowledged_findings") or []
-    open_issues = has_open_issues(findings, acknowledged, system_acknowledged, extracted)
-    if open_issues and not force:
+    if has_open_issues(findings, acknowledged, system_acknowledged, extracted):
         raise NeedsConfirmationError()
 
     review = {
         "status": "approved",
-        "accepted_with_issues": open_issues,
+        "accepted_with_issues": False,
         "updated_at": _now(),
     }
     await dp_invoice_runs(db).update_one(
@@ -992,10 +1121,29 @@ def _bill_posting_out(doc: dict) -> dict:
     # no such field anywhere in the source tracker/PDF, so it will differ
     # across re-uploads/demo runs rather than reflect a fixed real-world date.
     created_at = doc.get("created_at")
+
+    # wht / net_amount_after_wht are never printed on the invoice itself and
+    # (per explicit instruction) never get back-populated into the invoice's
+    # own extraction record either — extracted.get(...) is therefore always
+    # None for these two. Bill Posting falls back here, display-only, to the
+    # same matched-installment figures the Matching page shows (see
+    # _apply_mandatory_field_coverage) so WHT isn't silently dropped from the
+    # simulated posting and "Payable Amount" isn't silently left as the gross
+    # total instead of the true net-of-WHT figure.
+    installment = (
+        _match_payment_installment(bundle.payment_schedule, extracted)
+        if bundle and bundle.payment_schedule else None
+    )
+    wht_value = extracted.get("wht")
+    if wht_value is None and installment:
+        wht_value = installment.get("wht_amount")
+
     # "Payable Amount" is the actual cash amount owed to the vendor — after
     # WHT deduction when WHT applies (net_amount_after_wht), else the same as
     # the gross total (grand_total) since there's nothing to deduct.
     payable_amount = extracted.get("net_amount_after_wht")
+    if payable_amount is None and installment:
+        payable_amount = installment.get("net_payment_to_lessor")
     if payable_amount is None:
         payable_amount = extracted.get("total_amount")
 
@@ -1013,7 +1161,7 @@ def _bill_posting_out(doc: dict) -> dict:
         "currency": extracted.get("currency"),
         "subtotal": extracted.get("total_amount_before_vat"),
         "tax_amount": extracted.get("vat_gst"),
-        "wht_amount": extracted.get("wht"),
+        "wht_amount": wht_value,
         "grand_total": extracted.get("total_amount"),
         "payable_amount": payable_amount,
         "wht_applicable": defaults.get("wht_applicable", False),

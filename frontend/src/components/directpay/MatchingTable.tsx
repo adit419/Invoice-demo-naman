@@ -3,12 +3,12 @@
 // same mismatch row colors, same field-column shading, same Acknowledge
 // button/Auto-approved badge placement INSIDE the Invoice cell (not a
 // separate column) — adapted for DirectPay's invoice-vs-contract findings
-// instead of invoice-vs-PO/GRN. Diverges from P2P's own MetadataTab (which
-// has no copy affordance) in one deliberate way: a field the invoice has NO
-// value for at all gets a "Copy" action (pulls the contract's own value in)
-// instead of Acknowledge — there's nothing to acknowledge about a blank
-// field, only something to fill in. A real mismatch (invoice HAS a value,
-// it just disagrees) still only ever gets Acknowledge, never Copy.
+// instead of invoice-vs-PO/GRN. A field the invoice has NO value for at all
+// gets neither Acknowledge nor any action — there's nothing to acknowledge
+// about a blank field, and no value is ever copied in from the contract onto
+// the invoice (see service.py's approve_extraction_postprocessing comment —
+// nothing back-populates the invoice's own extraction record). A real
+// mismatch (invoice HAS a value, it just disagrees) still gets Acknowledge.
 import { useMemo } from "react";
 import { Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
@@ -64,8 +64,15 @@ export function isFindingResolved(f: DpFinding, extracted: DpInvoiceExtracted): 
   if (!f.field) return false;
   if (f.expected_value === undefined || f.expected_value === null) return false;
   const current = (extracted as Record<string, unknown>)[f.field];
-  if (current === undefined || current === null) return false;
-  return String(current) === String(f.expected_value);
+  if (current !== undefined && current !== null && String(current) === String(f.expected_value)) return true;
+  // WHT / Net Amount After WHT are never written back onto the invoice's own
+  // extraction record even once derived (see service.py's
+  // approve_extraction_postprocessing) — their Invoice-column value instead
+  // falls back, display-only, to the same matched-installment figure the
+  // Contract column shows. When that fallback numerically equals the
+  // contract's own figure, the two formatted display strings come out
+  // identical too — treat that the same as a real extracted-data match.
+  return f.found != null && f.found === f.expected;
 }
 
 interface MatchingTableProps {
@@ -82,11 +89,6 @@ interface MatchingTableProps {
   extracted: DpInvoiceExtracted;
   readonly?: boolean;
   onToggleAcknowledge: (findingId: string, acknowledged: boolean) => void;
-  /** Copy the contract's value for this field into the invoice — only ever
-   * offered when the invoice has no value at all for the field (see
-   * canCopy below). Optional so callers that never show Copy (none today)
-   * don't have to pass a no-op. */
-  onCopyFromContract?: (field: string) => void;
 }
 
 export function MatchingTable({
@@ -96,7 +98,6 @@ export function MatchingTable({
   extracted,
   readonly,
   onToggleAcknowledge,
-  onCopyFromContract,
 }: MatchingTableProps) {
   const isResolved = (f: DpFinding): boolean => isFindingResolved(f, extracted);
   const isSystemAcked = (f: DpFinding): boolean => systemAcknowledgedFindings.includes(f.finding_id);
@@ -151,14 +152,14 @@ export function MatchingTable({
           const systemAcked = isSystemAcked(f);
           const resolved = isResolved(f);
           const hasInvoiceValue = f.found !== undefined && f.found !== null && f.found !== "";
-          // Only offer Acknowledge where the contract actually has a value
-          // to compare against — a field with nothing on the contract side
+          // Only offer Acknowledge where the contract actually has a value to
+          // compare against — a field with nothing on the contract side
           // (expected_value null, e.g. no bank details in the source) has
           // nothing to acknowledge, just an informational row. And only for
           // a REAL mismatch (invoice has its own value, it just disagrees) —
-          // a blank invoice value gets Copy instead (see canCopy).
+          // a blank invoice value gets no action at all (no value is ever
+          // copied onto the invoice from the contract).
           const canAck = !resolved && !systemAcked && f.expected_value != null && hasInvoiceValue;
-          const canCopy = !resolved && !systemAcked && f.expected_value != null && !hasInvoiceValue;
           const value = resolved ? f.expected ?? f.found : f.found;
 
           return (
@@ -214,22 +215,6 @@ export function MatchingTable({
                   }}
                 >
                   ACK
-                </button>
-              ) : canCopy && !readonly && f.field ? (
-                <button
-                  type="button"
-                  onClick={() => onCopyFromContract?.(f.field as string)}
-                  title="Copy this value from the contract"
-                  style={{
-                    display: "inline-flex", alignItems: "center", justifyContent: "center",
-                    flexShrink: 0, cursor: "pointer",
-                    width: 22, height: 22, fontSize: 13, lineHeight: 1,
-                    color: "#1876FF", background: "#ffffff",
-                    border: "1px solid #BFDBFE", borderRadius: 4,
-                    padding: 0, fontFamily: "Inter, sans-serif",
-                  }}
-                >
-                  ⇄
                 </button>
               ) : null}
             </div>

@@ -132,26 +132,12 @@ function InvoiceMatchPage() {
     }
   };
 
-  // Pulls the contract's own value straight into the invoice — goes through
-  // the same edit path a manual field change would (edit_history entry and
-  // all), so the copied value shows up everywhere the invoice's extracted
-  // data is read from here on (Extraction, Faktur Pajak, Bill Posting).
-  const handleCopyFromContract = async (field: string) => {
-    if (!id) return;
-    try {
-      const updated = await directpayService.copyFieldFromContract(id, field);
-      setRun(updated);
-    } catch (err) {
-      toast(err instanceof ApiError ? err.message : "Could not copy value from contract", "error");
-    }
-  };
-
-  const submitAction = async (action: "approve" | "reject", force = false, reason?: string) => {
+  const submitAction = async (action: "approve" | "reject", reason?: string) => {
     if (!id) return;
     setBusyLabel(action === "reject" ? "Rejecting…" : "Saving decision…");
     setBusy(true);
     try {
-      await directpayService.reviewAction(id, action, force, reason);
+      await directpayService.reviewAction(id, action, reason);
       if (action === "reject") {
         const updated = await directpayService.getInvoice(id);
         setRun(updated);
@@ -185,7 +171,7 @@ function InvoiceMatchPage() {
   };
 
   const handleReject = async (reason: string) => {
-    await submitAction("reject", false, reason);
+    await submitAction("reject", reason);
   };
 
   if (loading) {
@@ -430,7 +416,6 @@ function InvoiceMatchPage() {
             extracted={run.extracted}
             readonly={isTerminal}
             onToggleAcknowledge={handleToggleAcknowledge}
-            onCopyFromContract={handleCopyFromContract}
           />
         </div>
       </div>

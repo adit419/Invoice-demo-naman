@@ -214,7 +214,7 @@
     "section": "UTILITIES & TAX",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": "PPN 11% via DPP Nilai Lain (DPP Rp 619,369,370 × 12%). PPh not shown on invoice."
+    "ai_match_reasoning": null
   },
   "stamp_duty_registered": {
     "label": "Stamp Duty / Registered",

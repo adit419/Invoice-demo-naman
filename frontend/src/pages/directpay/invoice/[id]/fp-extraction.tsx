@@ -94,14 +94,14 @@ function FpExtractionPage() {
   // split review.tsx and match.tsx both use.
   const isActionable = run?.status === "fp_extraction";
 
-  const handleAcknowledge = async (fieldName: string) => {
+  const handleAcknowledge = async (fieldName: string, acknowledged: boolean) => {
     if (!id) return;
     try {
-      const res = await directpayService.acknowledgeFakturPajakField(id, fieldName, true);
+      const res = await directpayService.acknowledgeFakturPajakField(id, fieldName, acknowledged);
       setFp((prev) => (prev ? {
         ...prev,
         acknowledged_fields: res.acknowledged_fields,
-        fields: prev.fields.map((f) => (f.field_name === fieldName ? { ...f, acknowledged: true } : f)),
+        fields: prev.fields.map((f) => (f.field_name === fieldName ? { ...f, acknowledged } : f)),
       } : prev));
     } catch {
       toast("Could not acknowledge field", "error");
@@ -133,7 +133,7 @@ function FpExtractionPage() {
   const handleReject = async (reason: string) => {
     if (!id) return;
     try {
-      await directpayService.reviewAction(id, "reject", false, reason);
+      await directpayService.reviewAction(id, "reject", reason);
       setRejectOpen(false);
       router.push("/directpay/dashboard");
     } catch (err) {
@@ -179,8 +179,8 @@ function FpExtractionPage() {
           const isMatch = record.match_status === "match";
           const isAcked = record.acknowledged;
           return (
-            <div className="flex items-center gap-2 flex-wrap">
-              <span style={{ fontSize: 14, color: value === "—" ? "#9CA3AF" : "#414651" }}>{value}</span>
+            <div className="flex items-center gap-2" style={{ width: "100%" }}>
+              <span style={{ flex: 1, fontSize: 14, color: value === "—" ? "#9CA3AF" : "#414651", wordBreak: "break-word" }}>{value}</span>
               {isMatch ? (
                 <span
                   title="System matched these values automatically"
@@ -197,21 +197,39 @@ function FpExtractionPage() {
                   Auto-approved
                 </span>
               ) : isAcked ? (
-                <span
+                // Same circular check button as the Matching page's own
+                // Acknowledge icon — a handled mismatch never looks "still
+                // open", and stays clickable to revert while still editable.
+                <button
+                  type="button"
+                  onClick={isActionable ? () => handleAcknowledge(record.field_name, false) : undefined}
+                  title={isActionable ? "Acknowledged — click to revert" : "Acknowledged"}
                   style={{
-                    display: "inline-flex", alignItems: "center", gap: 4,
-                    padding: "2px 10px", borderRadius: 9999,
-                    border: "1px solid #86EFAC", background: "#F0FDF4", color: "#16A34A",
-                    fontSize: 13, fontWeight: 500, whiteSpace: "nowrap",
+                    display: "inline-flex", alignItems: "center", justifyContent: "center",
+                    width: 22, height: 22, borderRadius: "50%", flexShrink: 0,
+                    background: "#D6F4DE", border: "1px solid #A8E7B9",
+                    cursor: isActionable ? "pointer" : "default", padding: 0,
                   }}
                 >
-                  <CheckCircleOutlined style={{ fontSize: 13 }} />
-                  Acknowledged
-                </span>
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <path d="M2.5 6.3 4.9 8.7 9.5 3.6" stroke="#2A9F47" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
               ) : isActionable && record.required ? (
-                <AntButton size="small" icon={<CheckCircleOutlined />} onClick={() => handleAcknowledge(record.field_name)}>
-                  Acknowledge
-                </AntButton>
+                <button
+                  type="button"
+                  onClick={() => handleAcknowledge(record.field_name, true)}
+                  title="Acknowledge this mismatch"
+                  style={{
+                    flexShrink: 0, cursor: "pointer", whiteSpace: "nowrap",
+                    fontSize: 10, fontWeight: 600, letterSpacing: "0.4px",
+                    color: "#4C525E", background: "#ffffff",
+                    border: "1px solid #D5D5D5", borderRadius: 4,
+                    padding: "2px 7px", lineHeight: "14px", fontFamily: "Inter, sans-serif",
+                  }}
+                >
+                  ACK
+                </button>
               ) : null}
             </div>
           );

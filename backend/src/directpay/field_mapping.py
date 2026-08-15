@@ -174,13 +174,14 @@ class CoreValidationField:
 CORE_CROSS_VALIDATION_FIELDS: list[CoreValidationField] = [
     CoreValidationField("vendor_name", "vendor_name", "Vendor Name", True),
     # Split from a single "Bank Details (Account Name & Number)" field per
-    # explicit request — both mandatory now (was non-mandatory as one
-    # field). Values are provisional/placeholder pending a real update.
-    CoreValidationField("vendor_bank_account_name", "lessor_bank_account_name", "Bank Account Name", True),
-    CoreValidationField("vendor_bank_account_number", "lessor_bank_account_number", "Bank Account Number", True),
+    # earlier request, then reverted back to non-mandatory per explicit
+    # follow-up — still shown on the checklist for visibility, just never
+    # blocks approval.
+    CoreValidationField("vendor_bank_account_name", "lessor_bank_account_name", "Bank Account Name", False),
+    CoreValidationField("vendor_bank_account_number", "lessor_bank_account_number", "Bank Account Number", False),
     CoreValidationField("vendor_address", "premises_address", "Store Location", True),
-    CoreValidationField("billing_period_start", "actual_start", "Billing / Service Period Start", True),
-    CoreValidationField("billing_period_end", "lease_expiry_date", "Billing / Service Period End", True),
+    # Billing / Service Period Start & End removed for now — see field_mapping
+    # module docstring / conversation history if reinstating.
     CoreValidationField("total_amount_before_vat", "base_fee", "Total Amount Before VAT", True),
     CoreValidationField("vat_gst", None, "Tax Amount", True),
     CoreValidationField("wht", None, "WHT (Withholding Tax)", True),

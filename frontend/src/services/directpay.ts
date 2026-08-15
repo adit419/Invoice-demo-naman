@@ -47,11 +47,15 @@ export interface DpContractRun {
   id: string;
   fixture_key: string;
   file_name: string;
-  status: "review" | "saved";
+  status: "review" | "postprocessing" | "saved";
   fields: DpContractFields;
   // Keyed identically to `fields`; order reflects the fixture's own
   // extraction-sheet order, which the review screen renders as-is.
   field_meta: Record<string, DpContractFieldMeta>;
+  // Whether this vendor has a real payment_schedule.json — drives whether
+  // approving Contract Review lands on Extraction Postprocessing or goes
+  // straight to "saved" (see dashboard.tsx's contractRoute).
+  has_payment_schedule: boolean;
   pdf_url: string;
   created_at: string;
   updated_at: string;
@@ -166,6 +170,12 @@ export interface DpInvoiceRun {
   // "Auto-approved" badge, distinct from a human's own green-check ack.
   system_acknowledged_findings: string[];
   has_edit_history: boolean;
+  // One-way flag: has a human clicked Confirm Extraction at least once?
+  // Drives the Extraction page's own isActionable — status alone can't tell
+  // (it reuses "extracted" for both "just extracted, not yet confirmed" and
+  // "post-Postprocessing, ready for Matching"), and contract_id isn't set
+  // until several stages later, at Matching.
+  extraction_confirmed: boolean;
   // Notification/tag metadata — only ever set when the run was created via
   // /ingestion/trigger-upload with those fields; not surfaced in the UI yet.
   tag?: string | null;
@@ -275,6 +285,32 @@ export interface DpExtractionPostprocessing {
   fields: DpDerivedField[];
 }
 
+// Contract-side counterpart — reviewed once per contract (not tied to any
+// one invoice yet, so every installment is shown, not just a matched one).
+// See backend/src/directpay/service.py's _CONTRACT_DERIVED_COLUMNS — the
+// same Total Amount Before VAT / Tax Amount / WHT / Net Amount After WHT
+// figures Matching later pulls per-invoice from whichever installment its
+// amount matches.
+export interface DpContractDerivedField {
+  field_name: string;
+  display_name: string;
+  value: string | number | null;
+  formatted_value: string;
+}
+
+export interface DpContractInstallment {
+  description?: string | null;
+  fields: DpContractDerivedField[];
+}
+
+export interface DpContractExtractionPostprocessing {
+  id: string;
+  status: DpContractRun["status"];
+  vendor_name?: string | null;
+  has_payment_schedule: boolean;
+  installments: DpContractInstallment[];
+}
+
 // Faktur Pajak stage — mirrors P2P's own fp-extraction.tsx/fp_extraction.py
 // field-for-field (see backend/src/directpay/service.py's
 // _FP_FIELD_DISPLAY/_FP_INVOICE_FIELD_MAP). No bbox coordinates — unlike
@@ -329,6 +365,10 @@ export const directpayService = {
     api.patch<DpContractRun>(`/dp-api/contracts/${id}/edit`, { fields }),
   approveContract: (id: string, fields?: Partial<DpContractFields>) =>
     api.post<DpContractRun>(`/dp-api/contracts/${id}/approve`, { fields }),
+  getContractExtractionPostprocessing: (id: string) =>
+    api.get<DpContractExtractionPostprocessing>(`/dp-api/contracts/${id}/extraction-postprocessing`),
+  approveContractExtractionPostprocessing: (id: string) =>
+    api.post<DpContractRun>(`/dp-api/contracts/${id}/extraction-postprocessing/approve`),
 
   // Invoices
   uploadInvoice: (file: File) => {
@@ -341,8 +381,6 @@ export const directpayService = {
   extractInvoice: (id: string) => api.post<DpInvoiceRun>(`/dp-api/invoices/${id}/extract`),
   editInvoice: (id: string, extracted: Partial<DpInvoiceExtracted>) =>
     api.patch<DpInvoiceRun>(`/dp-api/invoices/${id}/edit`, { extracted }),
-  copyFieldFromContract: (id: string, field: string) =>
-    api.post<DpInvoiceRun>(`/dp-api/invoices/${id}/matching/copy-from-contract`, { field }),
   confirmExtraction: (id: string, extracted?: Partial<DpInvoiceExtracted>) =>
     api.post<DpInvoiceRun>(`/dp-api/invoices/${id}/confirm-extraction`, { extracted }),
   matchInvoice: (id: string, contractId: string) =>
@@ -375,11 +413,12 @@ export const directpayService = {
       acknowledged,
     }),
 
-  reviewAction: (invoiceId: string, action: "approve" | "reject", force = false, reason?: string) =>
+  // Matching's mandatory field checks are a hard rule — no force/bypass
+  // parameter exists here (unlike Faktur Pajak's own force-retry approve).
+  reviewAction: (invoiceId: string, action: "approve" | "reject", reason?: string) =>
     api.post<{ ok: boolean; review: DpReview }>("/dp-api/validate/review-action", {
       invoice_id: invoiceId,
       action,
-      force,
       reason,
     }),
 

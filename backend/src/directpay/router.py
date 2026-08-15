@@ -12,7 +12,8 @@ Status vocabulary mirrors Invoice Processing's real pipeline shape exactly
 (see backend/src/api/v1/stages.py's STAGE_SEQUENCE) — the only intentional
 difference between the two is what Matching compares against (Purchase
 Order there, Contract here):
-  contract: review -> saved
+  contract: review -> postprocessing -> saved (postprocessing only when the
+            vendor has a real payment_schedule.json; otherwise review -> saved)
   invoice:  extraction -> extracted -> matching -> bill_posting -> posted
             (rejected is a possible exit from matching or bill_posting)
 
@@ -36,7 +37,6 @@ from .models import (
     DpBillPostingEditRequest,
     DpContractApproveRequest,
     DpContractEditRequest,
-    DpCopyFromContractRequest,
     DpFpAcknowledgeRequest,
     DpFpApproveRequest,
     DpInvoiceConfirmExtractionRequest,
@@ -167,6 +167,26 @@ async def approve_contract(run_id: str, body: DpContractApproveRequest):
         _not_found(exc)
 
 
+@router.get("/contracts/{run_id}/extraction-postprocessing")
+async def get_contract_extraction_postprocessing(run_id: str):
+    db = get_db()
+    try:
+        return _envelope(data=await service.get_contract_extraction_postprocessing(db, _oid(run_id, "contract ID")))
+    except service.NotFoundError as exc:
+        _not_found(exc)
+
+
+@router.post("/contracts/{run_id}/extraction-postprocessing/approve")
+async def approve_contract_extraction_postprocessing(run_id: str):
+    db = get_db()
+    try:
+        return _envelope(data=await service.approve_contract_extraction_postprocessing(db, _oid(run_id, "contract ID")))
+    except service.NotFoundError as exc:
+        _not_found(exc)
+    except service.InvalidStateError as exc:
+        raise HTTPException(status_code=400, detail=exc.message)
+
+
 # ── Invoices ───────────────────────────────────────────────────────────────────
 
 async def _upload_invoice_by_filename(filename: str, email: str | None = None, tag: str | None = None) -> dict:
@@ -259,17 +279,6 @@ async def edit_invoice(run_id: str, body: DpInvoiceEditRequest, current_user: Cu
         _not_found(exc)
 
 
-@router.post("/invoices/{run_id}/matching/copy-from-contract")
-async def copy_field_from_contract(run_id: str, body: DpCopyFromContractRequest, current_user: CurrentUser):
-    db = get_db()
-    try:
-        return _envelope(data=await service.copy_field_from_contract(db, _oid(run_id, "invoice ID"), body.field, current_user.email))
-    except service.NotFoundError as exc:
-        _not_found(exc)
-    except service.InvalidStateError as exc:
-        raise HTTPException(status_code=400, detail=exc.message)
-
-
 @router.post("/invoices/{run_id}/confirm-extraction")
 async def confirm_extraction(run_id: str, body: DpInvoiceConfirmExtractionRequest, current_user: CurrentUser):
     db = get_db()
@@ -298,10 +307,10 @@ async def get_extraction_postprocessing(run_id: str):
 
 
 @router.post("/invoices/{run_id}/extraction-postprocessing/approve")
-async def approve_extraction_postprocessing(run_id: str, current_user: CurrentUser):
+async def approve_extraction_postprocessing(run_id: str):
     db = get_db()
     try:
-        return _envelope(data=await service.approve_extraction_postprocessing(db, _oid(run_id, "invoice ID"), current_user.email))
+        return _envelope(data=await service.approve_extraction_postprocessing(db, _oid(run_id, "invoice ID")))
     except service.NotFoundError as exc:
         _not_found(exc)
     except service.InvalidStateError as exc:
@@ -389,7 +398,7 @@ async def review_action(body: DpReviewActionRequest):
     db = get_db()
     oid = _oid(body.invoice_id, "invoice ID")
     try:
-        result = await service.review_action(db, oid, body.action, body.force, body.reason)
+        result = await service.review_action(db, oid, body.action, body.reason)
     except service.NotFoundError as exc:
         _not_found(exc)
         return

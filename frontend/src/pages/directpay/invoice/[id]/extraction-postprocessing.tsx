@@ -116,7 +116,7 @@ function ExtractionPostprocessingPage() {
   const handleReject = async (reason: string) => {
     if (!id) return;
     try {
-      await directpayService.reviewAction(id, "reject", false, reason);
+      await directpayService.reviewAction(id, "reject", reason);
       setRejectOpen(false);
       router.push("/directpay/dashboard");
     } catch (err) {

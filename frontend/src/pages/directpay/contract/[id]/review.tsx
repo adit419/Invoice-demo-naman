@@ -11,6 +11,7 @@ import { withAuthGuard } from "@/components/AuthGuard";
 import { ComponentHeaderAntd } from "@/components/matching";
 import { SourceViewerToolbar, ZOOM_MIN, ZOOM_MAX, ZOOM_STEP } from "@/components/SourceViewerToolbar";
 import { Loader, useToast } from "@/components/ui";
+import { StageTransitionOverlay } from "@/components/StageTransitionOverlay";
 import { directpayService, DpContractRun } from "@/services/directpay";
 import type { ActiveBbox } from "@/components/PdfViewer";
 import { ContractFieldsTable, orderedFieldEntries } from "@/components/directpay/ContractFieldsTable";
@@ -27,6 +28,14 @@ const PdfViewer = dynamic(() => import("@/components/PdfViewer").then((m) => m.P
 // Small pacing delay on Approve & Save so the button's own loading spinner is
 // visible — the real save call is fast enough that it would otherwise flash.
 const SAVE_DELAY_MS = 2000;
+
+// Same StageTransitionOverlay pacing convention every DirectPay stage
+// transition uses (invoice review.tsx's own EXTRACTING_PHASE_MS).
+const POSTPROCESSING_PHASE_MS = 2000;
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 // Below this → red overlay, at/above → green. Mirrors P2P's own
 // review.tsx/PdfViewer convention exactly (same threshold value).
@@ -47,6 +56,7 @@ function ContractReviewPage() {
   const [numPages, setNumPages] = useState(1);
   const [scale, setScale] = useState(0.8);
   const [rotate, setRotate] = useState(0);
+  const [transitioning, setTransitioning] = useState(false);
 
   useEffect(() => {
     setToken(localStorage.getItem("access_token"));
@@ -70,6 +80,17 @@ function ContractReviewPage() {
 
   const handleApprove = async () => {
     if (!id || !run) return;
+    // Already past Review — "Next" just continues forward, no re-approve.
+    // A vendor with a real payment schedule always chains on to Extraction
+    // Postprocessing next (even once "saved" — that page renders read-only
+    // for a completed contract, same isActionable/read-only split every
+    // other DirectPay stage uses), so reopening a saved contract from the
+    // dashboard and clicking Next here always reaches the Derived Fields
+    // view rather than bouncing straight back to the dashboard.
+    if (run.status === "postprocessing" || (run.status === "saved" && run.has_payment_schedule)) {
+      router.push(`/directpay/contract/${id}/extraction-postprocessing`);
+      return;
+    }
     if (run.status === "saved") {
       router.push("/directpay/dashboard?tab=contracts");
       return;
@@ -84,8 +105,18 @@ function ContractReviewPage() {
         directpayService.approveContract(id, fields),
         new Promise((resolve) => setTimeout(resolve, SAVE_DELAY_MS)),
       ]);
-      setRun(updated);
       setSaving(false);
+      // Lumpsum-lease contracts (real payment_schedule.json) get an extra
+      // review step before they're terminal — see approveContract. Same
+      // StageTransitionOverlay pacing every other DirectPay stage hand-off
+      // uses, rather than jumping the user straight there with no feedback.
+      if (updated.status === "postprocessing") {
+        setTransitioning(true);
+        await sleep(POSTPROCESSING_PHASE_MS);
+        router.push(`/directpay/contract/${id}/extraction-postprocessing`);
+        return;
+      }
+      setRun(updated);
     } catch {
       toast("Could not save contract", "error");
       setSaving(false);
@@ -101,10 +132,24 @@ function ContractReviewPage() {
   }
   if (!run) return null;
 
+  if (transitioning) {
+    return (
+      <StageTransitionOverlay
+        title="We're preparing the payment schedule review."
+        subtitle="This will only take a moment."
+        steps={[{ label: "Deriving fields from the payment schedule", status: "active" }]}
+      />
+    );
+  }
+
   const fields = run.fields;
   const fieldEntries = orderedFieldEntries(fields, run.field_meta);
-  const isSaved = run.status === "saved";
-  const canEdit = !isSaved;
+  // Anything past Review (mid-Postprocessing or fully Saved) is read-only
+  // here — back navigation from a later stage shows this data as-is instead
+  // of bouncing forward, same isActionable/read-only split every other
+  // DirectPay stage page uses (see invoice fp-extraction.tsx).
+  const isPastReview = run.status === "postprocessing" || run.status === "saved";
+  const canEdit = !isPastReview;
 
   // Selecting a field also jumps the PDF to the page its bbox lives on —
   // mirrors P2P's own field-click behavior (see review.tsx's useEffect on
@@ -139,9 +184,10 @@ function ContractReviewPage() {
   ].filter(Boolean) as { icon: React.ReactNode; text: string }[];
 
   // Mirrors Invoice Extraction's own pattern exactly: once actioned, a plain
-  // primary button (no colored pill) that moves forward — for a contract
-  // there's no further contract-specific stage, so "Next" just means back to
-  // the dashboard, same as handleApprove's existing isSaved branch already does.
+  // primary button (no colored pill) that moves forward — to Extraction
+  // Postprocessing if this vendor has a payment schedule and it isn't done
+  // yet, or to the dashboard once the contract is fully "saved" (see
+  // handleApprove's isPastReview branches above).
   const actionButtons = (
     <Space>
       <AntButton
@@ -150,7 +196,7 @@ function ContractReviewPage() {
         loading={saving}
         disabled={saving}
       >
-        {isSaved ? "Next" : "Approve & Save"}
+        {isPastReview ? "Next" : "Approve & Save"}
       </AntButton>
     </Space>
   );
