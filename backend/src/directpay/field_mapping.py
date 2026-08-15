@@ -183,7 +183,15 @@ CORE_CROSS_VALIDATION_FIELDS: list[CoreValidationField] = [
     # Billing / Service Period Start & End removed for now — see field_mapping
     # module docstring / conversation history if reinstating.
     CoreValidationField("total_amount_before_vat", "base_fee", "Total Amount Before VAT", True),
-    CoreValidationField("vat_gst", None, "Tax Amount", True),
+    # Non-mandatory (same treatment as the Bank Account fields above) — some
+    # real invoices (e.g. RATNA_INTAN) genuinely show no separate VAT line at
+    # all, which left this field with a real contract-side figure to compare
+    # against but no invoice value and no way to Acknowledge it (Acknowledge
+    # only ever shows when the invoice HAS a value; Copy-from-contract was
+    # removed entirely — see conversation history), permanently blocking
+    # Approve with no path to resolution. Still always shown on the
+    # checklist for visibility, just never blocks.
+    CoreValidationField("vat_gst", None, "Tax Amount", False),
     CoreValidationField("wht", None, "WHT (Withholding Tax)", True),
     CoreValidationField("net_amount_after_wht", None, "Net Amount After WHT (Total Amount Payable)", True),
 ]

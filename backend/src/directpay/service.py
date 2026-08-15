@@ -34,22 +34,29 @@ from .store import (
 # metadata_validation/line_item_matching approval moves it to bill_posting
 # rather than ending the pipeline there.
 #
-# postprocessing is DirectPay's own addition (no P2P analog) — it sits AFTER
-# Faktur Pajak (only ever runs once FP has — same single IDR gate in
-# confirm_extraction covers both) and derives invoice fields the document
-# itself never prints (due_date, wht_rate, wht, net_amount_after_wht) from the
-# underlying lease's own payment schedule. See approve_extraction_postprocessing.
+# postprocessing is DirectPay's own addition (no P2P analog) — it derives
+# invoice fields the document itself never prints (due_date, wht_rate, wht,
+# net_amount_after_wht) from the underlying lease's own payment schedule (see
+# approve_extraction_postprocessing) and runs for ANY IDR vendor with a real
+# payment_schedule.json, independently of whether Faktur Pajak also runs —
+# a vendor with no FP document still needs its due_date/WHT/net-amount
+# derived, that has nothing to do with FP.
 #
 # fp_extraction mirrors P2P's own STAGE_SEQUENCE placement exactly (see
-# backend/src/api/v1/stages.py): it sits between extraction and matching,
-# gated on IDR currency exactly like P2P's approve_stage IDR check — a
-# non-IDR invoice (never happens in today's DP fixtures, but kept for
-# parity) skips straight through, same as P2P auto-skipping to
-# metadata_validation. Confirming extraction moves "extracted" ->
-# "fp_extraction" (see confirm_extraction); approving the FP stage moves it
-# back to "extracted" (see approve_faktur_pajak) — the same status a
-# non-IDR invoice would already be sitting at post-confirm — so match.tsx's
-# existing "extracted is ready to match" logic needs no changes at all.
+# backend/src/api/v1/stages.py): it sits between extraction and
+# postprocessing, gated on IDR currency AND on a real FP document actually
+# existing for this vendor/document (see confirm_extraction) — a vendor with
+# no Faktur Pajak ever captured (e.g. RATNA_INTAN) skips this stage entirely
+# rather than showing an empty review screen for a document that was never
+# there. A non-IDR invoice (never happens in today's DP fixtures, but kept
+# for parity) also skips straight through, same as P2P auto-skipping to
+# metadata_validation. Confirming extraction moves "extracted" straight to
+# whichever of fp_extraction/postprocessing/extracted actually applies (see
+# confirm_extraction); approving the FP stage moves it to "postprocessing"
+# next (see approve_faktur_pajak); approving Postprocessing moves it back to
+# "extracted" — the same status a vendor that skipped both stages would
+# already be sitting at post-confirm — so match.tsx's existing "extracted is
+# ready to match" logic needs no changes at all.
 TERMINAL_STATUSES = ("posted", "rejected")
 
 
@@ -704,18 +711,33 @@ async def confirm_extraction(db, oid: ObjectId, extracted_patch: Optional[dict],
     await dp_invoice_runs(db).update_one({"_id": oid}, {"$set": {"extraction_confirmed": True}})
     doc["extraction_confirmed"] = True
 
-    # Mirrors P2P's approve_stage: confirming extraction auto-advances into
-    # fp_extraction for an IDR invoice (the only currency DP's Indonesian
-    # lease/utility fixtures use today), same as P2P's IDR-only gate. A
-    # non-IDR invoice — or an invoice confirmed a second time after already
-    # moving past this point — is left alone, matching P2P's one-way,
-    # idempotent stage advance. postprocessing (see approve_faktur_pajak)
-    # only ever runs once FP has — the same IDR gate covers both, applied
-    # once here.
+    # Mirrors P2P's approve_stage: confirming extraction auto-advances an IDR
+    # invoice past Extraction. WHERE it lands next depends on what this
+    # vendor actually has:
+    #   - a real Faktur Pajak document (bundle.fp_extraction /
+    #     document.faktur_pajak) -> "fp_extraction", same as before.
+    #   - no FP document, but a real payment_schedule.json -> straight to
+    #     "postprocessing" (an invoice with no FP to review still needs its
+    #     due_date/WHT/net-amount derived — that has nothing to do with FP).
+    #   - neither -> stays "extracted", ready for Matching, same as a
+    #     non-IDR invoice already would be.
+    # An invoice confirmed a second time after already moving past this
+    # point is left alone, matching P2P's one-way, idempotent stage advance.
     extracted = _merge(doc.get("base_extracted") or {}, doc.get("edited_extracted"))
-    if doc.get("status") == "extracted" and (extracted.get("currency") or "").strip().upper() == "IDR":
-        await dp_invoice_runs(db).update_one({"_id": oid}, {"$set": {"status": "fp_extraction", "updated_at": _now()}})
-        doc["status"] = "fp_extraction"
+    is_idr = (extracted.get("currency") or "").strip().upper() == "IDR"
+    if doc.get("status") == "extracted" and is_idr:
+        bundle = get_dp_loader().discover().get(doc.get("fixture_key"))
+        document = _document_entry(bundle, doc.get("document_key"))
+        has_fp = bool(_resolve_faktur_pajak(bundle, document))
+        if has_fp:
+            next_status = "fp_extraction"
+        elif bundle and bundle.payment_schedule:
+            next_status = "postprocessing"
+        else:
+            next_status = None
+        if next_status:
+            await dp_invoice_runs(db).update_one({"_id": oid}, {"$set": {"status": next_status, "updated_at": _now()}})
+            doc["status"] = next_status
 
     return await invoice_out(db, doc)
 
@@ -949,8 +971,10 @@ async def approve_faktur_pajak(db, oid: ObjectId, force: bool = False) -> dict:
         raise NeedsConfirmationError()
 
     # Advances into Extraction Postprocessing next, not straight to
-    # "extracted" — postprocessing only ever runs once FP has (see
-    # confirm_extraction's single IDR gate covering both).
+    # "extracted" — a vendor with no payment schedule at all would have
+    # nothing to derive there, but that stage still runs to (harmlessly)
+    # confirm there's nothing to do, same as get_extraction_postprocessing's
+    # own has_payment_schedule=false branch already handles.
     await dp_invoice_runs(db).update_one(
         {"_id": oid}, {"$set": {"status": "postprocessing", "updated_at": _now()}}
     )
@@ -1099,6 +1123,14 @@ def _bill_posting_out(doc: dict) -> dict:
 
     line_items = []
     for idx, item in enumerate(extracted.get("line_items") or []):
+        # A WHT-deduction line (e.g. RATNA_INTAN's own "Pemotongan PPH" row)
+        # is real data on the invoice, but it isn't a billable/GL-codeable
+        # charge — it's the same deduction the dedicated WHT figures
+        # (wht_amount / payable_amount above, and Simulate's own WHT-Payable
+        # row) already represent. Showing it here too would double it up —
+        # once as this raw line, once as the synthesized WHT row.
+        if item.get("charge_type") == "wht_deduction":
+            continue
         row_id = str(idx)
         item_defaults = default_items[idx] if idx < len(default_items) else {}
         row_overrides = overrides.get(row_id) or {}
@@ -1140,10 +1172,20 @@ def _bill_posting_out(doc: dict) -> dict:
 
     # "Payable Amount" is the actual cash amount owed to the vendor — after
     # WHT deduction when WHT applies (net_amount_after_wht), else the same as
-    # the gross total (grand_total) since there's nothing to deduct.
+    # the gross total (grand_total) since there's nothing to deduct. Computed
+    # as THIS invoice's own real total minus wht_value (whether wht_value is
+    # real or the installment fallback above) — never borrowed directly as
+    # the matched installment's own net_payment_to_lessor, which is a
+    # different invoice's/period's total and can diverge from this one (e.g.
+    # PALLADIUM's real per-sqm rate differs slightly from the schedule's
+    # assumed rate) even when both happen to have zero WHT.
     payable_amount = extracted.get("net_amount_after_wht")
-    if payable_amount is None and installment:
-        payable_amount = installment.get("net_payment_to_lessor")
+    if payable_amount is None:
+        total_amount = extracted.get("total_amount")
+        if total_amount is not None and wht_value is not None:
+            payable_amount = float(total_amount) - float(wht_value)
+        elif installment:
+            payable_amount = installment.get("net_payment_to_lessor")
     if payable_amount is None:
         payable_amount = extracted.get("total_amount")
 

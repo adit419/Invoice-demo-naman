@@ -1,14 +1,7 @@
 {
-  "vendor_name": "PALLADIUM MEGAH LESTARI",
-  "vendor_npwp": "0025461641059000",
-  "vendor_address": "GEDUNG GAJAH MADA PLAZA LT.6 JL GAJAH MADA NO.19-26, RT 000, RW 000, PETOJO UTARA, GAMBIR, KOTA ADM. JAKARTA PUSAT, DKI JAKARTA 10130",
-  "customer_name": "BUMI BERKAH BOGA",
-  "customer_npwp": "0828773762029000",
-  "customer_address": "Plaza Blok M, Lantai 7, Jalan Bulungan No. 76, RT 006, RW 006, KRAMAT PELA, KEBAYORAN BARU, KOTA ADM. JAKARTA SELATAN, DKI JAKARTA 12130",
-  "fp_date": "05 April 2026",
   "fp_number": "04002600111042590",
-  "taxable_amount": 4024451.0,
-  "vat_amount": 482934.0,
-  "reference_invoice_number": "INV/A37/04/26/00033",
-  "exemption_note": null
+  "vendor_name": "PALLADIUM MEGAH LESTARI",
+  "customer_name": "BUMI BERKAH BOGA",
+  "taxable_amount": 4390310.0,
+  "vat_amount": 482934.0
 }

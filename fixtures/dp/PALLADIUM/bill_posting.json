@@ -1,0 +1,11 @@
+{
+  "line_items": [
+    {
+      "charge_type": "service_fee",
+      "gl_account_code": "6200-SVC",
+      "vat_tax_code": "IB",
+      "wht_tax_code": ""
+    }
+  ],
+  "wht_applicable": false
+}

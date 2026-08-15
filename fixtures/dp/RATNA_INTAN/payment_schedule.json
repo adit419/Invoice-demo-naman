@@ -1,0 +1,40 @@
+{
+  "installments": [
+    {
+      "description": "Installment 1",
+      "due_date": "2026-07-21",
+      "amount_excl_tax": 25025025.0,
+      "vat_rate": 0.11,
+      "vat_amount": 2752753.0,
+      "total_amount_incl_tax": 27777778.0,
+      "wht_rate": 0.1,
+      "wht_amount": 2502503.0,
+      "net_payment_to_lessor": 25275275.0,
+      "payment_status": "Overdue"
+    },
+    {
+      "description": "Installment 2",
+      "due_date": "2026-08-10",
+      "amount_excl_tax": 770770771.0,
+      "vat_rate": 0.11,
+      "vat_amount": 84784785.0,
+      "total_amount_incl_tax": 855555556.0,
+      "wht_rate": 0.1,
+      "wht_amount": 77077077.0,
+      "net_payment_to_lessor": 778478479.0,
+      "payment_status": "Overdue"
+    },
+    {
+      "description": "Installment 3 (final)",
+      "due_date": "2028-11-10",
+      "amount_excl_tax": 550550550.0,
+      "vat_rate": 0.11,
+      "vat_amount": 60560561.0,
+      "total_amount_incl_tax": 611111111.0,
+      "wht_rate": 0.1,
+      "wht_amount": 55055055.0,
+      "net_payment_to_lessor": 556056056.0,
+      "payment_status": "Pending"
+    }
+  ]
+}

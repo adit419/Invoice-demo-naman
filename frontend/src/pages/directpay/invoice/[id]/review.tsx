@@ -184,13 +184,19 @@ function InvoiceReviewPage() {
       setSaving(false);
 
       // Mirrors P2P's own IDR-only Faktur Pajak gate: confirming extraction
-      // moves the invoice to "fp_extraction" for an IDR invoice (see
-      // service.py's confirm_extraction) — that stage now owns the AI
-      // contract-recommendation-then-Matching hand-off that used to happen
-      // right here. A non-IDR invoice stays "extracted" and skips straight
-      // to Matching, exactly as before.
+      // moves the invoice on to whichever of fp_extraction/postprocessing
+      // actually applies for this vendor (see service.py's
+      // confirm_extraction — a vendor with no real Faktur Pajak document
+      // skips straight to postprocessing, e.g. RATNA_INTAN). Either stage
+      // owns the AI contract-recommendation-then-Matching hand-off that
+      // used to happen right here. A vendor with neither stays "extracted"
+      // and skips straight to Matching, exactly as before.
       if (updated.status === "fp_extraction") {
         router.push(`/directpay/invoice/${updated.id}/fp-extraction`);
+        return;
+      }
+      if (updated.status === "postprocessing") {
+        router.push(`/directpay/invoice/${updated.id}/extraction-postprocessing`);
         return;
       }
 
