@@ -3,6 +3,7 @@ import { useRouter } from "next/router";
 import {
   CalendarOutlined,
   CheckCircleOutlined,
+  FileProtectOutlined,
   FileTextOutlined,
   InfoCircleOutlined,
   PaperClipOutlined,
@@ -16,21 +17,41 @@ import { Loader, useToast } from "@/components/ui";
 import { RejectModal } from "@/components/RejectModal";
 import { DpBillPostingMetadataGrid } from "@/components/directpay/DpBillPostingMetadataGrid";
 import { DocumentPreviewModal } from "@/components/directpay/DocumentPreviewModal";
+import { ContractExtractionModal } from "@/components/directpay/ContractExtractionModal";
 import { ApiError } from "@/services/api";
 import { directpayService, DpBillPostingData, DpBillPostingLineItem } from "@/services/directpay";
-import { BillPostingTable, VAT_OPTIONS_FALLBACK } from "@/components/BillPosting";
-import type { BillLineItem, LineItemEdit } from "@/components/BillPosting";
+import { BillPostingTable } from "@/components/BillPosting";
+import type { BillLineItem, LineItemEdit, VatCodeOption } from "@/components/BillPosting";
 
 // Same page/layout as Invoice Processing's own bill-posting.tsx — unified
 // card with Metadata grid stacked above the Line Items table (BillPostingTable
 // is reused as-is, it's pure presentation with no P2P-specific API calls),
 // success banner, posting spinner overlay, WHT-subject alert. The Metadata
-// grid's field set (PO Number, Doc Header, Ref Keys...) is replicated
-// verbatim with mock/synthesized values — DirectPay's real bill-posting
-// response shape hasn't been shared yet, so field names/sources here are
-// placeholders to be corrected once it is. The ERP-posting side effect
-// itself stays mocked — no real Zoho/QBD call, so there's no "View in ERP"
-// deep link, just the posted bill number.
+// grid's field SET deliberately diverges from P2P's own (PO Number, Doc
+// Header, Ref Keys...) — that's SAP-posting metadata with no DirectPay
+// equivalent (no PO, no SAP integration behind this) — showing the invoice's
+// own real data instead (see DpBillPostingMetadataGrid). The ERP-posting
+// side effect itself stays mocked — no real Zoho/QBD call, so there's no
+// "View in ERP" deep link, just the posted bill number.
+
+// P2P's own WHT_OPTIONS (BillPostingTable's default) are Philippine BIR
+// Expanded Withholding Tax codes — no analog for Indonesian PPh withholding,
+// so a lease invoice like PT_BANGUN's would get mislabeled (e.g. "rental of
+// MOVABLE property" for a building lease, even though the 10% rate happens
+// to match). This is DirectPay's own override, passed to BillPostingTable's
+// whtOptions prop — P2P's own page is untouched, still gets its default.
+const DP_WHT_OPTIONS = [
+  {
+    label: "PPH 4(2) — FINAL TAX ON LAND/BUILDING RENTAL",
+    options: [
+      { value: "PPH4(2)-SEWA", label: "PPH4(2)-SEWA · SEWA TANAH DAN/ATAU BANGUNAN 10%" },
+    ],
+  },
+  {
+    label: "NO WITHHOLDING",
+    options: [{ value: "00", label: "00 · NO WITHHOLDING" }],
+  },
+];
 
 function toBillLineItem(item: DpBillPostingLineItem): BillLineItem {
   return {
@@ -56,17 +77,32 @@ function InvoiceBillPostingPage() {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [invoicePdfOpen, setInvoicePdfOpen] = useState(false);
   const [contractPdfOpen, setContractPdfOpen] = useState(false);
+  const [contractExtractionOpen, setContractExtractionOpen] = useState(false);
   const [pdfToken, setPdfToken] = useState<string | null>(null);
-
-  // Metadata edits (Reference, Text, Ref Keys, Doc Header...) — client-side
-  // only for now, same mock-data caveat as DpBillPostingMetadataGrid itself.
-  const [metaEdits, setMetaEdits] = useState<Record<string, string>>({});
+  // Country-specific VAT code options — fetched once per currency after data
+  // loads, same pattern as P2P's own bill-posting.tsx. Falls back to
+  // VAT_OPTIONS_FALLBACK (inside BillPostingTable) if the fetch fails or the
+  // currency has no real code list.
+  const [vatOptions, setVatOptions] = useState<VatCodeOption[]>([]);
 
   const load = useCallback(async () => {
     if (!id) return;
     try {
       const bp = await directpayService.getBillPosting(id);
       setData(bp);
+
+      const currency = bp.currency ?? "";
+      directpayService.getVatCodes(currency)
+        .then(({ codes }) => {
+          setVatOptions(codes.map((c) => {
+            const pct = `${parseFloat(c.percentage)}%`;
+            const desc = c.description.trimEnd();
+            const label = desc.endsWith(pct) ? `${c.tax_code}: ${desc}` : `${c.tax_code}: ${desc} ${pct}`;
+            return { value: c.tax_code, label };
+          }));
+        })
+        .catch(() => { /* fallback to VAT_OPTIONS_FALLBACK in BillPostingTable */ });
+
       const map = new Map<string, LineItemEdit>();
       for (const li of bp.line_items) {
         map.set(li.id, { vat_tax_code: li.vat_tax_code ?? "", wht_tax_code: li.wht_tax_code ?? "" });
@@ -130,10 +166,6 @@ function InvoiceBillPostingPage() {
     }
   };
 
-  const handleMetaEdit = (key: string, value: string) => {
-    setMetaEdits((prev) => ({ ...prev, [key]: value }));
-  };
-
   // Persist current line-item VAT/WHT edits to the backend before running
   // simulate, so the server computes against the user's latest inputs —
   // same ordering as P2P's own persistEditsForSimulate.
@@ -183,6 +215,12 @@ function InvoiceBillPostingPage() {
         }
       : null,
     data.invoice_date ? { icon: <CalendarOutlined />, text: data.invoice_date } : null,
+    // Distinct from the vendor-name link above (which opens a read-only PDF
+    // preview) — this opens the actual Contract Extraction table for the
+    // matched contract, same as the Matching page's own "Contract" link.
+    data.contract_id
+      ? { icon: <FileProtectOutlined />, text: "Contract", onClick: () => setContractExtractionOpen(true) }
+      : null,
   ].filter(Boolean) as { icon: React.ReactNode; text: string; onClick?: () => void }[];
 
   const actionButtons = isCompleted ? (
@@ -276,9 +314,6 @@ function InvoiceBillPostingPage() {
           <div className="rounded-lg border border-gray-200 overflow-hidden">
             <DpBillPostingMetadataGrid
               data={data}
-              isEditMode={!isCompleted}
-              edits={metaEdits}
-              onEdit={handleMetaEdit}
               invoiceId={id ?? ""}
               persistEdits={persistLineEdits}
             />
@@ -293,7 +328,8 @@ function InvoiceBillPostingPage() {
                 isEditMode={!isCompleted}
                 isVendorSubjectToWht={isVendorSubjectToWht}
                 currency={data.currency ?? ""}
-                vatOptions={VAT_OPTIONS_FALLBACK}
+                vatOptions={vatOptions}
+                whtOptions={DP_WHT_OPTIONS}
                 onVatChange={handleVatChange}
                 onWhtChange={handleWhtChange}
               />
@@ -322,6 +358,11 @@ function InvoiceBillPostingPage() {
           authToken={pdfToken}
         />
       )}
+      <ContractExtractionModal
+        open={contractExtractionOpen}
+        onClose={() => setContractExtractionOpen(false)}
+        contractId={data.contract_id ?? null}
+      />
     </div>
   );
 }

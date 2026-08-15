@@ -7,53 +7,53 @@
     "ai_match_reasoning": null
   },
   "vendor_name": {
-    "label": "Lessor Name",
+    "label": "Vendor Name",
     "section": "PROPERTY & PARTIES",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "1900032072_1607RentRukoJatiuwu: MATCH"
+    "ai_match_reasoning": "MATCH — invoice vendor_name is a punctuation variant of this"
   },
   "lessor_phone": {
-    "label": "Lessor Phone",
+    "label": "Vendor Phone",
     "section": "PROPERTY & PARTIES",
     "mandatory": false,
     "audit_trail": null,
     "ai_match_reasoning": null
   },
   "vendor_email": {
-    "label": "Lessor Email",
+    "label": "Vendor Email",
     "section": "PROPERTY & PARTIES",
     "mandatory": false,
     "audit_trail": null,
     "ai_match_reasoning": null
   },
   "lessor_npwp": {
-    "label": "Lessor NPWP",
+    "label": "Vendor NPWP",
     "section": "PROPERTY & PARTIES",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "1900032072_1607RentRukoJatiuwu: MATCH"
+    "ai_match_reasoning": "Source tracker cell is 14 digits, not the 16 the tracker's own validation rule expects — genuine source data-quality issue, not padded/altered here"
   },
   "customer_name": {
-    "label": "Tenant Name",
+    "label": "Customer Name",
     "section": "PROPERTY & PARTIES",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "1900032072_1607RentRukoJatiuwu: MATCH"
+    "ai_match_reasoning": null
   },
   "actual_start": {
     "label": "Lease Commencement Date",
     "section": "AGREEMENT DATES & TERM",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "1900032072_1607RentRukoJatiuwu: MATCH — billing period start matches commencement"
+    "ai_match_reasoning": null
   },
   "lease_expiry_date": {
     "label": "Lease Expiry Date",
     "section": "AGREEMENT DATES & TERM",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "1900032072_1607RentRukoJatiuwu: MATCH — billing period end matches expiry"
+    "ai_match_reasoning": null
   },
   "lock_in_period_months": {
     "label": "Lock-in Period (Months)",
@@ -69,19 +69,82 @@
     "audit_trail": null,
     "ai_match_reasoning": null
   },
-  "base_fee": {
-    "label": "Monthly Rent",
-    "section": "RENT & DEPOSIT",
-    "mandatory": true,
-    "audit_trail": null,
-    "ai_match_reasoning": "1900032072_1607RentRukoJatiuwu: MATCH — Invoice gross Rp 750,000,000 / 36 months = Rp 20,833,333/month. Installment 1 covers 3 yrs (Pasal 3(2)(b))"
-  },
-  "annual_rent": {
-    "label": "Annual Rent",
+  "rent_basis_type": {
+    "label": "Rent Basis Type",
     "section": "RENT & DEPOSIT",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": "1900032072_1607RentRukoJatiuwu: MATCH — Rp 750,000,000 / 3 years = Rp 250,000,000/year"
+    "ai_match_reasoning": null
+  },
+  "currency": {
+    "label": "Currency",
+    "section": "RENT & DEPOSIT",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": "MATCH"
+  },
+  "vat_included": {
+    "label": "VAT Incl/Excl",
+    "section": "RENT & DEPOSIT",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "vat_rate": {
+    "label": "VAT Rate",
+    "section": "RENT & DEPOSIT",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "base_rent_monthly_excl_tax": {
+    "label": "Base Rent (Excl Tax) Monthly",
+    "section": "RENT & DEPOSIT",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": "Literal 0 in the tracker — this is a lumpsum-installment lease, not a monthly-rent one"
+  },
+  "monthly_rent_incl_tax": {
+    "label": "Monthly Rent incl. Tax (Cond.)",
+    "section": "RENT & DEPOSIT",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "total_contract_value": {
+    "label": "Total Contract Value, Lumpsum",
+    "section": "RENT & DEPOSIT",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": "Tracker labels this \"excl. tax\" but the value (1,250,000,000) matches the payment schedule's tax-INCLUSIVE total (750,000,000 + 500,000,000) — a labeling inconsistency in the source itself, not altered here"
+  },
+  "no_of_installments": {
+    "label": "No. of Installments",
+    "section": "RENT & DEPOSIT",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "base_fee": {
+    "label": "Monthly Rent",
+    "section": "RENT & DEPOSIT",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": "Literal source value ('Base Rent (Excl Tax) Monthly') is 0 in the tracker — this is a lumpsum-installment lease with no true monthly-rent concept, not derived/assumed here."
+  },
+  "revenue_share_pct": {
+    "label": "Revenue Share (%)",
+    "section": "RENT & DEPOSIT",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "revenue_threshold": {
+    "label": "Revenue Share Threshold Amount",
+    "section": "RENT & DEPOSIT",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
   },
   "rent_billing_day": {
     "label": "Rent Billing Day",
@@ -151,14 +214,14 @@
     "section": "UTILITIES & TAX",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": "1900032072_1607RentRukoJatiuwu: PPN 11% via DPP Nilai Lain (DPP Rp 619,369,370 × 12%). PPh not shown on invoice."
+    "ai_match_reasoning": "PPN 11% via DPP Nilai Lain (DPP Rp 619,369,370 × 12%). PPh not shown on invoice."
   },
   "stamp_duty_registered": {
     "label": "Stamp Duty / Registered",
     "section": "LEGAL & COMPLIANCE",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "Our extraction answered \"Yes\" because materai (Rp 10,000 stamp) is present on the contract. That's correct — materai exists. But materai is standard on virtually ALL Indonesian agreements; it's just a revenue stamp. The \"Registered\" part asks whether the agreement was formally registered with government authorities, which is a separate legal step most lease agreements DON'T go through"
+    "ai_match_reasoning": "\"Yes\" because materai (Rp 10,000 stamp) is present — standard on virtually all Indonesian agreements. The separate \"Registered\" step (formal registration with government authorities) is a distinct legal step most lease agreements don't go through."
   },
   "registration_number": {
     "label": "Registration Number",
@@ -167,8 +230,8 @@
     "audit_trail": null,
     "ai_match_reasoning": null
   },
-  "notice_period_months": {
-    "label": "Notice Period (months)",
+  "notice_period_days": {
+    "label": "Notice Period (Days)",
     "section": "LEGAL & COMPLIANCE",
     "mandatory": true,
     "audit_trail": null,
@@ -209,13 +272,6 @@
     "audit_trail": null,
     "ai_match_reasoning": null
   },
-  "rent_structure": {
-    "label": "Rent Structure",
-    "section": "PAYMENT STRUCTURE",
-    "mandatory": false,
-    "audit_trail": null,
-    "ai_match_reasoning": null
-  },
   "rent_free_months": {
     "label": "Rent Free Months",
     "section": "PAYMENT STRUCTURE",
@@ -231,36 +287,36 @@
     "ai_match_reasoning": null
   },
   "lessor_split_pct": {
-    "label": "Lessor Split (%)",
+    "label": "Vendor Split (%)",
     "section": "PAYMENT STRUCTURE",
     "mandatory": false,
     "audit_trail": null,
     "ai_match_reasoning": null
   },
   "lessor_payment_share": {
-    "label": "Lessor Payment Share",
+    "label": "Vendor Payment Share",
     "section": "PAYMENT STRUCTURE",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": "1900032072_1607RentRukoJatiuwu: Invoice shows BCA; contract shows Bank Mandiri — different bank account"
+    "ai_match_reasoning": "Invoice's own vendor_bank_name is BCA; this note says Bank Mandiri — different bank, a genuine mismatch preserved from the source"
+  },
+  "lessor_bank_account_name": {
+    "label": "Bank Account Name",
+    "section": "PAYMENT STRUCTURE",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": "Not present in the new tracker — no literal bank account name/number fields exist in this source"
+  },
+  "lessor_bank_account_number": {
+    "label": "Bank Account Number",
+    "section": "PAYMENT STRUCTURE",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": "Not present in the new tracker — no literal bank account name/number fields exist in this source"
   },
   "split_check": {
     "label": "Split Check",
     "section": "PAYMENT STRUCTURE",
-    "mandatory": false,
-    "audit_trail": null,
-    "ai_match_reasoning": null
-  },
-  "revenue_share_pct": {
-    "label": "Revenue Share (%)",
-    "section": "REVENUE & ADDITIONAL",
-    "mandatory": false,
-    "audit_trail": null,
-    "ai_match_reasoning": null
-  },
-  "revenue_threshold": {
-    "label": "Revenue Threshold",
-    "section": "REVENUE & ADDITIONAL",
     "mandatory": false,
     "audit_trail": null,
     "ai_match_reasoning": null
@@ -279,18 +335,11 @@
     "audit_trail": null,
     "ai_match_reasoning": null
   },
-  "currency": {
-    "label": "Currency",
-    "section": "OTHER",
-    "mandatory": false,
-    "audit_trail": null,
-    "ai_match_reasoning": "1900032072_1607RentRukoJatiuwu: MATCH"
-  },
   "floor": {
     "label": "Floor",
     "section": "OTHER",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": "1900032072_1607RentRukoJatiuwu: MATCH"
+    "ai_match_reasoning": null
   }
 }

@@ -35,15 +35,15 @@ FIELD_MAPPINGS: list[FieldMapping] = [
                  "Lessor Name", "Fuzzy",
                  "Fuzzy string match. Warns if similarity < threshold.",
                  "Also checks against lessor_company if available"),
-    FieldMapping(2, "IDENTITY & PARTIES", "customer_name", "customer_name",
+    FieldMapping(2, "IDENTITY & PARTIES", "customer_legal_entity", "customer_name",
                  "Tenant Name", "Fuzzy",
                  "Fuzzy string match. Warns if similarity < threshold.",
                  "Also checks tenant_company"),
-    FieldMapping(3, "IDENTITY & PARTIES", "vendor_npwp", "lessor_npwp",
+    FieldMapping(3, "IDENTITY & PARTIES", "vendor_vat_id", "lessor_npwp",
                  "Lessor NPWP", "Exact",
                  "Normalized string comparison (strip dots/dashes).",
                  "NPWP format: XX.XXX.XXX.X-XXX.XXX"),
-    FieldMapping(4, "IDENTITY & PARTIES", "customer_npwp", None,
+    FieldMapping(4, "IDENTITY & PARTIES", "customer_vat_id", None,
                  "Tenant NPWP", "Exact",
                  "Normalized string comparison (strip dots/dashes).",
                  "Same normalization as vendor — no tenant_npwp field exists "
@@ -70,7 +70,7 @@ FIELD_MAPPINGS: list[FieldMapping] = [
                  "Maps to: Monthly Rent, Security Deposit, Escalation, Revenue Share % "
                  "depending on type"),
     # ── TOTALS & TAX ─────────────────────────────────────────────────────
-    FieldMapping(9, "TOTALS & TAX", "subtotal", "base_fee",
+    FieldMapping(9, "TOTALS & TAX", "total_amount_before_vat", "base_fee",
                  "Monthly Rent", "Derived",
                  "Invoice subtotal vs expected monthly rent (sum of billable charges). "
                  ">2% tolerance.",
@@ -81,19 +81,19 @@ FIELD_MAPPINGS: list[FieldMapping] = [
                  "Invoice tax rate must match contract-stipulated rate (e.g. PPN 11%).",
                  "No literal tax-rate field in this fixture's 47-field contract "
                  "extraction — DPP Nilai Lain method: effective 11% = 12% x (11/12)"),
-    FieldMapping(11, "TOTALS & TAX", "tax_total", None,
+    FieldMapping(11, "TOTALS & TAX", "vat_gst", None,
                  "Tax Structure", "Arithmetic",
-                 "tax_total must equal subtotal x tax_rate (within rounding tolerance).",
+                 "vat_gst must equal total_amount_before_vat x tax_rate (within rounding tolerance).",
                  "Cross-field arithmetic check on invoice itself"),
     FieldMapping(12, "TOTALS & TAX", "wht_rate", "wht_rate_pct",
                  "WHT Rate (%)", "Exact",
                  "Withholding tax rate match.",
                  "PPh 4(2) = 10% on property rental"),
-    FieldMapping(13, "TOTALS & TAX", "wht_total", None,
+    FieldMapping(13, "TOTALS & TAX", "wht", None,
                  "WHT / PPh Structure", "Arithmetic",
-                 "wht_total must equal subtotal x wht_rate.",
+                 "wht must equal total_amount_before_vat x wht_rate.",
                  "Cross-field arithmetic check"),
-    FieldMapping(14, "TOTALS & TAX", "grand_total", None,
+    FieldMapping(14, "TOTALS & TAX", "total_amount", None,
                  "Monthly Rent + Tax + WHT", "Arithmetic",
                  "Grand total = subtotal + PPN - PPh (standard Indonesian formula).",
                  "Composite of rent, tax, and WHT contract fields"),
@@ -111,7 +111,7 @@ FIELD_MAPPINGS: list[FieldMapping] = [
                  "Floor", "Fuzzy",
                  "Floor / unit mentioned in invoice should match contract premises.",
                  "Parsed from invoice line item descriptions"),
-    FieldMapping(18, "PREMISES & PAYMENT", "payment_due_days", None,
+    FieldMapping(18, "PREMISES & PAYMENT", "payment_terms", None,
                  "Rent Billing Day / Payment Structure", "Fuzzy",
                  "Payment terms consistency check (due date, net days).", ""),
     FieldMapping(19, "PREMISES & PAYMENT", "currency", "currency",
@@ -173,12 +173,22 @@ class CoreValidationField:
 
 CORE_CROSS_VALIDATION_FIELDS: list[CoreValidationField] = [
     CoreValidationField("vendor_name", "vendor_name", "Vendor Name", True),
-    CoreValidationField("bank_details", "lessor_payment_share", "Bank Details (Account Name & Number)", False),
-    CoreValidationField("store_location", "premises_address", "Store Location", True),
+    # Split from a single "Bank Details (Account Name & Number)" field per
+    # explicit request — both mandatory now (was non-mandatory as one
+    # field). Values are provisional/placeholder pending a real update.
+    CoreValidationField("vendor_bank_account_name", "lessor_bank_account_name", "Bank Account Name", True),
+    CoreValidationField("vendor_bank_account_number", "lessor_bank_account_number", "Bank Account Number", True),
+    CoreValidationField("vendor_address", "premises_address", "Store Location", True),
     CoreValidationField("billing_period_start", "actual_start", "Billing / Service Period Start", True),
     CoreValidationField("billing_period_end", "lease_expiry_date", "Billing / Service Period End", True),
-    CoreValidationField("subtotal", "base_fee", "Total Amount Before VAT", True),
-    CoreValidationField("tax_total", None, "Tax Amount", True),
-    CoreValidationField("wht_total", None, "WHT (Withholding Tax)", True),
-    CoreValidationField("grand_total", None, "Net Amount After WHT (Total Amount Payable)", True),
+    CoreValidationField("total_amount_before_vat", "base_fee", "Total Amount Before VAT", True),
+    CoreValidationField("vat_gst", None, "Tax Amount", True),
+    CoreValidationField("wht", None, "WHT (Withholding Tax)", True),
+    CoreValidationField("net_amount_after_wht", None, "Net Amount After WHT (Total Amount Payable)", True),
 ]
+
+_CORE_BY_INVOICE_FIELD = {c.invoice_field: c for c in CORE_CROSS_VALIDATION_FIELDS}
+
+
+def find_core_field(invoice_field: str) -> Optional[CoreValidationField]:
+    return _CORE_BY_INVOICE_FIELD.get(invoice_field)

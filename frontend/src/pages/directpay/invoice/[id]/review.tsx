@@ -23,7 +23,7 @@ const PdfViewer = dynamic(() => import("@/components/PdfViewer").then((m) => m.P
   ),
 });
 
-const REQUIRED_FIELDS = new Set(["invoice_number", "vendor_name", "grand_total"]);
+const REQUIRED_FIELDS = new Set(["invoice_number", "vendor_name", "total_amount"]);
 
 // Simulated processing latency for the forward transition into Matching —
 // mirrors P2P's own review.tsx exactly: after Confirm Extraction succeeds, it
@@ -38,37 +38,39 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// Field names/labels mirror "Contract Invoice Mapping - Field Mapping.csv"'s
-// own "Invoice Field" column — see backend/src/directpay/field_mapping.py
-// for the full invoice<->contract mapping this schema is drawn from.
-// Field set matches "PT_BANGUN_INVOICE_EXTRACTION - Sheet1.csv" (the real
-// invoice extraction). Dates are the fixture's own human-readable strings
-// (e.g. "9 Jul 2026"), not ISO — typed "text" rather than "date" so a native
-// <input type="date"> (which only renders strict YYYY-MM-DD) doesn't just
-// show blank for them.
+// Field names/labels mirror P2P's own real invoice extraction vocabulary
+// exactly — see backend/src/directpay/field_mapping.py and
+// services/directpay.ts's DpInvoiceExtracted docstring for the full
+// P2P-vs-DP field-naming history. Dates are the fixture's own
+// human-readable strings (e.g. "9 Jul 2026"), not ISO — typed "text" rather
+// than "date" so a native <input type="date"> (which only renders strict
+// YYYY-MM-DD) doesn't just show blank for them.
 const FIELD_DEFS: { key: keyof DpInvoiceExtracted; label: string; type: "text" | "number" | "date" }[] = [
   { key: "invoice_number", label: "Invoice Number", type: "text" },
   { key: "invoice_date", label: "Invoice Date", type: "text" },
-  { key: "vendor_name", label: "Vendor", type: "text" },
-  { key: "vendor_npwp", label: "Vendor NPWP", type: "text" },
-  { key: "customer_name", label: "Customer", type: "text" },
-  { key: "customer_npwp", label: "Customer NPWP", type: "text" },
+  { key: "vendor_name", label: "Vendor Name", type: "text" },
+  { key: "vendor_address", label: "Vendor Address", type: "text" },
+  { key: "vendor_vat_id", label: "Vendor VAT ID", type: "text" },
+  { key: "customer_legal_entity", label: "Customer Legal Entity", type: "text" },
+  { key: "customer_address", label: "Customer Address", type: "text" },
+  { key: "customer_vat_id", label: "Customer VAT ID", type: "text" },
   { key: "billing_period_start", label: "Billing Period Start", type: "text" },
   { key: "billing_period_end", label: "Billing Period End", type: "text" },
-  { key: "store_location", label: "Store Location", type: "text" },
-  { key: "payment_due_days", label: "Payment Due Days", type: "text" },
-  { key: "payment_due_date", label: "Payment Due Date", type: "text" },
-  { key: "subtotal", label: "Subtotal", type: "number" },
+  { key: "payment_terms", label: "Payment Terms", type: "text" },
+  { key: "due_date", label: "Due Date", type: "text" },
+  { key: "total_amount_before_vat", label: "Total Amount Before VAT", type: "number" },
   { key: "tax_type", label: "Tax Type", type: "text" },
   { key: "tax_rate", label: "Tax Rate", type: "number" },
-  { key: "tax_total", label: "Tax Total", type: "number" },
+  { key: "vat_gst", label: "VAT / GST", type: "number" },
   { key: "wht_rate", label: "WHT Rate", type: "number" },
-  { key: "wht_total", label: "WHT Total", type: "number" },
-  { key: "grand_total", label: "Grand Total", type: "number" },
+  { key: "wht", label: "WHT", type: "number" },
+  { key: "total_amount", label: "Total Amount After VAT", type: "number" },
+  { key: "net_amount_after_wht", label: "Net Amount After WHT", type: "number" },
   { key: "currency", label: "Currency", type: "text" },
-  { key: "bank_details", label: "Bank Details", type: "text" },
-  { key: "faktur_pajak_number", label: "Faktur Pajak Number", type: "text" },
-  { key: "dpp_amount", label: "DPP Amount", type: "number" },
+  { key: "vendor_bank_name", label: "Vendor Bank Name", type: "text" },
+  { key: "vendor_bank_account_name", label: "Vendor Bank Account Name", type: "text" },
+  { key: "vendor_bank_account_number", label: "Vendor Bank Account Number", type: "text" },
+  { key: "vendor_bank_swift", label: "Vendor Bank SWIFT", type: "text" },
   { key: "notes", label: "Notes", type: "text" },
 ];
 
@@ -172,22 +174,31 @@ function InvoiceReviewPage() {
         (payload as Record<string, unknown>)[k] = def?.type === "number" ? (v === "" ? null : Number(v)) : v;
       }
       await directpayService.editInvoice(id, payload);
-      let updated = await directpayService.confirmExtraction(id, payload);
+      const updated = await directpayService.confirmExtraction(id, payload);
+      setSaving(false);
+
+      // Mirrors P2P's own IDR-only Faktur Pajak gate: confirming extraction
+      // moves the invoice to "fp_extraction" for an IDR invoice (see
+      // service.py's confirm_extraction) — that stage now owns the AI
+      // contract-recommendation-then-Matching hand-off that used to happen
+      // right here. A non-IDR invoice stays "extracted" and skips straight
+      // to Matching, exactly as before.
+      if (updated.status === "fp_extraction") {
+        router.push(`/directpay/invoice/${updated.id}/fp-extraction`);
+        return;
+      }
+
       // No separate Confirm Match step — AI recommends and auto-applies the
       // best-scoring saved contract (vendor/customer/amount/currency/date
       // similarity) so the Matching screen opens directly showing a
       // comparison. The user can always re-pick from the contract dropdown
       // right there if the AI's match is wrong.
       try {
-        const rec = await directpayService.getContractRecommendation(id);
-        if (rec.current_contract_id) {
-          updated = await directpayService.getInvoice(id);
-        }
+        await directpayService.getContractRecommendation(id);
       } catch {
         // No contracts available yet — Matching screen will prompt the user
         // to pick one once a contract has been uploaded.
       }
-      setSaving(false);
       setTransitionPhase("extracting");
       setTransitioning(true);
       await sleep(EXTRACTING_PHASE_MS);
@@ -214,7 +225,6 @@ function InvoiceReviewPage() {
   const setLineItem = (idx: number, patch: Partial<DpLineItem>) => {
     setLineItems((items) => items.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
   };
-  const addLineItem = () => setLineItems((items) => [...items, { label: "", charge_type: "service_fee", quantity: 1, unit_price: 0, amount: 0 }]);
   const removeLineItem = (idx: number) => {
     const next = lineItems.filter((_, i) => i !== idx);
     setLineItems(next);
@@ -544,14 +554,6 @@ function InvoiceReviewPage() {
                         ))}
                       </tbody>
                     </table>
-                    {isEditable && (
-                      <button
-                        onClick={addLineItem}
-                        style={{ margin: 10, fontSize: 13, color: "#1876FF", background: "none", border: "none", cursor: "pointer", fontWeight: 500 }}
-                      >
-                        + Add line item
-                      </button>
-                    )}
                   </div>
                 )}
               </div>

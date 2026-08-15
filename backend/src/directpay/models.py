@@ -24,6 +24,10 @@ class DpInvoiceEditRequest(BaseModel):
     extracted: dict[str, Any]
 
 
+class DpCopyFromContractRequest(BaseModel):
+    field: str
+
+
 class DpInvoiceConfirmExtractionRequest(BaseModel):
     extracted: Optional[dict[str, Any]] = None
 
@@ -43,6 +47,15 @@ class DpReviewActionRequest(BaseModel):
     action: str  # approve | reject
     force: bool = False
     reason: Optional[str] = None
+
+
+class DpFpAcknowledgeRequest(BaseModel):
+    field_name: str
+    acknowledged: bool = True
+
+
+class DpFpApproveRequest(BaseModel):
+    force: bool = False
 
 
 class DpBillPostingEditRequest(BaseModel):

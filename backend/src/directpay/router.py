@@ -36,6 +36,9 @@ from .models import (
     DpBillPostingEditRequest,
     DpContractApproveRequest,
     DpContractEditRequest,
+    DpCopyFromContractRequest,
+    DpFpAcknowledgeRequest,
+    DpFpApproveRequest,
     DpInvoiceConfirmExtractionRequest,
     DpInvoiceEditRequest,
     DpInvoiceMatchRequest,
@@ -228,9 +231,14 @@ async def get_invoice_pdf(run_id: str):
     if not doc:
         raise HTTPException(status_code=404, detail="Invoice not found")
     bundle = get_dp_loader().discover().get(doc["fixture_key"])
-    if not bundle or not bundle.invoice_pdf_path:
+    # A multi-invoice vendor folder (documents.json) serves that specific
+    # document's own PDF; a single-invoice folder keeps using the bundle's
+    # invoice_pdf_path exactly as before.
+    document = service._document_entry(bundle, doc.get("document_key"))
+    pdf_path = document.pdf_path if document else (bundle.invoice_pdf_path if bundle else None)
+    if not pdf_path:
         raise HTTPException(status_code=404, detail="Invoice PDF not available")
-    return Response(content=bundle.invoice_pdf_path.read_bytes(), media_type="application/pdf")
+    return Response(content=pdf_path.read_bytes(), media_type="application/pdf")
 
 
 @router.post("/invoices/{run_id}/extract")
@@ -251,6 +259,17 @@ async def edit_invoice(run_id: str, body: DpInvoiceEditRequest, current_user: Cu
         _not_found(exc)
 
 
+@router.post("/invoices/{run_id}/matching/copy-from-contract")
+async def copy_field_from_contract(run_id: str, body: DpCopyFromContractRequest, current_user: CurrentUser):
+    db = get_db()
+    try:
+        return _envelope(data=await service.copy_field_from_contract(db, _oid(run_id, "invoice ID"), body.field, current_user.email))
+    except service.NotFoundError as exc:
+        _not_found(exc)
+    except service.InvalidStateError as exc:
+        raise HTTPException(status_code=400, detail=exc.message)
+
+
 @router.post("/invoices/{run_id}/confirm-extraction")
 async def confirm_extraction(run_id: str, body: DpInvoiceConfirmExtractionRequest, current_user: CurrentUser):
     db = get_db()
@@ -267,6 +286,66 @@ async def get_edit_history(run_id: str):
         return _envelope(data={"items": await service.get_edit_history(db, _oid(run_id, "invoice ID"))})
     except service.NotFoundError as exc:
         _not_found(exc)
+
+
+@router.get("/invoices/{run_id}/extraction-postprocessing")
+async def get_extraction_postprocessing(run_id: str):
+    db = get_db()
+    try:
+        return _envelope(data=await service.get_extraction_postprocessing(db, _oid(run_id, "invoice ID")))
+    except service.NotFoundError as exc:
+        _not_found(exc)
+
+
+@router.post("/invoices/{run_id}/extraction-postprocessing/approve")
+async def approve_extraction_postprocessing(run_id: str, current_user: CurrentUser):
+    db = get_db()
+    try:
+        return _envelope(data=await service.approve_extraction_postprocessing(db, _oid(run_id, "invoice ID"), current_user.email))
+    except service.NotFoundError as exc:
+        _not_found(exc)
+    except service.InvalidStateError as exc:
+        raise HTTPException(status_code=400, detail=exc.message)
+
+
+@router.get("/invoices/{run_id}/faktur-pajak")
+async def get_faktur_pajak(run_id: str):
+    db = get_db()
+    try:
+        return _envelope(data=await service.get_faktur_pajak(db, _oid(run_id, "invoice ID")))
+    except service.NotFoundError as exc:
+        _not_found(exc)
+
+
+@router.post("/invoices/{run_id}/faktur-pajak/acknowledge")
+async def acknowledge_fp_field(run_id: str, body: DpFpAcknowledgeRequest):
+    db = get_db()
+    try:
+        acked = await service.acknowledge_fp_field(db, _oid(run_id, "invoice ID"), body.field_name, body.acknowledged)
+    except service.NotFoundError as exc:
+        _not_found(exc)
+        return
+    return _envelope(data={"ok": True, "acknowledged_fields": acked})
+
+
+@router.post("/invoices/{run_id}/faktur-pajak/approve")
+async def approve_faktur_pajak(run_id: str, body: DpFpApproveRequest):
+    db = get_db()
+    oid = _oid(run_id, "invoice ID")
+    try:
+        result = await service.approve_faktur_pajak(db, oid, body.force)
+    except service.NotFoundError as exc:
+        _not_found(exc)
+        return
+    except service.InvalidStateError as exc:
+        raise HTTPException(status_code=400, detail=exc.message)
+    except service.NeedsConfirmationError as exc:
+        return Response(
+            content=f'{{"ok": false, "needs_confirmation": true, "message": "{exc.message}"}}',
+            status_code=409,
+            media_type="application/json",
+        )
+    return _envelope(data=result)
 
 
 @router.get("/invoices/{run_id}/contract-recommendation")

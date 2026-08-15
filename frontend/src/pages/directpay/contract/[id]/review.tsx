@@ -71,7 +71,7 @@ function ContractReviewPage() {
   const handleApprove = async () => {
     if (!id || !run) return;
     if (run.status === "saved") {
-      router.push("/directpay/dashboard");
+      router.push("/directpay/dashboard?tab=contracts");
       return;
     }
     setSaving(true);
@@ -159,7 +159,7 @@ function ContractReviewPage() {
     <div className="flex flex-col h-screen overflow-hidden" style={{ background: "#f4f6f9" }}>
       <ComponentHeaderAntd
         title="Contract Extraction"
-        onBack={() => router.push("/directpay/dashboard")}
+        onBack={() => router.push("/directpay/dashboard?tab=contracts")}
         metaItems={metaItems}
         right={actionButtons}
       />

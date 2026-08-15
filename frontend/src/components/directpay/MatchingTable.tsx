@@ -3,9 +3,12 @@
 // same mismatch row colors, same field-column shading, same Acknowledge
 // button/Auto-approved badge placement INSIDE the Invoice cell (not a
 // separate column) — adapted for DirectPay's invoice-vs-contract findings
-// instead of invoice-vs-PO/GRN. No copy-value affordance: P2P's own
-// MetadataTab has none either — a mismatch is either fixed (by editing on
-// the Extraction screen) or acknowledged, never "copied" in place here.
+// instead of invoice-vs-PO/GRN. Diverges from P2P's own MetadataTab (which
+// has no copy affordance) in one deliberate way: a field the invoice has NO
+// value for at all gets a "Copy" action (pulls the contract's own value in)
+// instead of Acknowledge — there's nothing to acknowledge about a blank
+// field, only something to fill in. A real mismatch (invoice HAS a value,
+// it just disagrees) still only ever gets Acknowledge, never Copy.
 import { useMemo } from "react";
 import { Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
@@ -19,23 +22,25 @@ const tableClassName = "dp-matching-table";
 // title-cased version of the key for any field without an explicit label.
 const FIELD_LABELS: Record<string, string> = {
   vendor_name: "Vendor Name",
-  vendor_npwp: "Vendor NPWP",
-  customer_name: "Customer Name",
-  customer_npwp: "Customer NPWP",
-  store_location: "Store Location",
-  bank_details: "Bank Details (Account Name & Number)",
+  vendor_vat_id: "Vendor VAT ID",
+  customer_legal_entity: "Customer Legal Entity",
+  customer_vat_id: "Customer VAT ID",
+  vendor_address: "Store Location",
+  vendor_bank_account_name: "Vendor Bank Account Name",
+  vendor_bank_account_number: "Vendor Bank Account Number",
   billing_period_start: "Billing / Service Period Start",
   billing_period_end: "Billing / Service Period End",
-  payment_due_days: "Payment Due Days",
-  payment_due_date: "Payment Due Date",
+  payment_terms: "Payment Terms",
+  due_date: "Due Date",
   // Business-checklist labels — see field_mapping.CORE_CROSS_VALIDATION_FIELDS.
-  subtotal: "Total Amount Before VAT",
+  total_amount_before_vat: "Total Amount Before VAT",
   tax_type: "Tax Type",
   tax_rate: "Tax Rate",
-  tax_total: "Tax Amount",
+  vat_gst: "Tax Amount",
   wht_rate: "WHT Rate",
-  wht_total: "WHT (Withholding Tax)",
-  grand_total: "Net Amount After WHT (Total Amount Payable)",
+  wht: "WHT (Withholding Tax)",
+  total_amount: "Total Amount After VAT",
+  net_amount_after_wht: "Net Amount After WHT (Total Amount Payable)",
   invoice_number: "Invoice Number",
   invoice_date: "Invoice Date",
   currency: "Currency",
@@ -51,11 +56,13 @@ function fieldLabel(f: DpFinding): string {
  * contract's expected value — e.g. after a manual edit on the Extraction
  * screen. A finding with no expected_value at all (a core cross-validation
  * field with no literal contract-side figure to compare against, e.g. Tax
- * Amount) has nothing to reconcile and counts as resolved. Exported so
- * pages can derive the same blocking-count logic the table itself uses. */
+ * Amount) can never become "equal" to anything, so it's never auto-resolved —
+ * a mandatory field with nothing to automatically verify still needs an
+ * explicit human Acknowledge. Exported so pages can derive the same
+ * blocking-count logic the table itself uses. */
 export function isFindingResolved(f: DpFinding, extracted: DpInvoiceExtracted): boolean {
   if (!f.field) return false;
-  if (f.expected_value === undefined || f.expected_value === null) return true;
+  if (f.expected_value === undefined || f.expected_value === null) return false;
   const current = (extracted as Record<string, unknown>)[f.field];
   if (current === undefined || current === null) return false;
   return String(current) === String(f.expected_value);
@@ -75,6 +82,11 @@ interface MatchingTableProps {
   extracted: DpInvoiceExtracted;
   readonly?: boolean;
   onToggleAcknowledge: (findingId: string, acknowledged: boolean) => void;
+  /** Copy the contract's value for this field into the invoice — only ever
+   * offered when the invoice has no value at all for the field (see
+   * canCopy below). Optional so callers that never show Copy (none today)
+   * don't have to pass a no-op. */
+  onCopyFromContract?: (field: string) => void;
 }
 
 export function MatchingTable({
@@ -84,6 +96,7 @@ export function MatchingTable({
   extracted,
   readonly,
   onToggleAcknowledge,
+  onCopyFromContract,
 }: MatchingTableProps) {
   const isResolved = (f: DpFinding): boolean => isFindingResolved(f, extracted);
   const isSystemAcked = (f: DpFinding): boolean => systemAcknowledgedFindings.includes(f.finding_id);
@@ -137,7 +150,15 @@ export function MatchingTable({
           const acked = isAcked(f);
           const systemAcked = isSystemAcked(f);
           const resolved = isResolved(f);
-          const canAck = !resolved && !systemAcked;
+          const hasInvoiceValue = f.found !== undefined && f.found !== null && f.found !== "";
+          // Only offer Acknowledge where the contract actually has a value
+          // to compare against — a field with nothing on the contract side
+          // (expected_value null, e.g. no bank details in the source) has
+          // nothing to acknowledge, just an informational row. And only for
+          // a REAL mismatch (invoice has its own value, it just disagrees) —
+          // a blank invoice value gets Copy instead (see canCopy).
+          const canAck = !resolved && !systemAcked && f.expected_value != null && hasInvoiceValue;
+          const canCopy = !resolved && !systemAcked && f.expected_value != null && !hasInvoiceValue;
           const value = resolved ? f.expected ?? f.found : f.found;
 
           return (
@@ -193,6 +214,22 @@ export function MatchingTable({
                   }}
                 >
                   ACK
+                </button>
+              ) : canCopy && !readonly && f.field ? (
+                <button
+                  type="button"
+                  onClick={() => onCopyFromContract?.(f.field as string)}
+                  title="Copy this value from the contract"
+                  style={{
+                    display: "inline-flex", alignItems: "center", justifyContent: "center",
+                    flexShrink: 0, cursor: "pointer",
+                    width: 22, height: 22, fontSize: 13, lineHeight: 1,
+                    color: "#1876FF", background: "#ffffff",
+                    border: "1px solid #BFDBFE", borderRadius: 4,
+                    padding: 0, fontFamily: "Inter, sans-serif",
+                  }}
+                >
+                  ⇄
                 </button>
               ) : null}
             </div>

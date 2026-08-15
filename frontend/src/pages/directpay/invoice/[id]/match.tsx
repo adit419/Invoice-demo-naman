@@ -58,6 +58,18 @@ function InvoiceMatchPage() {
     if (!id) return;
     try {
       let [inv, con] = await Promise.all([directpayService.getInvoice(id), directpayService.listContracts()]);
+      // An IDR invoice must clear Faktur Pajak, then Extraction
+      // Postprocessing, before Matching — guards direct/stale navigation to
+      // this page (the normal path only ever arrives here via
+      // extraction-postprocessing.tsx's own Approve).
+      if (inv.status === "fp_extraction") {
+        router.replace(`/directpay/invoice/${id}/fp-extraction`);
+        return;
+      }
+      if (inv.status === "postprocessing") {
+        router.replace(`/directpay/invoice/${id}/extraction-postprocessing`);
+        return;
+      }
       setContracts(con.items.filter((c) => c.status === "saved"));
       // Always call this (unless already decided) — it's idempotent (never
       // re-picks once a contract is set) and is the only way to learn
@@ -85,7 +97,7 @@ function InvoiceMatchPage() {
     } finally {
       setLoading(false);
     }
-  }, [id, toast]);
+  }, [id, toast, router]);
 
   useEffect(() => {
     load();
@@ -117,6 +129,20 @@ function InvoiceMatchPage() {
       setRun((r) => (r ? { ...r, acknowledged_findings: res.acknowledged_findings } : r));
     } catch {
       toast("Could not acknowledge finding", "error");
+    }
+  };
+
+  // Pulls the contract's own value straight into the invoice — goes through
+  // the same edit path a manual field change would (edit_history entry and
+  // all), so the copied value shows up everywhere the invoice's extracted
+  // data is read from here on (Extraction, Faktur Pajak, Bill Posting).
+  const handleCopyFromContract = async (field: string) => {
+    if (!id) return;
+    try {
+      const updated = await directpayService.copyFieldFromContract(id, field);
+      setRun(updated);
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : "Could not copy value from contract", "error");
     }
   };
 
@@ -304,7 +330,7 @@ function InvoiceMatchPage() {
 
       <ComponentHeaderAntd
         title="Matching"
-        onBack={() => router.push(`/directpay/invoice/${id}/review`)}
+        onBack={() => router.push(`/directpay/invoice/${id}/extraction-postprocessing`)}
         metaItems={metaItems}
         right={actionButtons}
       />
@@ -404,6 +430,7 @@ function InvoiceMatchPage() {
             extracted={run.extracted}
             readonly={isTerminal}
             onToggleAcknowledge={handleToggleAcknowledge}
+            onCopyFromContract={handleCopyFromContract}
           />
         </div>
       </div>

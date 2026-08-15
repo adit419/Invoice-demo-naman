@@ -27,12 +27,29 @@ from .store import (
 # trigger a fresh AI contract match on an already-decided invoice.
 #
 # Status vocabulary mirrors Invoice Processing's real pipeline exactly:
-# extraction -> extracted -> matching -> bill_posting -> posted, with
-# "rejected" a possible exit from matching or bill_posting. There is no
-# separate "accepted"/"validated" terminal status — Matching's approval
-# moves the invoice on to Bill Posting, same as P2P's metadata_validation/
-# line_item_matching approval moves it to bill_posting rather than ending
-# the pipeline there.
+# extraction -> extracted -> fp_extraction -> postprocessing -> extracted ->
+# matching -> bill_posting -> posted, with "rejected" a possible exit at any
+# point. There is no separate "accepted"/"validated" terminal status —
+# Matching's approval moves the invoice on to Bill Posting, same as P2P's
+# metadata_validation/line_item_matching approval moves it to bill_posting
+# rather than ending the pipeline there.
+#
+# postprocessing is DirectPay's own addition (no P2P analog) — it sits AFTER
+# Faktur Pajak (only ever runs once FP has — same single IDR gate in
+# confirm_extraction covers both) and derives invoice fields the document
+# itself never prints (due_date, wht_rate, wht, net_amount_after_wht) from the
+# underlying lease's own payment schedule. See approve_extraction_postprocessing.
+#
+# fp_extraction mirrors P2P's own STAGE_SEQUENCE placement exactly (see
+# backend/src/api/v1/stages.py): it sits between extraction and matching,
+# gated on IDR currency exactly like P2P's approve_stage IDR check — a
+# non-IDR invoice (never happens in today's DP fixtures, but kept for
+# parity) skips straight through, same as P2P auto-skipping to
+# metadata_validation. Confirming extraction moves "extracted" ->
+# "fp_extraction" (see confirm_extraction); approving the FP stage moves it
+# back to "extracted" (see approve_faktur_pajak) — the same status a
+# non-IDR invoice would already be sitting at post-confirm — so match.tsx's
+# existing "extracted is ready to match" logic needs no changes at all.
 TERMINAL_STATUSES = ("posted", "rejected")
 
 
@@ -71,7 +88,19 @@ def _normalize_for_memory(v) -> str:
 
 
 def _values_equal(a, b) -> bool:
-    return ("" if a is None else str(a)) == ("" if b is None else str(b))
+    if ("" if a is None else str(a)) == ("" if b is None else str(b)):
+        return True
+    # A same-value round-trip through JSON can still change string form
+    # without changing the value — Python keeps "675675676.0" for a
+    # JSON-sourced float, but JS normalizes a whole-number float to
+    # "675675676" when it serializes the edit payload back. Without this,
+    # re-sending an untouched line item on every Confirm Extraction (the
+    # frontend always resends the full array, edited or not) logs a false
+    # "changed" entry in edit_history for every numeric field.
+    try:
+        return float(a) == float(b)
+    except (TypeError, ValueError):
+        return False
 
 
 def _diff_extracted_patch(current: dict, patch: dict, user_email: str) -> list[dict]:
@@ -159,7 +188,7 @@ def _format_finding_invoice_value(field: str, value, currency: Optional[str]) ->
             return f"{float(value) * 100:.1f}%"
         except (TypeError, ValueError):
             return str(value)
-    if field in ("subtotal", "tax_total", "wht_total", "grand_total"):
+    if field in ("total_amount_before_vat", "vat_gst", "wht", "total_amount", "net_amount_after_wht"):
         try:
             amount = f"{float(value):,.2f}"
         except (TypeError, ValueError):
@@ -193,13 +222,15 @@ def _is_finding_resolved(f: dict, extracted: dict) -> bool:
 
     A finding with no `expected_value` at all (a core cross-validation field
     with no literal contract-side figure to compare against, e.g. Tax
-    Amount — see field_mapping.CORE_CROSS_VALIDATION_FIELDS) has nothing to
-    reconcile and so can never be "a mismatch" — it counts as resolved."""
+    Amount — see field_mapping.CORE_CROSS_VALIDATION_FIELDS) can never
+    become "equal" to anything — it's never auto-resolved. A mandatory field
+    with nothing to automatically verify against still needs an explicit
+    human Acknowledge, not a silent pass-through."""
     field = f.get("field")
     if not field:
         return False
     if f.get("expected_value") is None:
-        return True
+        return False
     current = extracted.get(field)
     if current is None:
         return False
@@ -251,22 +282,43 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
         if core.invoice_field in covered_invoice_fields:
             continue
         contract_value = contract_fields.get(core.contract_field) if core.contract_field else None
+        # base_fee (Monthly Rent) is literally 0 for a lumpsum-installment
+        # contract with no true monthly-rent concept — that's "not
+        # applicable", not "the expected amount is zero rupiah", so treat it
+        # the same as no contract figure at all (blank, non-mandatory).
+        if core.contract_field == "base_fee" and contract_value == 0:
+            contract_value = None
         invoice_value = extracted.get(core.invoice_field)
         # Always shown, even with nothing on either side (e.g. WHT is
         # genuinely null when no withholding tax applies) — a blank row is
         # itself the answer ("no WHT on this invoice"), not something to hide.
+        if contract_value is None:
+            # Nothing to auto-verify against — not "wrong" (that's what
+            # error/red means), just unconfirmed. Never blocks approval and
+            # never shows an Acknowledge action (there's nothing to
+            # acknowledge — the frontend only offers ACK where a real
+            # contract-side value exists to compare against, expected_value
+            # not None), just an informational amber row.
+            severity = "warning"
+            detail = f"No contract figure to compare {core.label} against — please confirm manually."
+            mandatory = False
+        else:
+            severity = "error" if core.mandatory else "warning"
+            detail = f"Compares the invoice's {core.label} against the contract."
+            mandatory = core.mandatory
         annotated.append({
             "finding_id": f"CORE-{core.invoice_field}",
-            "severity": "error" if core.mandatory else "info",
+            "severity": severity,
             "title": f"{core.label} comparison",
-            "detail": f"Compares the invoice's {core.label} against the contract.",
-            "expected": str(contract_value) if contract_value is not None else None,
+            "detail": detail,
+            "expected": _format_finding_invoice_value(core.invoice_field, contract_value, currency)
+                if contract_value is not None else None,
             "found": _format_finding_invoice_value(core.invoice_field, invoice_value, currency)
                 if invoice_value is not None else None,
             "field": core.invoice_field,
             "expected_value": contract_value,
             "core": True,
-            "mandatory": core.mandatory,
+            "mandatory": mandatory,
         })
     return annotated
 
@@ -277,13 +329,25 @@ async def invoice_out(db, doc: dict) -> dict:
     findings = _refresh_findings_from_extracted((match_result or {}).get("findings") or [], extracted)
     findings = await _apply_mandatory_field_coverage(db, doc, findings, extracted)
     system_acknowledged = await _apply_dp_ack_memory(db, findings, extracted)
+
+    # Raw Faktur Pajak data for this specific document, if this vendor folder
+    # has one (see fixtures.py's documents.json, or a single-invoice folder's
+    # own fp_extraction.json) — the dedicated get_faktur_pajak() is the real
+    # comparison/acknowledge/approve surface (the Faktur Pajak stage page);
+    # this is just a convenience peek for anything else that wants the raw data.
+    bundle = get_dp_loader().discover().get(doc.get("fixture_key"))
+    document = _document_entry(bundle, doc.get("document_key"))
+    faktur_pajak = _resolve_faktur_pajak(bundle, document)
+
     return {
         "id": str(doc["_id"]),
         "fixture_key": doc.get("fixture_key"),
+        "document_key": doc.get("document_key"),
         "file_name": doc.get("file_name"),
         "status": doc.get("status"),
         "contract_id": str(doc["contract_id"]) if doc.get("contract_id") else None,
         "extracted": extracted,
+        "faktur_pajak": faktur_pajak,
         "expected": (match_result or {}).get("expected"),
         "summary": (match_result or {}).get("summary"),
         "findings": findings,
@@ -402,13 +466,17 @@ async def get_invoice_doc(db, oid: ObjectId) -> dict:
 async def upload_invoice(
     db, filename: str, email: Optional[str] = None, tag: Optional[str] = None
 ) -> dict:
-    bundle = get_dp_loader().resolve(filename or "")
+    bundle, document = get_dp_loader().resolve_document(filename or "")
     if bundle is None:
         raise NotFoundError("No DirectPay fixture scenarios configured")
 
     now = _now()
     doc = {
         "fixture_key": bundle.key,
+        # Set only for a vendor folder with multiple real invoices (see
+        # fixtures.py's documents.json) — which specific one this upload
+        # resolved to. None for a single-invoice folder (unchanged behavior).
+        "document_key": document.key if document else None,
         "file_name": filename,
         "status": "extraction",  # idle — matches kopi-demo: extraction hasn't run until /extract
         "base_extracted": None,
@@ -417,6 +485,7 @@ async def upload_invoice(
         "match_result": None,
         "original_findings": None,
         "acknowledged_findings": [],
+        "fp_acknowledged_fields": [],
         "edit_history": [],
         "stp_state": None,
         "bill_posting_overrides": {},
@@ -442,10 +511,24 @@ async def list_invoices(db) -> list[dict]:
     return [await invoice_out(db, d) for d in docs]
 
 
+def _document_entry(bundle, document_key: Optional[str]):
+    """Look up the specific DpDocumentEntry a multi-invoice vendor folder's
+    upload resolved to (see fixtures.py's documents.json). None when the
+    folder has no manifest (single-invoice — the common case) or the key
+    wasn't found."""
+    if not bundle or not document_key:
+        return None
+    return next((d for d in bundle.documents if d.key == document_key), None)
+
+
 async def extract_invoice(db, oid: ObjectId) -> dict:
     doc = await get_invoice_doc(db, oid)
     bundle = get_dp_loader().discover().get(doc["fixture_key"])
-    extracted = bundle.invoice_extraction if bundle else {}
+    document = _document_entry(bundle, doc.get("document_key"))
+    if document:
+        extracted = document.invoice_extraction
+    else:
+        extracted = bundle.invoice_extraction if bundle else {}
 
     await dp_invoice_runs(db).update_one(
         {"_id": oid},
@@ -462,9 +545,292 @@ async def edit_invoice(db, oid: ObjectId, extracted_patch: Optional[dict], user_
     return await invoice_out(db, doc)
 
 
+async def copy_field_from_contract(db, oid: ObjectId, field_name: str, user_email: str = "unknown") -> dict:
+    """Matching page's "Copy" action — only ever offered for a checklist field
+    the invoice has NO value for at all (see MatchingTable.tsx's canCopy),
+    never for a real mismatch (that's what Acknowledge is for). Goes through
+    the same _apply_extracted_patch every other edit does, so the copied
+    value shows up everywhere the invoice's extracted data is read
+    (Extraction, Faktur Pajak, Bill Posting) and logs a normal edit_history
+    entry — a copy is just an edit whose new value happens to come from the
+    contract instead of a human typing it in."""
+    doc = await get_invoice_doc(db, oid)
+    contract_id = doc.get("contract_id")
+    if not contract_id:
+        raise InvalidStateError("This invoice has not been matched to a contract yet")
+
+    core = field_mapping.find_core_field(field_name)
+    if not core or not core.contract_field:
+        raise NotFoundError(f"'{field_name}' has no contract field to copy from")
+
+    contract_doc = await dp_contract_runs(db).find_one({"_id": contract_id})
+    if not contract_doc:
+        raise NotFoundError("Matched contract not found")
+    contract_fields = _merge(contract_doc.get("base_fields") or {}, contract_doc.get("edited_fields"))
+    contract_value = contract_fields.get(core.contract_field)
+    if contract_value is None:
+        raise InvalidStateError(f"The contract has no value for '{core.label}' to copy")
+
+    doc = await _apply_extracted_patch(db, oid, doc, {field_name: contract_value}, user_email)
+    return await invoice_out(db, doc)
+
+
 async def confirm_extraction(db, oid: ObjectId, extracted_patch: Optional[dict], user_email: str = "unknown") -> dict:
     doc = await get_invoice_doc(db, oid)
     doc = await _apply_extracted_patch(db, oid, doc, extracted_patch, user_email)
+
+    # Mirrors P2P's approve_stage: confirming extraction auto-advances into
+    # fp_extraction for an IDR invoice (the only currency DP's Indonesian
+    # lease/utility fixtures use today), same as P2P's IDR-only gate. A
+    # non-IDR invoice — or an invoice confirmed a second time after already
+    # moving past this point — is left alone, matching P2P's one-way,
+    # idempotent stage advance. postprocessing (see approve_faktur_pajak)
+    # only ever runs once FP has — the same IDR gate covers both, applied
+    # once here.
+    extracted = _merge(doc.get("base_extracted") or {}, doc.get("edited_extracted"))
+    if doc.get("status") == "extracted" and (extracted.get("currency") or "").strip().upper() == "IDR":
+        await dp_invoice_runs(db).update_one({"_id": oid}, {"$set": {"status": "fp_extraction", "updated_at": _now()}})
+        doc["status"] = "fp_extraction"
+
+    return await invoice_out(db, doc)
+
+
+# ── Extraction Postprocessing ─────────────────────────────────────────────────
+# Sits between Extraction and Faktur Pajak. Some invoice fields are never
+# printed on the invoice document itself (due_date, wht_rate, wht,
+# net_amount_after_wht for a WHT-bearing lease) — this stage derives them from
+# the underlying lease's own payment schedule (fixtures/dp/<KEY>/
+# payment_schedule.json) instead, matching the schedule's installment row to
+# THIS invoice by amount (the schedule has no invoice-identifying key of its
+# own — matching on amount is the only signal available, same spirit as
+# contract_recommendation.py's amount-scoring).
+
+_DERIVED_FIELD_DISPLAY = {
+    "due_date": "Due Date",
+    "wht_rate": "WHT Rate",
+    "wht": "WHT Amount",
+    "net_amount_after_wht": "Net Amount After WHT",
+}
+_SCHEDULE_FIELD_MAP = {
+    "due_date": "due_date",
+    "wht_rate": "wht_rate",
+    "wht": "wht_amount",
+    "net_amount_after_wht": "net_payment_to_lessor",
+}
+
+
+def _match_payment_installment(schedule: Optional[dict], extracted: dict) -> Optional[dict]:
+    installments = (schedule or {}).get("installments") or []
+    if not installments:
+        return None
+    target = extracted.get("total_amount_before_vat")
+    try:
+        target = float(target)
+    except (TypeError, ValueError):
+        return installments[0]
+    best, best_diff = None, None
+    for inst in installments:
+        try:
+            diff = abs(float(inst.get("amount_excl_tax")) - target)
+        except (TypeError, ValueError):
+            continue
+        if best_diff is None or diff < best_diff:
+            best, best_diff = inst, diff
+    return best or installments[0]
+
+
+def _format_derived_value(field_name: str, value) -> str:
+    if value is None:
+        return "—"
+    if field_name == "wht_rate":
+        try:
+            return f"{float(value) * 100:.0f}%"
+        except (TypeError, ValueError):
+            return str(value)
+    if field_name in ("wht", "net_amount_after_wht"):
+        try:
+            return f"{float(value):,.2f}"
+        except (TypeError, ValueError):
+            return str(value)
+    return str(value)
+
+
+async def get_extraction_postprocessing(db, oid: ObjectId) -> dict:
+    doc = await get_invoice_doc(db, oid)
+    extracted = _merge(doc.get("base_extracted") or {}, doc.get("edited_extracted"))
+    bundle = get_dp_loader().discover().get(doc.get("fixture_key"))
+    schedule = bundle.payment_schedule if bundle else None
+    installment = _match_payment_installment(schedule, extracted)
+
+    fields = []
+    if installment:
+        for field_name, label in _DERIVED_FIELD_DISPLAY.items():
+            raw_value = installment.get(_SCHEDULE_FIELD_MAP[field_name])
+            fields.append({
+                "field_name": field_name,
+                "display_name": label,
+                "derived_value": raw_value,
+                "formatted_value": _format_derived_value(field_name, raw_value),
+                "already_applied": extracted.get(field_name) is not None,
+            })
+
+    return {
+        "id": str(doc["_id"]),
+        "status": doc.get("status"),
+        "invoice_number": extracted.get("invoice_number"),
+        "invoice_date": extracted.get("invoice_date"),
+        "vendor_name": extracted.get("vendor_name"),
+        "currency": extracted.get("currency"),
+        "has_payment_schedule": bool(schedule),
+        "matched_installment": installment.get("description") if installment else None,
+        "fields": fields,
+    }
+
+
+async def approve_extraction_postprocessing(db, oid: ObjectId, user_email: str = "unknown") -> dict:
+    doc = await get_invoice_doc(db, oid)
+    if doc.get("status") != "postprocessing":
+        raise InvalidStateError("This invoice is not at the Extraction Postprocessing stage")
+
+    data = await get_extraction_postprocessing(db, oid)
+    patch = {
+        f["field_name"]: f["derived_value"]
+        for f in data["fields"]
+        if f["derived_value"] is not None
+    }
+    if patch:
+        doc = await _apply_extracted_patch(db, oid, doc, patch, user_email)
+
+    # Sits after Faktur Pajak now, so approving here lands back at
+    # "extracted" — the same status a non-IDR invoice (no FP, no
+    # postprocessing) would already be sitting at, ready for Matching.
+    await dp_invoice_runs(db).update_one(
+        {"_id": oid}, {"$set": {"status": "extracted", "updated_at": _now()}}
+    )
+    doc["status"] = "extracted"
+    return await invoice_out(db, doc)
+
+
+# ── Faktur Pajak ─────────────────────────────────────────────────────────────
+# Mirrors P2P's backend/src/api/v1/fp_extraction.py field-for-field: the FP
+# document's own 4 comparable fields (fp_number is displayed standalone, never
+# compared — P2P's invoice extraction has no counterpart for it either) are
+# checked against the SAME invoice's own extraction, not the contract.
+
+_FP_FIELD_DISPLAY = {
+    "vendor_name": "Vendor Name (FP)",
+    "customer_name": "Customer Name (FP)",
+    "taxable_amount": "Taxable Amount (DPP)",
+    "vat_amount": "VAT Amount (PPN)",
+}
+_FP_INVOICE_FIELD_MAP = {
+    "vendor_name": "vendor_name",
+    "customer_name": "customer_legal_entity",
+    # DP's "total_amount_before_vat" is the same field CORE_CROSS_VALIDATION_FIELDS calls
+    # "Total Amount Before VAT" — the analog of P2P's total_amount_before_vat,
+    # which its own _INVOICE_FIELD_MAP compares taxable_amount against.
+    "taxable_amount": "total_amount_before_vat",
+    "vat_amount": "vat_gst",
+}
+_FP_REQUIRED_FIELDS = {"vendor_name", "customer_name", "taxable_amount", "vat_amount"}
+
+
+def _resolve_faktur_pajak(bundle, document) -> Optional[dict]:
+    """A multi-invoice vendor folder's per-document FP (see fixtures.py's
+    documents.json) takes priority; a single-invoice folder falls back to its
+    own bundle-level fp_extraction.json. The two are mutually exclusive per
+    folder in practice, never layered."""
+    if document and document.faktur_pajak:
+        return document.faktur_pajak
+    return bundle.fp_extraction if bundle else None
+
+
+def _fp_values_match(fp_value, invoice_value) -> bool:
+    if fp_value is None or invoice_value is None:
+        return False
+    try:
+        return abs(float(fp_value) - float(invoice_value)) < 0.01
+    except (TypeError, ValueError):
+        return str(fp_value).strip().lower() == str(invoice_value).strip().lower()
+
+
+async def get_faktur_pajak(db, oid: ObjectId) -> dict:
+    doc = await get_invoice_doc(db, oid)
+    extracted = _merge(doc.get("base_extracted") or {}, doc.get("edited_extracted"))
+    bundle = get_dp_loader().discover().get(doc.get("fixture_key"))
+    document = _document_entry(bundle, doc.get("document_key"))
+    fp = _resolve_faktur_pajak(bundle, document)
+    acknowledged = list(doc.get("fp_acknowledged_fields") or [])
+    acked_set = set(acknowledged)
+
+    fields = []
+    if fp:
+        for field_name, label in _FP_FIELD_DISPLAY.items():
+            fp_value = fp.get(field_name)
+            invoice_value = extracted.get(_FP_INVOICE_FIELD_MAP[field_name])
+            fields.append({
+                "field_name": field_name,
+                "display_name": label,
+                "fp_value": fp_value,
+                "invoice_value": invoice_value,
+                "match_status": "match" if _fp_values_match(fp_value, invoice_value) else "mismatch",
+                "required": field_name in _FP_REQUIRED_FIELDS,
+                "acknowledged": field_name in acked_set,
+            })
+
+    return {
+        "id": str(doc["_id"]),
+        "status": doc.get("status"),
+        "invoice_number": extracted.get("invoice_number"),
+        "invoice_date": extracted.get("invoice_date"),
+        "vendor_name": extracted.get("vendor_name"),
+        "currency": extracted.get("currency"),
+        "fp_number": fp.get("fp_number") if fp else None,
+        "has_fp_document": bool(fp),
+        "fields": fields,
+        "acknowledged_fields": acknowledged,
+    }
+
+
+async def acknowledge_fp_field(db, oid: ObjectId, field_name: str, acknowledged: bool) -> list[str]:
+    doc = await get_invoice_doc(db, oid)
+    acked = list(doc.get("fp_acknowledged_fields") or [])
+    if acknowledged and field_name not in acked:
+        acked.append(field_name)
+    elif not acknowledged and field_name in acked:
+        acked.remove(field_name)
+    await dp_invoice_runs(db).update_one(
+        {"_id": oid}, {"$set": {"fp_acknowledged_fields": acked, "updated_at": _now()}}
+    )
+    return acked
+
+
+async def approve_faktur_pajak(db, oid: ObjectId, force: bool = False) -> dict:
+    """Mirrors P2P's fp_extraction approve exactly in effect (advance to the
+    next stage) — DP additionally enforces the required-field-mismatch block
+    server-side (via the same NeedsConfirmationError/force-retry dance
+    review_action already uses) rather than relying on the frontend disabling
+    its own Approve button the way P2P's page does, since this module already
+    established that stronger pattern for its Matching stage."""
+    doc = await get_invoice_doc(db, oid)
+    if doc.get("status") != "fp_extraction":
+        raise InvalidStateError("This invoice is not at the Faktur Pajak stage")
+
+    fp_data = await get_faktur_pajak(db, oid)
+    blocking = [
+        f for f in fp_data["fields"]
+        if f["required"] and f["match_status"] == "mismatch" and not f["acknowledged"]
+    ]
+    if blocking and not force:
+        raise NeedsConfirmationError()
+
+    # Advances into Extraction Postprocessing next, not straight to
+    # "extracted" — postprocessing only ever runs once FP has (see
+    # confirm_extraction's single IDR gate covering both).
+    await dp_invoice_runs(db).update_one(
+        {"_id": oid}, {"$set": {"status": "postprocessing", "updated_at": _now()}}
+    )
+    doc["status"] = "postprocessing"
     return await invoice_out(db, doc)
 
 
@@ -609,7 +975,10 @@ def _bill_posting_out(doc: dict) -> dict:
         row_overrides = overrides.get(row_id) or {}
         line_items.append({
             "id": row_id,
-            "description": item.get("description"),
+            # DP's own DpLineItem schema calls this "label", not "description"
+            # (P2P's own field name) — reading the wrong key here always
+            # returned null, so every row showed "—" in the table.
+            "description": item.get("label"),
             "charge_type": item.get("charge_type") or item_defaults.get("charge_type"),
             "quantity": item.get("quantity"),
             "amount": item.get("amount"),
@@ -618,6 +987,18 @@ def _bill_posting_out(doc: dict) -> dict:
             "wht_tax_code": row_overrides.get("wht_tax_code", item_defaults.get("wht_tax_code", "")),
         })
 
+    # "Invoice Received Date" is a genuine system fact (when this run was
+    # uploaded into DirectPay) rather than extracted invoice data — there is
+    # no such field anywhere in the source tracker/PDF, so it will differ
+    # across re-uploads/demo runs rather than reflect a fixed real-world date.
+    created_at = doc.get("created_at")
+    # "Payable Amount" is the actual cash amount owed to the vendor — after
+    # WHT deduction when WHT applies (net_amount_after_wht), else the same as
+    # the gross total (grand_total) since there's nothing to deduct.
+    payable_amount = extracted.get("net_amount_after_wht")
+    if payable_amount is None:
+        payable_amount = extracted.get("total_amount")
+
     return {
         "id": str(doc["_id"]),
         "status": doc.get("status"),
@@ -625,11 +1006,16 @@ def _bill_posting_out(doc: dict) -> dict:
         "vendor_name": extracted.get("vendor_name"),
         "invoice_number": extracted.get("invoice_number"),
         "invoice_date": extracted.get("invoice_date"),
+        "invoice_received_date": created_at.isoformat() if hasattr(created_at, "isoformat") else created_at,
+        "payment_due_date": extracted.get("due_date"),
+        "bank_account_name": extracted.get("vendor_bank_account_name"),
+        "bank_account_number": extracted.get("vendor_bank_account_number"),
         "currency": extracted.get("currency"),
-        "subtotal": extracted.get("subtotal"),
-        "tax_amount": extracted.get("tax_total"),
-        "wht_amount": extracted.get("wht_total"),
-        "grand_total": extracted.get("grand_total"),
+        "subtotal": extracted.get("total_amount_before_vat"),
+        "tax_amount": extracted.get("vat_gst"),
+        "wht_amount": extracted.get("wht"),
+        "grand_total": extracted.get("total_amount"),
+        "payable_amount": payable_amount,
         "wht_applicable": defaults.get("wht_applicable", False),
         "line_items": line_items,
         "erp": doc.get("erp"),
@@ -720,7 +1106,7 @@ async def _notify_dp_bill_posted(db, doc: dict, erp: dict) -> None:
         from ..services.email_templates import directpay_posted_html
 
         currency = extracted.get("currency") or ""
-        total = extracted.get("grand_total")
+        total = extracted.get("total_amount")
         total_fmt = f"{float(total):,.2f}" if total is not None else "—"
         html = directpay_posted_html(
             invoice_number=erp["bill_number"],

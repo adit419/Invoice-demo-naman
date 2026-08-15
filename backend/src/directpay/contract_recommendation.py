@@ -114,8 +114,8 @@ SCORERS: list[tuple[str, float, Callable]] = [
 def _invoice_fields(extracted: dict) -> dict:
     return {
         "vendor_name": extracted.get("vendor_name"),
-        "customer_name": extracted.get("customer_name"),
-        "grand_total": _to_float(extracted.get("grand_total")),
+        "customer_name": extracted.get("customer_legal_entity"),
+        "grand_total": _to_float(extracted.get("total_amount")),
         "currency": extracted.get("currency"),
         "billing_period_start": extracted.get("billing_period_start"),
     }

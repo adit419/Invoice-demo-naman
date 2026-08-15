@@ -54,6 +54,8 @@ const ANTD_TAG = {
 const INVOICE_STAGE_TAG: Record<string, { label: string; tone: keyof typeof ANTD_TAG }> = {
   extraction: { label: "Extraction", tone: "cyan" },
   extracted: { label: "Extracted", tone: "cyan" },
+  fp_extraction: { label: "Faktur Pajak", tone: "geekblue" },
+  postprocessing: { label: "Postprocessing", tone: "cyan" },
   matching: { label: "Matching", tone: "purple" },
   bill_posting: { label: "Bill Posting", tone: "geekblue" },
   posted: { label: "Posted", tone: "green" },
@@ -142,6 +144,12 @@ function invoiceRoute(inv: DpInvoiceRun): string {
   // is the right destination for both "bill_posting" and "posted".
   if (inv.status === "extraction") {
     return `/directpay/invoice/${inv.id}/review`;
+  }
+  if (inv.status === "fp_extraction") {
+    return `/directpay/invoice/${inv.id}/fp-extraction`;
+  }
+  if (inv.status === "postprocessing") {
+    return `/directpay/invoice/${inv.id}/extraction-postprocessing`;
   }
   if (inv.status === "bill_posting" || inv.status === "posted") {
     return `/directpay/invoice/${inv.id}/bill-posting`;
@@ -532,6 +540,46 @@ function DirectPayDashboard() {
 
   useEffect(() => { setPage(1); }, [pageSize, searchQuery, selectedStatuses, dateFrom, dateTo, selectedVendors, amountMin, amountMax, invoiceSubTab]);
 
+  // Batch invoice upload — selecting multiple files at once (e.g. Palladium's
+  // rent/electricity/water invoices for the same vendor) shouldn't force the
+  // user through one upload dialog per document. Each file still goes through
+  // the exact same upload+extract calls as the single-file path below; this
+  // just loops them and shows one combined progress list instead of routing
+  // to a single review screen (there's no single "the" invoice to land on
+  // once more than one run has been created).
+  type BatchFileStatus = { name: string; status: "pending" | "uploading" | "done" | "error" };
+  const [batchFiles, setBatchFiles] = useState<BatchFileStatus[] | null>(null);
+
+  const handleUploadInvoices = async (files: File[]) => {
+    const local: BatchFileStatus[] = files.map(f => ({ name: f.name, status: "pending" }));
+    setBatchFiles([...local]);
+    for (let i = 0; i < files.length; i++) {
+      local[i] = { ...local[i], status: "uploading" };
+      setBatchFiles([...local]);
+      try {
+        const run = await directpayService.uploadInvoice(files[i]);
+        if (stpEnabled) {
+          await waitForExtraction(run.id);
+        } else {
+          await directpayService.extractInvoice(run.id);
+        }
+        local[i] = { ...local[i], status: "done" };
+      } catch {
+        local[i] = { ...local[i], status: "error" };
+      }
+      setBatchFiles([...local]);
+    }
+    const failed = local.filter(l => l.status === "error").length;
+    await sleep(500);
+    setBatchFiles(null);
+    await load();
+    if (failed > 0) {
+      toast(`${files.length - failed} of ${files.length} invoices uploaded — ${failed} failed`, failed === files.length ? "error" : "warning");
+    } else {
+      toast(`${files.length} invoices uploaded`, "success");
+    }
+  };
+
   const handleUpload = async (file: File) => {
     setUploading(true);
     try {
@@ -603,8 +651,8 @@ function DirectPayDashboard() {
     const matchesDateFrom = !dateFrom || d >= new Date(dateFrom + "T00:00:00Z");
     const matchesDateTo = !dateTo || d <= new Date(dateTo + "T23:59:59Z");
     const matchesVendor = selectedVendors.size === 0 || selectedVendors.has(inv.extracted?.vendor_name ?? "");
-    const matchesAmountMin = !amountMin || (inv.extracted?.grand_total ?? 0) >= parseFloat(amountMin);
-    const matchesAmountMax = !amountMax || (inv.extracted?.grand_total ?? 0) <= parseFloat(amountMax);
+    const matchesAmountMin = !amountMin || (inv.extracted?.total_amount ?? 0) >= parseFloat(amountMin);
+    const matchesAmountMax = !amountMax || (inv.extracted?.total_amount ?? 0) <= parseFloat(amountMax);
     return matchesSearch && matchesStatus && matchesDateFrom && matchesDateTo && matchesVendor && matchesAmountMin && matchesAmountMax;
   });
 
@@ -654,6 +702,20 @@ function DirectPayDashboard() {
                 { label: "Validating contract terms", status: "active" },
               ]
         }
+      />
+    );
+  }
+
+  if (batchFiles) {
+    const doneCount = batchFiles.filter(f => f.status === "done" || f.status === "error").length;
+    return (
+      <StageTransitionOverlay
+        title={`We're processing ${batchFiles.length} invoices.`}
+        subtitle={`${doneCount} of ${batchFiles.length} complete — please keep this page open.`}
+        steps={batchFiles.map(f => ({
+          label: f.name,
+          status: f.status === "done" || f.status === "error" ? "done" : f.status === "uploading" ? "active" : "pending",
+        }))}
       />
     );
   }
@@ -755,16 +817,21 @@ function DirectPayDashboard() {
                 ref={fileRef}
                 type="file"
                 accept="application/pdf"
+                multiple={tab === "invoices"}
                 style={{ display: "none" }}
                 onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) handleUpload(f);
+                  const files = Array.from(e.target.files ?? []);
+                  if (files.length > 1 && tab === "invoices") {
+                    handleUploadInvoices(files);
+                  } else if (files[0]) {
+                    handleUpload(files[0]);
+                  }
                   e.target.value = "";
                 }}
               />
               <button
                 onClick={() => fileRef.current?.click()}
-                disabled={uploading}
+                disabled={uploading || !!batchFiles}
                 style={{
                   display: "flex", alignItems: "center", gap: 7,
                   padding: "0 16px", height: 32, borderRadius: 6,
@@ -780,7 +847,7 @@ function DirectPayDashboard() {
                   <path d="M7 1.5v8M3.5 5l3.5-3.5L10.5 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
                   <path d="M1.5 11.5h11" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
                 </svg>
-                {uploading ? "Uploading…" : tab === "invoices" ? "Add Invoice" : "Add Contract"}
+                {uploading ? "Uploading…" : tab === "invoices" ? "Add Invoice(s)" : "Add Contract"}
               </button>
             </div>
           </div>
@@ -890,7 +957,7 @@ function DirectPayDashboard() {
                 {tab === "invoices" ? (
                   <>
                     <colgroup>
-                      {[220, 180, 170, 130, 120, 140].map((w, i) => (
+                      {[200, 200, 200, 130, 120, 140].map((w, i) => (
                         <col key={i} style={{ width: w }} />
                       ))}
                     </colgroup>
@@ -971,7 +1038,7 @@ function DirectPayDashboard() {
                               </td>
                               <td style={{ padding: "10px 16px", textAlign: "right", cursor: "pointer" }} onClick={() => router.push(invoiceRoute(inv))}>
                                 <span style={{ ...CELL_PRIMARY, fontVariantNumeric: "tabular-nums" }}>
-                                  {fmtMoney(inv.extracted?.grand_total, inv.extracted?.currency)}
+                                  {fmtMoney(inv.extracted?.total_amount, inv.extracted?.currency)}
                                 </span>
                               </td>
                               <td style={{ padding: "10px 16px", cursor: "pointer" }} onClick={() => router.push(invoiceRoute(inv))}>

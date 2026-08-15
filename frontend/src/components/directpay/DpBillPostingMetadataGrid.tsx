@@ -1,23 +1,21 @@
 /**
- * DpBillPostingMetadataGrid — DirectPay's clone of Invoice Processing's
- * BillPostingMetadataGrid (SAP-style 4-col metadata grid + Simulate button),
- * pointed at DirectPay's own bill-posting data and /dp-api simulate endpoint
- * instead of P2P's. Field set and layout are replicated verbatim EXCEPT
- * "PO Number" — DirectPay matches invoices against contracts, not purchase
- * orders, so that field has no analog here and is dropped. The synthesized
- * default *values* for the remaining fields are sourced from DirectPay's
- * DpBillPostingData (invoice_number/vendor_name/currency/subtotal/
- * tax_amount/grand_total) instead of P2P's BillHeader.
- *
- * These field labels (Doc Header, Ref Key...) are placeholder — mock data
- * until the real DirectPay ERP-posting response shape is shared, at which
- * point the field keys/labels/sources here should be updated.
+ * DpBillPostingMetadataGrid — same unified-card layout as Invoice Processing's
+ * own BillPostingMetadataGrid (bold "Metadata" heading + Simulate button,
+ * 4-column responsive grid, antd Input/InputNumber size="large") but a
+ * different field SET by explicit request: P2P's own grid is SAP-posting
+ * metadata (PO Number, Doc Header, Ref Keys, Assignment...), which has no
+ * real DirectPay equivalent (DP posts against a contract, not a PO, and has
+ * no SAP integration behind it). This grid shows the invoice's own real
+ * data instead — every field here is a fact already established upstream
+ * (Extraction / Extraction Postprocessing), so all of them are read-only;
+ * there's nothing to edit at the Bill Posting stage itself.
  */
 import { EyeOutlined } from "@ant-design/icons";
 import { Button, Input, InputNumber } from "antd";
 import { useState } from "react";
 import { directpayService, DpBillPostingData } from "@/services/directpay";
 import { ApiError } from "@/services/api";
+import { formatDate } from "@/utils/format";
 import { SimulateDocumentModal } from "@/components/BillPosting";
 import type { SimulateDocumentData, SimulateStatus } from "@/components/BillPosting";
 
@@ -37,10 +35,6 @@ function getCurrencySymbol(code: string | null | undefined): string {
 
 interface DpBillPostingMetadataGridProps {
   data: DpBillPostingData;
-  isEditMode: boolean;
-  /** Field-name → pending value (for editable text fields). */
-  edits: Record<string, string>;
-  onEdit: (key: string, value: string) => void;
   /** Invoice/run id — used by the Simulate ERP-posting preview. */
   invoiceId: string;
   /**
@@ -60,19 +54,12 @@ interface SimulateResponse {
 type FieldConfig = {
   key: string;
   label: string;
-  required?: boolean;
-  /** disabled = system-computed, never editable. */
-  disabled?: boolean;
-  input: "text" | "number";
+  input: "text" | "amount";
   value: string | number;
-  placeholder?: string;
 };
 
 export function DpBillPostingMetadataGrid({
   data,
-  isEditMode,
-  edits,
-  onEdit,
   invoiceId,
   persistEdits,
 }: DpBillPostingMetadataGridProps) {
@@ -108,61 +95,35 @@ export function DpBillPostingMetadataGrid({
 
   const currencySymbol = getCurrencySymbol(data.currency);
 
-  // Synthesize SAP-style values from DirectPay's own bill-posting data —
-  // mock/placeholder until the real ERP-posting response shape is shared.
-  const refDefault = (data.invoice_number ?? "").toString();
-  const docHeaderDefault = (refDefault.replace(/\D/g, "") || "0000000000").slice(-10);
-  const refKeyHead1Default = (refDefault.replace(/\D/g, "") || "0000000000").slice(-10);
-  const refKeyHead2Default = (refDefault.replace(/\D/g, "") || "0000000000") +
-    new Date(data.invoice_date ?? Date.now()).getFullYear().toString();
-  const assignmentDefault = refDefault;
-  const textDefault = data.line_items?.[0]?.description || data.line_items?.[0]?.charge_type || "";
-
-  const get = (key: string, fallback: string) => (edits[key] ?? fallback) || "";
-
   const fields: FieldConfig[] = [
-    { key: "amount_before_vat", label: "Amount before VAT", required: true, disabled: true, input: "number", value: data.subtotal ?? 0 },
-    { key: "total_after_vat", label: "Total amount after VAT", required: true, disabled: true, input: "number", value: data.grand_total ?? 0 },
-    { key: "reference", label: "Reference", required: true, input: "text", value: get("reference", refDefault) },
-    { key: "text", label: "Text", input: "text", value: get("text", textDefault) },
-    { key: "ref_key_head_1", label: "Ref Key (head) 1", input: "text", value: get("ref_key_head_1", refKeyHead1Default) },
-    { key: "ref_key_head_2", label: "Ref Key (head) 2", required: true, input: "text", value: get("ref_key_head_2", refKeyHead2Default) },
-    { key: "assignment", label: "Assignment", input: "text", value: get("assignment", assignmentDefault) },
-    { key: "doc_header", label: "Doc Header", input: "text", value: get("doc_header", docHeaderDefault) },
-    { key: "ref_key_2", label: "Ref Key 2", input: "text", value: get("ref_key_2", ""), placeholder: "Enter Ref Key 2" },
-    { key: "variance", label: "Variance", disabled: true, input: "number", value: 0 },
+    { key: "invoice_received_date", label: "Invoice Received Date", input: "text", value: formatDate(data.invoice_received_date) },
+    { key: "vendor_name", label: "Vendor Name", input: "text", value: data.vendor_name ?? "" },
+    { key: "invoice_number", label: "Invoice Number", input: "text", value: data.invoice_number ?? "" },
+    { key: "invoice_date", label: "Invoice Date", input: "text", value: data.invoice_date ?? "" },
+    { key: "taxable_amount", label: "Taxable Amount", input: "amount", value: data.subtotal ?? 0 },
+    { key: "payable_amount", label: "Payable Amount", input: "amount", value: data.payable_amount ?? 0 },
+    { key: "payment_due_date", label: "Payment Due Date", input: "text", value: formatDate(data.payment_due_date) },
+    { key: "bank_account_name", label: "Bank Account Name", input: "text", value: data.bank_account_name ?? "" },
+    { key: "bank_account_number", label: "Bank Account Number", input: "text", value: data.bank_account_number ?? "" },
   ];
 
   const renderInput = (f: FieldConfig) => {
-    const disabled = !!f.disabled || !isEditMode;
-    const wrap = (node: React.ReactNode) => (f.disabled ? <div className="api-disabled-field">{node}</div> : node);
-
-    if (f.input === "number") {
-      return wrap(
+    const node =
+      f.input === "amount" ? (
         <InputNumber
           value={Number(f.value) || 0}
-          disabled={disabled}
+          disabled
           className="w-full"
           style={{ width: "100%" }}
           size="large"
           prefix={currencySymbol}
           formatter={(v) => `${v ?? 0}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
-          parser={(v) => Number((v ?? "").replace(/,/g, ""))}
           precision={2}
         />
+      ) : (
+        <Input value={String(f.value ?? "") || "—"} disabled className="w-full" size="large" />
       );
-    }
-
-    return wrap(
-      <Input
-        value={String(f.value ?? "")}
-        onChange={(e) => onEdit(f.key, e.target.value)}
-        disabled={disabled}
-        className="w-full"
-        size="large"
-        placeholder={f.placeholder ?? `Enter ${f.label}`}
-      />
-    );
+    return <div className="api-disabled-field">{node}</div>;
   };
 
   return (
@@ -178,9 +139,6 @@ export function DpBillPostingMetadataGrid({
           font-size: 14px !important;
           margin-right: 6px;
         }
-        .dp-bill-posting-metadata .ant-input::placeholder {
-          color: #94a3b8 !important;
-        }
         .dp-bill-posting-metadata .ant-input-lg,
         .dp-bill-posting-metadata .ant-input-number-affix-wrapper-lg {
           min-height: 40px !important;
@@ -188,7 +146,7 @@ export function DpBillPostingMetadataGrid({
         .dp-bill-posting-metadata .api-disabled-field .ant-input-disabled,
         .dp-bill-posting-metadata .api-disabled-field .ant-input-number-affix-wrapper-disabled {
           background-color: rgba(0, 0, 0, 0.04) !important;
-          color: #94a3b8 !important;
+          color: #374151 !important;
         }
       `}</style>
       <div className="p-5 dp-bill-posting-metadata">
@@ -206,13 +164,10 @@ export function DpBillPostingMetadataGrid({
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-5">
           {fields.map((f) => (
             <div key={f.key} className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-gray-700 flex items-center gap-1">
-                {f.label}
-                {f.required && <span className="text-red-500">*</span>}
-              </label>
+              <label className="text-sm font-medium text-gray-700 flex items-center gap-1">{f.label}</label>
               {renderInput(f)}
             </div>
           ))}

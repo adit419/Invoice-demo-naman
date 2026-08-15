@@ -3,9 +3,9 @@
     {
       "charge_type": "rental_fee",
       "gl_account_code": "6100-RENT",
-      "vat_tax_code": "PPN11",
-      "wht_tax_code": ""
+      "vat_tax_code": "IB",
+      "wht_tax_code": "PPH4(2)-SEWA"
     }
   ],
-  "wht_applicable": false
+  "wht_applicable": true
 }
