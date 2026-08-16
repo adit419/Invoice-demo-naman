@@ -341,6 +341,19 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
             continue
         contract_value = _resolve_contract_value(core, contract_fields, installment)
         invoice_value = extracted.get(core.invoice_field)
+        # RATNA_INTAN only, per explicit instruction: its raw invoice values
+        # for these amount fields are real but numerically diverge from the
+        # contract's own payment schedule — Matching uses the
+        # schedule-derived figure here instead of the invoice's own printed
+        # one, display-only (never written back onto the invoice's own
+        # extraction record). Every other vendor keeps the default
+        # raw-value-first behavior in the fallback below untouched.
+        if (
+            doc.get("fixture_key") == "RATNA_INTAN"
+            and installment
+            and core.invoice_field in _SCHEDULE_FIELD_MAP
+        ):
+            invoice_value = installment.get(_SCHEDULE_FIELD_MAP[core.invoice_field])
         # wht / net_amount_after_wht are never printed on the invoice itself
         # and (per explicit instruction) never get back-populated into the
         # invoice's own extraction record either — so the Invoice column
@@ -408,6 +421,12 @@ async def invoice_out(db, doc: dict) -> dict:
         "contract_id": str(doc["contract_id"]) if doc.get("contract_id") else None,
         "extracted": extracted,
         "faktur_pajak": faktur_pajak,
+        # Whether THIS invoice actually has an fp_extraction/postprocessing
+        # stage to go back to — a vendor like RATNA_INTAN has no Faktur Pajak
+        # document at all, so the stage pages' own "back" buttons need this
+        # to avoid routing to a Faktur Pajak screen that never applied.
+        "has_faktur_pajak": bool(faktur_pajak),
+        "has_payment_schedule": bool(bundle and bundle.payment_schedule),
         "expected": (match_result or {}).get("expected"),
         "summary": (match_result or {}).get("summary"),
         "findings": findings,
@@ -754,12 +773,20 @@ async def confirm_extraction(db, oid: ObjectId, extracted_patch: Optional[dict],
 
 _DERIVED_FIELD_DISPLAY = {
     "due_date": "Due Date",
+    "total_amount_before_vat": "Amount (Excl. Tax)",
+    "tax_rate": "VAT Rate",
+    "vat_gst": "VAT Amount",
+    "total_amount": "Total Amount Due (Incl. Tax)",
     "wht_rate": "WHT Rate",
     "wht": "WHT Amount",
     "net_amount_after_wht": "Net Amount After WHT",
 }
 _SCHEDULE_FIELD_MAP = {
     "due_date": "due_date",
+    "total_amount_before_vat": "amount_excl_tax",
+    "tax_rate": "vat_rate",
+    "vat_gst": "vat_amount",
+    "total_amount": "total_amount_incl_tax",
     "wht_rate": "wht_rate",
     "wht": "wht_amount",
     "net_amount_after_wht": "net_payment_to_lessor",
@@ -789,12 +816,12 @@ def _match_payment_installment(schedule: Optional[dict], extracted: dict) -> Opt
 def _format_derived_value(field_name: str, value) -> str:
     if value is None:
         return "—"
-    if field_name == "wht_rate":
+    if field_name in ("wht_rate", "tax_rate"):
         try:
             return f"{float(value) * 100:.0f}%"
         except (TypeError, ValueError):
             return str(value)
-    if field_name in ("wht", "net_amount_after_wht"):
+    if field_name in ("wht", "net_amount_after_wht", "total_amount_before_vat", "vat_gst", "total_amount"):
         try:
             return f"{float(value):,.2f}"
         except (TypeError, ValueError):
@@ -1189,6 +1216,22 @@ def _bill_posting_out(doc: dict) -> dict:
     if payable_amount is None:
         payable_amount = extracted.get("total_amount")
 
+    subtotal = extracted.get("total_amount_before_vat")
+    tax_amount = extracted.get("vat_gst")
+
+    # RATNA_INTAN only, per explicit instruction: same divergence already
+    # reconciled on the Matching page (its raw invoice amounts are real but
+    # numerically diverge from the contract's own payment schedule) — Bill
+    # Posting/Simulate use the schedule-derived figures here instead of the
+    # invoice's own printed ones, display-only (never written back onto the
+    # invoice's own extraction record). Every other vendor keeps the
+    # raw-value-first behavior above untouched.
+    if doc.get("fixture_key") == "RATNA_INTAN" and installment:
+        subtotal = installment.get("amount_excl_tax")
+        tax_amount = installment.get("vat_amount")
+        wht_value = installment.get("wht_amount")
+        payable_amount = installment.get("net_payment_to_lessor")
+
     return {
         "id": str(doc["_id"]),
         "status": doc.get("status"),
@@ -1201,8 +1244,8 @@ def _bill_posting_out(doc: dict) -> dict:
         "bank_account_name": extracted.get("vendor_bank_account_name"),
         "bank_account_number": extracted.get("vendor_bank_account_number"),
         "currency": extracted.get("currency"),
-        "subtotal": extracted.get("total_amount_before_vat"),
-        "tax_amount": extracted.get("vat_gst"),
+        "subtotal": subtotal,
+        "tax_amount": tax_amount,
         "wht_amount": wht_value,
         "grand_total": extracted.get("total_amount"),
         "payable_amount": payable_amount,
@@ -1363,6 +1406,15 @@ async def simulate_bill_posting(db, oid: ObjectId) -> dict:
     # DirectPay has the real rate on the invoice itself, so no lookup table
     # is needed the way P2P's SAP-code system requires one.
     tax_rate = extracted.get("tax_rate")
+    is_ratna_intan = doc.get("fixture_key") == "RATNA_INTAN"
+    if is_ratna_intan and tax_rate is None and bundle and bundle.payment_schedule:
+        # Raw invoice has no separate VAT line (tax_rate is null) — same
+        # schedule-derived-values decision as _bill_posting_out above,
+        # applied to the rate label too so the now-nonzero Input VAT row
+        # below isn't shown with no percentage at all.
+        installment_for_rate = _match_payment_installment(bundle.payment_schedule, extracted)
+        if installment_for_rate:
+            tax_rate = installment_for_rate.get("vat_rate")
 
     headers = [
         {"id": "position", "label": "#", "type": "text", "width": 56},
@@ -1378,13 +1430,24 @@ async def simulate_bill_posting(db, oid: ObjectId) -> dict:
     pos = 1
 
     for it in line_items:
+        line_debit = float(it.get("amount") or 0)
+        # RATNA_INTAN only: its one billable line's raw amount is the
+        # invoice's own incl-tax total (no separate VAT line printed on the
+        # document) — posting it as-is here while ALSO adding the Input VAT
+        # row below (now a real, schedule-derived amount instead of the
+        # previous 0.00) would double-count VAT and leave Debit != Credit.
+        # Use the schedule-derived excl-tax subtotal instead, same as
+        # PT_BANGUN's own line item already is on its invoice (genuinely
+        # excl-tax there, so this is a no-op for every other vendor).
+        if is_ratna_intan:
+            line_debit = subtotal
         rows.append({
             "position": pos,
             "posting_key": "40 · Debit",
             "account": f"{it.get('gl_account_code') or '5000'} · {it.get('charge_type') or 'Expense'}",
             "description": it.get("description") or it.get("charge_type") or "Line item",
             "tax_code": it.get("vat_tax_code") or "—",
-            "debit": round(float(it.get("amount") or 0), 2),
+            "debit": round(line_debit, 2),
             "credit": 0,
             "is_visible": True,
         })

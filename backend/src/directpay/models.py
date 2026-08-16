@@ -12,6 +12,17 @@ class DpFixturesResponse(BaseModel):
     scenarios: list[DpFixtureChip]
 
 
+class DpContractTriggerUploadRequest(BaseModel):
+    """Mirrors DpTriggerUploadRequest on the invoice side: same result as
+    POST /contracts/upload, but the contract is referenced by a
+    fixture-resolvable file name instead of actual bytes. Used by the FE
+    when the real file is large enough that sending its bytes through the
+    dev proxy isn't worth it — DirectPay's fixture resolution and the PDF
+    preview (read back from the fixture's own on-disk file, never from
+    whatever the browser sent) work off the file name alone regardless."""
+    file_name: str
+
+
 class DpContractEditRequest(BaseModel):
     fields: dict[str, Any]
 

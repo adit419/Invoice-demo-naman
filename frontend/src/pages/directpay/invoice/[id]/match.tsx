@@ -316,7 +316,15 @@ function InvoiceMatchPage() {
 
       <ComponentHeaderAntd
         title="Matching"
-        onBack={() => router.push(`/directpay/invoice/${id}/extraction-postprocessing`)}
+        onBack={() =>
+          router.push(
+            run.has_payment_schedule
+              ? `/directpay/invoice/${id}/extraction-postprocessing`
+              : run.has_faktur_pajak
+              ? `/directpay/invoice/${id}/fp-extraction`
+              : `/directpay/invoice/${id}/review`
+          )
+        }
         metaItems={metaItems}
         right={actionButtons}
       />

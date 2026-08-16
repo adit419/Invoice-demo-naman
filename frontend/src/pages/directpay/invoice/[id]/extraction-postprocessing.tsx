@@ -180,7 +180,13 @@ function ExtractionPostprocessingPage() {
     <div className="flex flex-col h-screen overflow-hidden" style={{ background: "#f4f6f9" }}>
       <ComponentHeaderAntd
         title="Extraction Postprocessing"
-        onBack={() => router.push(`/directpay/invoice/${id}/fp-extraction`)}
+        onBack={() =>
+          router.push(
+            run.has_faktur_pajak
+              ? `/directpay/invoice/${id}/fp-extraction`
+              : `/directpay/invoice/${id}/review`
+          )
+        }
         metaItems={metaItems}
         right={actionButtons}
       />

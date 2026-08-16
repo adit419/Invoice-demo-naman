@@ -37,6 +37,7 @@ from .models import (
     DpBillPostingEditRequest,
     DpContractApproveRequest,
     DpContractEditRequest,
+    DpContractTriggerUploadRequest,
     DpFpAcknowledgeRequest,
     DpFpApproveRequest,
     DpInvoiceConfirmExtractionRequest,
@@ -118,6 +119,22 @@ async def upload_contract(file: UploadFile = File(...)):
     db = get_db()
     try:
         return _envelope(data=await service.upload_contract(db, file.filename or ""))
+    except service.NotFoundError as exc:
+        _not_found(exc)
+
+
+# Mirrors /ingestion/trigger-upload on the invoice side: same effect as the
+# multipart endpoint above, but referenced by file name only — no bytes sent.
+# The FE uses this instead of the real upload when the file is large enough
+# that pushing its bytes through the dev proxy isn't worth it (fixture
+# resolution and the PDF preview both work off the file name alone anyway).
+@router.post("/contracts/trigger-upload")
+async def trigger_upload_contract(body: DpContractTriggerUploadRequest):
+    if not body.file_name.strip():
+        raise HTTPException(status_code=422, detail="file_name is required")
+    db = get_db()
+    try:
+        return _envelope(data=await service.upload_contract(db, body.file_name.strip()))
     except service.NotFoundError as exc:
         _not_found(exc)
 

@@ -176,6 +176,12 @@ export interface DpInvoiceRun {
   // "post-Postprocessing, ready for Matching"), and contract_id isn't set
   // until several stages later, at Matching.
   extraction_confirmed: boolean;
+  // Whether this specific invoice actually has a Faktur Pajak document /
+  // payment-schedule-derived postprocessing stage — a vendor like
+  // RATNA_INTAN has no FP at all, so "back" navigation from later stages
+  // must check these rather than assuming every stage applied.
+  has_faktur_pajak: boolean;
+  has_payment_schedule: boolean;
   // Notification/tag metadata — only ever set when the run was created via
   // /ingestion/trigger-upload with those fields; not surfaced in the UI yet.
   tag?: string | null;
@@ -350,11 +356,23 @@ export interface DpEditHistoryItem {
   new_value: string | null;
 }
 
+// Next.js dev's proxy for the /dp-api/* rewrite caps request bodies at
+// ~10MB (see next.config.ts's rewrites() comment) — kept a couple MB under
+// that as margin for multipart overhead.
+const LARGE_FILE_THRESHOLD_BYTES = 8 * 1024 * 1024;
+
 export const directpayService = {
   fixtures: () => api.get<{ scenarios: DpFixtureChip[] }>("/dp-api/fixtures"),
 
   // Contracts
+  // Real fixture PDFs can exceed Next.js dev's proxy body cap (~10MB) — a
+  // large file's bytes are never actually used anyway (fixture resolution
+  // and the PDF preview both work off the file name alone), so above the
+  // threshold this sends just the name instead of the real upload.
   uploadContract: (file: File) => {
+    if (file.size > LARGE_FILE_THRESHOLD_BYTES) {
+      return api.post<DpContractRun>("/dp-api/contracts/trigger-upload", { file_name: file.name });
+    }
     const fd = new FormData();
     fd.append("file", file);
     return api.postForm<DpContractRun>("/dp-api/contracts/upload", fd);
@@ -372,6 +390,9 @@ export const directpayService = {
 
   // Invoices
   uploadInvoice: (file: File) => {
+    if (file.size > LARGE_FILE_THRESHOLD_BYTES) {
+      return api.post<DpInvoiceRun>("/dp-api/ingestion/trigger-upload", { file_name: file.name });
+    }
     const fd = new FormData();
     fd.append("file", file);
     return api.postForm<DpInvoiceRun>("/dp-api/invoices/upload", fd);
