@@ -1,13 +1,16 @@
 // Read-only per-installment payment-schedule table — shared between the
 // Contract Extraction Postprocessing page and the ContractExtractionModal's
 // "Derived Fields" tab, so the two can never drift apart visually.
-import { DpContractInstallment } from "@/services/directpay";
+import { DpContractInstallment, DpContractOneTimePayment } from "@/services/directpay";
 
 interface ContractDerivedFieldsTableProps {
   installments: DpContractInstallment[];
+  // Optional — only present for a vendor whose source tracker had a real
+  // "ONE-TIME PAYMENTS" section (deposits, fit-out guarantee, etc.).
+  oneTimePayments?: DpContractOneTimePayment[];
 }
 
-export function ContractDerivedFieldsTable({ installments }: ContractDerivedFieldsTableProps) {
+export function ContractDerivedFieldsTable({ installments, oneTimePayments }: ContractDerivedFieldsTableProps) {
   return (
     <>
       <p style={{ fontSize: 12, color: "#9CA3AF", marginBottom: 16 }}>
@@ -56,6 +59,60 @@ export function ContractDerivedFieldsTable({ installments }: ContractDerivedFiel
           </table>
         </div>
       ))}
+
+      {oneTimePayments && oneTimePayments.length > 0 && (
+        <div
+          className="mb-5"
+          style={{ border: "1px solid #E9EAEC", borderRadius: 8, overflow: "hidden", background: "#ffffff" }}
+        >
+          <div
+            style={{
+              padding: "10px 14px", background: "#F4F4F4", borderBottom: "1px solid #EBEDF0",
+              fontSize: 13, fontWeight: 600, color: "#101828",
+            }}
+          >
+            One-Time Payments
+          </div>
+          <table className="w-full text-sm" style={{ borderCollapse: "collapse", tableLayout: "fixed" }}>
+            <thead>
+              <tr style={{ borderBottom: "1px solid #EBEDF0" }}>
+                {["Description", "Amount", "Due Date / Trigger", "Status", "Remarks"].map((h) => (
+                  <th
+                    key={h}
+                    style={{
+                      textAlign: "left", fontSize: 12, fontWeight: 600, color: "#585C65", padding: "9px 14px",
+                      lineHeight: "18px", backgroundColor: "#FAFAFA", borderRight: "1px solid #EBEDF0",
+                    }}
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {oneTimePayments.map((p, idx) => (
+                <tr key={idx} style={{ borderBottom: "1px solid #EBEDF0" }}>
+                  <td style={{ fontSize: 13, color: "#101828", fontWeight: 500, padding: "9px 14px", lineHeight: "20px", borderRight: "1px solid #EBEDF0" }}>
+                    {p.description || "—"}
+                  </td>
+                  <td style={{ fontSize: 13, color: "#101828", padding: "9px 14px", lineHeight: "20px", fontVariantNumeric: "tabular-nums", borderRight: "1px solid #EBEDF0" }}>
+                    {p.formatted_amount}
+                  </td>
+                  <td style={{ fontSize: 13, color: "#414651", padding: "9px 14px", lineHeight: "20px", borderRight: "1px solid #EBEDF0" }}>
+                    {p.due_date_trigger || "—"}
+                  </td>
+                  <td style={{ fontSize: 13, color: "#414651", padding: "9px 14px", lineHeight: "20px", borderRight: "1px solid #EBEDF0" }}>
+                    {p.status || "—"}
+                  </td>
+                  <td style={{ fontSize: 13, color: "#585C65", padding: "9px 14px", lineHeight: "20px" }}>
+                    {p.remarks || "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </>
   );
 }

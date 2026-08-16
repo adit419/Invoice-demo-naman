@@ -168,7 +168,7 @@ function ContractExtractionPostprocessingPage() {
                 No payment schedule available for this vendor — nothing to derive.
               </div>
             ) : (
-              <ContractDerivedFieldsTable installments={data.installments} />
+              <ContractDerivedFieldsTable installments={data.installments} oneTimePayments={data.one_time_payments} />
             )}
           </div>
         </div>

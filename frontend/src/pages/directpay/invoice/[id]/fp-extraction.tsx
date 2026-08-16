@@ -77,6 +77,10 @@ function FpExtractionPage() {
       setRun(inv);
       const data = await directpayService.getFakturPajak(id);
       setFp(data);
+      // PT_BANGUN's FP is page 2 of the same PDF as the invoice (the
+      // pdfPage default below); a vendor with its own separate FP document
+      // (e.g. Palladium) starts at page 1 of that document instead.
+      if (data.has_own_pdf) setPdfPage(1);
     } catch {
       toast("Invoice not found", "error");
     } finally {
@@ -176,27 +180,11 @@ function FpExtractionPage() {
         width: 260,
         render: (_, record) => {
           const value = formatFpValue(record.field_name, record.fp_value);
-          const isMatch = record.match_status === "match";
           const isAcked = record.acknowledged;
           return (
             <div className="flex items-center gap-2" style={{ width: "100%" }}>
               <span style={{ flex: 1, fontSize: 14, color: value === "—" ? "#9CA3AF" : "#414651", wordBreak: "break-word" }}>{value}</span>
-              {isMatch ? (
-                <span
-                  title="System matched these values automatically"
-                  style={{
-                    display: "inline-flex", alignItems: "center", gap: 4,
-                    padding: "2px 10px", borderRadius: 9999,
-                    border: "1px solid #A5B4FC", background: "#EEF2FF", color: "#6366F1",
-                    fontSize: 13, fontWeight: 500, whiteSpace: "nowrap",
-                  }}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="#6366F1">
-                    <path d="M9 2C9 2 9.5 6.5 11 8C12.5 9.5 17 10 17 10C17 10 12.5 10.5 11 12C9.5 13.5 9 18 9 18C9 18 8.5 13.5 7 12C5.5 10.5 1 10 1 10C1 10 5.5 9.5 7 8C8.5 6.5 9 2 9 2Z" />
-                  </svg>
-                  Auto-approved
-                </span>
-              ) : isAcked ? (
+              {isAcked ? (
                 // Same circular check button as the Matching page's own
                 // Acknowledge icon — a handled mismatch never looks "still
                 // open", and stays clickable to revert while still editable.
@@ -354,14 +342,17 @@ function FpExtractionPage() {
       />
 
       <div className="flex flex-1 min-h-0 overflow-hidden">
-        {/* Left: PDF viewer — page 2 by default, since the Faktur Pajak is the
-            2nd page of the same invoice PDF for this vendor. No bbox overlay:
-            unlike P2P's real OCR extraction, DP's FP fixtures carry no PDF
-            coordinates to highlight. */}
+        {/* Left: PDF viewer — page 2 of the invoice's own PDF by default
+            (PT_BANGUN's FP is literally the 2nd page of the same document);
+            a vendor with its own separate FP document (has_own_pdf, e.g.
+            Palladium's invoice_fp_4/5/6.pdf) shows that PDF from page 1
+            instead. No bbox overlay either way: unlike P2P's real OCR
+            extraction, DP's FP fixtures carry no PDF coordinates to
+            highlight. */}
         <div className="flex flex-col border-r" style={{ width: "50%", flexShrink: 0, borderColor: "#E5E7EB" }}>
           <div className="flex-1 overflow-auto py-4 px-3" style={{ background: "#F7F9FD" }}>
             <PdfViewer
-              pdfUrl={directpayService.invoicePdfUrl(run.id)}
+              pdfUrl={fp.has_own_pdf ? directpayService.fakturPajakPdfUrl(run.id) : directpayService.invoicePdfUrl(run.id)}
               authToken={token}
               page={pdfPage}
               scale={scale}

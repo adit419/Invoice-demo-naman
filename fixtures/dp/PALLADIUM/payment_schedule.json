@@ -37,5 +37,11 @@
     {"description": "Service Charge — Month 22 of 24", "due_date": "2028-03-01", "amount_excl_tax": 6265342.0, "vat_rate": 0.11, "vat_amount": 689188.0, "total_amount_incl_tax": 6954530.0, "wht_rate": 0.0, "wht_amount": 0.0, "net_payment_to_lessor": 6954530.0, "payment_status": "Pending"},
     {"description": "Service Charge — Month 23 of 24", "due_date": "2028-04-01", "amount_excl_tax": 6265342.0, "vat_rate": 0.11, "vat_amount": 689188.0, "total_amount_incl_tax": 6954530.0, "wht_rate": 0.0, "wht_amount": 0.0, "net_payment_to_lessor": 6954530.0, "payment_status": "Pending"},
     {"description": "Service Charge — Month 24 of 24", "due_date": "2028-05-01", "amount_excl_tax": 6265342.0, "vat_rate": 0.11, "vat_amount": 689188.0, "total_amount_incl_tax": 6954530.0, "wht_rate": 0.0, "wht_amount": 0.0, "net_payment_to_lessor": 6954530.0, "payment_status": "Pending"}
+  ],
+  "one_time_payments": [
+    {"description": "Rent Deposit (net, after offsetting prior deposit)", "amount": 0.0, "due_date_trigger": "7 days before Lease Commencement", "status": "Pending", "remarks": "Gross Rp37,910,045 less prior deposit Rp39,138,000 carried over = Rp0 net payable."},
+    {"description": "Service Deposit (net, after offsetting prior deposit)", "amount": 0.0, "due_date_trigger": "7 days before Lease Commencement", "status": "Pending", "remarks": "Gross Rp18,796,025 less prior deposit Rp19,960,380 carried over = Rp0 net payable."},
+    {"description": "Fit-Out Guarantee", "amount": 3000000.0, "due_date_trigger": "Before fit-out commencement", "status": "Pending", "remarks": "Refundable after fit-out, less any damage deductions."},
+    {"description": "Telephone Deposit + Installation (per line)", "amount": 3500000.0, "due_date_trigger": "Before Fit-Out Commencement Date", "status": "Pending", "remarks": "Rp2,500,000 deposit (refundable) + Rp1,000,000 installation, excl. VAT, per line."}
   ]
 }

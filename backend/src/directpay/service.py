@@ -273,6 +273,14 @@ _INSTALLMENT_MATCH_FIELD_MAP = {
     "vat_gst": "vat_amount",
     "wht": "wht_amount",
     "net_amount_after_wht": "net_payment_to_lessor",
+    # Billing Period Start/End: Contract column only, by explicit instruction
+    # — deliberately NOT added to _SCHEDULE_FIELD_MAP below, so the Invoice
+    # column never falls back to this installment figure the way WHT/Net
+    # Amount After WHT do. A real invoice that does state its own billing
+    # period (e.g. Palladium's utility invoices) still shows it normally via
+    # extracted.get(...) — this only suppresses the synthetic fallback.
+    "billing_period_start": "billing_period_start",
+    "billing_period_end": "billing_period_end",
 }
 
 
@@ -374,6 +382,14 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
             # not None), just an informational amber row.
             severity = "warning"
             detail = f"No contract figure to compare {core.label} against — please confirm manually."
+            mandatory = False
+        elif core.invoice_field in ("billing_period_start", "billing_period_end") and invoice_value is None:
+            # The invoice never states its own billing period for a
+            # lumpsum-installment lease (see _INSTALLMENT_MATCH_FIELD_MAP) —
+            # this is expected, not a data gap, so the wording shouldn't read
+            # like something's missing.
+            severity = "warning"
+            detail = f"Not stated on the invoice — shown for reference against the matched installment's own {core.label.lower()}."
             mandatory = False
         else:
             severity = "error" if core.mandatory else "warning"
@@ -553,6 +569,13 @@ async def approve_contract(db, oid: ObjectId, fields: Optional[dict]) -> dict:
 # time, so those facts aren't knowable here.
 _CONTRACT_DERIVED_COLUMNS = [
     ("due_date", "Due Date"),
+    # Derived, not literally stated on any source document as a "billing
+    # period" — computed from the contract's own real flat annual rate
+    # (total_contract_value / term_months) against each installment's own
+    # amount, anchored to the lease's actual_start. See conversation history
+    # for the PT_BANGUN derivation (750M / 250M-per-year = 3 years, etc.).
+    ("billing_period_start", "Billing Period Start"),
+    ("billing_period_end", "Billing Period End"),
     ("amount_excl_tax", "Total Amount Before VAT"),
     ("vat_rate", "VAT Rate"),
     ("vat_amount", "Tax Amount"),
@@ -603,12 +626,31 @@ async def get_contract_extraction_postprocessing(db, oid: ObjectId) -> dict:
         for inst in installments
     ]
 
+    # Optional and schema-driven, not vendor-specific: a vendor's own
+    # payment_schedule.json only has this key when its source tracker had a
+    # real "ONE-TIME PAYMENTS" section (deposits, fit-out guarantee, etc.) —
+    # these aren't recurring installments and are never matched against an
+    # invoice, so they get their own flat rows instead of the per-installment
+    # amount_excl_tax/VAT/WHT breakdown above.
+    one_time_payments = [
+        {
+            "description": p.get("description"),
+            "amount": p.get("amount"),
+            "formatted_amount": _format_contract_derived_value("amount_excl_tax", p.get("amount")),
+            "due_date_trigger": p.get("due_date_trigger"),
+            "status": p.get("status"),
+            "remarks": p.get("remarks"),
+        }
+        for p in (schedule or {}).get("one_time_payments") or []
+    ]
+
     return {
         "id": str(doc["_id"]),
         "status": doc.get("status"),
         "vendor_name": fields.get("vendor_name"),
         "has_payment_schedule": bool(schedule),
         "installments": rows,
+        "one_time_payments": one_time_payments,
     }
 
 
@@ -638,6 +680,24 @@ async def upload_invoice(
     bundle, document = get_dp_loader().resolve_document(filename or "")
     if bundle is None:
         raise NotFoundError("No DirectPay fixture scenarios configured")
+
+    # A multi-invoice vendor folder's Faktur Pajak can be its own real,
+    # separately-uploaded document (documents.json's faktur_pajak_pdf) that
+    # resolves to the SAME document_key as its paired invoice — e.g.
+    # PALLADIUM_INV_1.pdf and PALLADIUM_INV_FP_4.pdf both resolve to
+    # document_key "invoice_1". Uploading it must attach to that existing
+    # run, never create a second independent one for the same real-world
+    # document (the FP's own data is already fully resolvable off the first
+    # upload's document_key — a second upload teaches the system nothing new,
+    # it would just be a duplicate dashboard row that also never resolves
+    # a Faktur Pajak/postprocessing stage of its own).
+    if document:
+        existing = await dp_invoice_runs(db).find_one({
+            "fixture_key": bundle.key,
+            "document_key": document.key,
+        })
+        if existing:
+            return await invoice_out(db, existing)
 
     now = _now()
     doc = {
@@ -905,7 +965,11 @@ _FP_INVOICE_FIELD_MAP = {
     "taxable_amount": "total_amount_before_vat",
     "vat_amount": "vat_gst",
 }
-_FP_REQUIRED_FIELDS = {"vendor_name", "customer_name", "taxable_amount", "vat_amount"}
+# Taxable Amount (DPP) / VAT Amount (PPN) removed from the required set per
+# explicit request — a mismatch on either is still shown (amber
+# "optional-mismatch" row styling) but no longer needs Acknowledge and never
+# blocks Approve. Vendor Name / Customer Name stay mandatory.
+_FP_REQUIRED_FIELDS = {"vendor_name", "customer_name"}
 
 
 def _resolve_faktur_pajak(bundle, document) -> Optional[dict]:
@@ -960,6 +1024,11 @@ async def get_faktur_pajak(db, oid: ObjectId) -> dict:
         "currency": extracted.get("currency"),
         "fp_number": fp.get("fp_number") if fp else None,
         "has_fp_document": bool(fp),
+        # Whether this document's FP was uploaded as its own separate PDF
+        # (Palladium's invoice_fp_4/5/6.pdf) rather than being page 2 of the
+        # same PDF as the invoice (PT_BANGUN's case) — the FP Extraction
+        # page uses this to decide which PDF endpoint/page to show.
+        "has_own_pdf": bool(document and document.faktur_pajak_pdf_path),
         "fields": fields,
         "acknowledged_fields": acknowledged,
     }

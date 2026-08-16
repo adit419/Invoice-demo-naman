@@ -97,7 +97,7 @@ export function ContractExtractionModal({ open, onClose, contractId }: ContractE
           )}
 
           {tab === "derived" && hasDerivedFields ? (
-            <ContractDerivedFieldsTable installments={derived!.installments} />
+            <ContractDerivedFieldsTable installments={derived!.installments} oneTimePayments={derived!.one_time_payments} />
           ) : (
             <ContractFieldsTable
               fields={run.fields}
