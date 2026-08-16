@@ -278,6 +278,29 @@ async def get_invoice_pdf(run_id: str):
     return Response(content=pdf_path.read_bytes(), media_type="application/pdf")
 
 
+# A vendor whose Faktur Pajak was uploaded as its own separate physical
+# document (e.g. Palladium's invoice_fp_4/5/6.pdf) needs its own PDF route —
+# unlike PT_BANGUN, where the FP is just page 2 of the same invoice PDF and
+# the FP Extraction page keeps using GET .../pdf for that. Falls back to the
+# invoice's own PDF when no separate FP document exists, so a caller that
+# doesn't check has_own_pdf first still gets something sensible.
+@router.get("/invoices/{run_id}/faktur-pajak/pdf")
+async def get_invoice_faktur_pajak_pdf(run_id: str):
+    db = get_db()
+    doc = await dp_invoice_runs(db).find_one({"_id": _oid(run_id, "invoice ID")})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    bundle = get_dp_loader().discover().get(doc["fixture_key"])
+    document = service._document_entry(bundle, doc.get("document_key"))
+    pdf_path = (
+        document.faktur_pajak_pdf_path if document and document.faktur_pajak_pdf_path
+        else (document.pdf_path if document else (bundle.invoice_pdf_path if bundle else None))
+    )
+    if not pdf_path:
+        raise HTTPException(status_code=404, detail="Faktur Pajak PDF not available")
+    return Response(content=pdf_path.read_bytes(), media_type="application/pdf")
+
+
 @router.post("/invoices/{run_id}/extract")
 async def extract_invoice(run_id: str):
     db = get_db()

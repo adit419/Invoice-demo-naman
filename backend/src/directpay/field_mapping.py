@@ -180,8 +180,17 @@ CORE_CROSS_VALIDATION_FIELDS: list[CoreValidationField] = [
     CoreValidationField("vendor_bank_account_name", "lessor_bank_account_name", "Bank Account Name", False),
     CoreValidationField("vendor_bank_account_number", "lessor_bank_account_number", "Bank Account Number", False),
     CoreValidationField("vendor_address", "premises_address", "Store Location", True),
-    # Billing / Service Period Start & End removed for now — see field_mapping
-    # module docstring / conversation history if reinstating.
+    # Reinstated, non-mandatory by explicit instruction — the Invoice column
+    # is deliberately always blank (see service.py's _INSTALLMENT_MATCH_FIELD_MAP
+    # comment): real invoices for a lumpsum-installment lease (PT_BANGUN)
+    # state the overall lease term, not a specific billing cycle, so there's
+    # nothing genuine to compare against. contract_field=None because the
+    # real source is the matched installment, not a flat contract field —
+    # same pattern as wht/net_amount_after_wht below. Mandatory would
+    # permanently block Approve with no way to resolve, since there's no
+    # invoice value an Acknowledge could ever apply to.
+    CoreValidationField("billing_period_start", None, "Billing Period Start", False),
+    CoreValidationField("billing_period_end", None, "Billing Period End", False),
     CoreValidationField("total_amount_before_vat", "base_fee", "Total Amount Before VAT", True),
     # Non-mandatory (same treatment as the Bank Account fields above) — some
     # real invoices (e.g. RATNA_INTAN) genuinely show no separate VAT line at

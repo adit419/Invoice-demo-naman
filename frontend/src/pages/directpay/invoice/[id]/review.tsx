@@ -46,7 +46,11 @@ function sleep(ms: number) {
 // human-readable strings (e.g. "9 Jul 2026"), not ISO — typed "text" rather
 // than "date" so a native <input type="date"> (which only renders strict
 // YYYY-MM-DD) doesn't just show blank for them.
-const FIELD_DEFS: { key: keyof DpInvoiceExtracted; label: string; type: "text" | "number" | "date" }[] = [
+// "percent" fields (tax_rate, wht_rate) are stored as a fraction (0.11) —
+// used directly in arithmetic elsewhere (Simulate, WHT derivation) — but
+// shown/edited here as a whole percentage number (11, displayed "11%") so
+// the Metadata table doesn't read "0.11" where "11%" is meant.
+const FIELD_DEFS: { key: keyof DpInvoiceExtracted; label: string; type: "text" | "number" | "date" | "percent" }[] = [
   { key: "invoice_number", label: "Invoice Number", type: "text" },
   { key: "invoice_date", label: "Invoice Date", type: "text" },
   { key: "vendor_name", label: "Vendor Name", type: "text" },
@@ -55,15 +59,16 @@ const FIELD_DEFS: { key: keyof DpInvoiceExtracted; label: string; type: "text" |
   { key: "customer_legal_entity", label: "Customer Legal Entity", type: "text" },
   { key: "customer_address", label: "Customer Address", type: "text" },
   { key: "customer_vat_id", label: "Customer VAT ID", type: "text" },
+  { key: "description", label: "Description", type: "text" },
   { key: "billing_period_start", label: "Billing Period Start", type: "text" },
   { key: "billing_period_end", label: "Billing Period End", type: "text" },
   { key: "payment_terms", label: "Payment Terms", type: "text" },
   { key: "due_date", label: "Due Date", type: "text" },
   { key: "total_amount_before_vat", label: "Total Amount Before VAT", type: "number" },
   { key: "tax_type", label: "Tax Type", type: "text" },
-  { key: "tax_rate", label: "Tax Rate", type: "number" },
+  { key: "tax_rate", label: "Tax Rate", type: "percent" },
   { key: "vat_gst", label: "VAT / GST", type: "number" },
-  { key: "wht_rate", label: "WHT Rate", type: "number" },
+  { key: "wht_rate", label: "WHT Rate", type: "percent" },
   { key: "wht", label: "WHT", type: "number" },
   { key: "total_amount", label: "Total Amount After VAT", type: "number" },
   { key: "net_amount_after_wht", label: "Net Amount After WHT", type: "number" },
@@ -150,7 +155,9 @@ function InvoiceReviewPage() {
     if (!id) return;
     const def = FIELD_DEFS.find((f) => f.key === key);
     const payload: Record<string, unknown> = {
-      [key]: def?.type === "number" ? (value === "" ? null : Number(value)) : value,
+      [key]: def?.type === "percent"
+        ? (value === "" ? null : Number(value) / 100)
+        : def?.type === "number" ? (value === "" ? null : Number(value)) : value,
     };
     try {
       const updated = await directpayService.editInvoice(id, payload as Partial<DpInvoiceExtracted>);
@@ -177,7 +184,9 @@ function InvoiceReviewPage() {
       const payload: Partial<DpInvoiceExtracted> = { line_items: lineItems };
       for (const [k, v] of Object.entries(edits)) {
         const def = FIELD_DEFS.find((f) => f.key === k);
-        (payload as Record<string, unknown>)[k] = def?.type === "number" ? (v === "" ? null : Number(v)) : v;
+        (payload as Record<string, unknown>)[k] = def?.type === "percent"
+          ? (v === "" ? null : Number(v) / 100)
+          : def?.type === "number" ? (v === "" ? null : Number(v)) : v;
       }
       await directpayService.editInvoice(id, payload);
       const updated = await directpayService.confirmExtraction(id, payload);
@@ -441,7 +450,10 @@ function InvoiceReviewPage() {
                       <tbody>
                         {FIELD_DEFS.map((f) => {
                           const raw = extracted[f.key];
-                          const value = edits[f.key] ?? (raw == null ? "" : String(raw));
+                          // Percent fields: raw is stored as a fraction (0.11) — shown/edited as
+                          // a whole percentage number (11) once here, converted back on save.
+                          const displayRaw = f.type === "percent" && typeof raw === "number" ? raw * 100 : raw;
+                          const value = edits[f.key] ?? (displayRaw == null ? "" : String(displayRaw));
                           const isEmpty = !value;
                           const isRequired = REQUIRED_FIELDS.has(f.key);
                           const cellBg = isEmpty ? "#FEF3C7" : "transparent";
@@ -463,7 +475,7 @@ function InvoiceReviewPage() {
                                 {isEditable ? (
                                   <input
                                     className="w-full focus:outline-none"
-                                    type={f.type === "number" ? "number" : f.type === "date" ? "date" : "text"}
+                                    type={f.type === "number" || f.type === "percent" ? "number" : f.type === "date" ? "date" : "text"}
                                     style={{ fontSize: 13, lineHeight: "20px", padding: 0, background: "transparent", border: "none", color: "#414651", width: "100%" }}
                                     value={value}
                                     onChange={(e) => setEdits((prev) => ({ ...prev, [f.key]: e.target.value }))}
@@ -471,7 +483,7 @@ function InvoiceReviewPage() {
                                     onKeyDown={(e) => { if (e.key === "Enter") void saveMetaField(f.key, edits[f.key] ?? value); }}
                                   />
                                 ) : (
-                                  <span>{value || "—"}</span>
+                                  <span>{value ? (f.type === "percent" ? `${value}%` : value) : "—"}</span>
                                 )}
                               </td>
                             </tr>

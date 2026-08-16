@@ -3,6 +3,8 @@
     {
       "description": "Installment 1 (Year 1-2, upfront)",
       "due_date": "2026-07-10",
+      "billing_period_start": "2026-08-30",
+      "billing_period_end": "2029-08-29",
       "amount_excl_tax": 675675676.0,
       "vat_rate": 0.11,
       "vat_amount": 74324324.0,
@@ -15,6 +17,8 @@
     {
       "description": "Installment 2 (final)",
       "due_date": "2027-07-10",
+      "billing_period_start": "2029-08-30",
+      "billing_period_end": "2031-08-29",
       "amount_excl_tax": 450450450.0,
       "vat_rate": 0.11,
       "vat_amount": 49549550.0,

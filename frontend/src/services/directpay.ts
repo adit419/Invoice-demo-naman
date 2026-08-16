@@ -101,6 +101,11 @@ export interface DpInvoiceExtracted {
   customer_legal_entity?: string | null;
   customer_address?: string | null;
   customer_vat_id?: string | null;
+  // Invoice-level metadata field, distinct from a line item's own
+  // item_description — one of the source schema's 22 canonical metadata
+  // fields (see "All Invoice Contract Wise data" sample CSVs), missed when
+  // the fixtures were first authored.
+  description?: string | null;
   billing_period_start?: string | null;
   billing_period_end?: string | null;
   payment_terms?: string | null;
@@ -309,12 +314,27 @@ export interface DpContractInstallment {
   fields: DpContractDerivedField[];
 }
 
+// Optional and schema-driven — only present for a vendor whose source
+// tracker had a real "ONE-TIME PAYMENTS" section (deposits, fit-out
+// guarantee, etc.). Flat rows, not the recurring per-installment
+// amount_excl_tax/VAT/WHT breakdown — these are never matched against an
+// invoice, just shown for reference.
+export interface DpContractOneTimePayment {
+  description?: string | null;
+  amount: number | null;
+  formatted_amount: string;
+  due_date_trigger?: string | null;
+  status?: string | null;
+  remarks?: string | null;
+}
+
 export interface DpContractExtractionPostprocessing {
   id: string;
   status: DpContractRun["status"];
   vendor_name?: string | null;
   has_payment_schedule: boolean;
   installments: DpContractInstallment[];
+  one_time_payments: DpContractOneTimePayment[];
 }
 
 // Faktur Pajak stage — mirrors P2P's own fp-extraction.tsx/fp_extraction.py
@@ -342,6 +362,11 @@ export interface DpFakturPajak {
   currency?: string | null;
   fp_number?: string | null;
   has_fp_document: boolean;
+  // True for a vendor whose FP was uploaded as its own separate PDF (e.g.
+  // Palladium's invoice_fp_4/5/6.pdf) rather than being page 2 of the same
+  // PDF as the invoice (PT_BANGUN's case) — drives which PDF URL/page the
+  // FP Extraction screen shows.
+  has_own_pdf: boolean;
   fields: DpFakturPajakField[];
   acknowledged_fields: string[];
 }
@@ -460,6 +485,10 @@ export const directpayService = {
 
   contractPdfUrl: (id: string) => `/dp-api/contracts/${id}/pdf`,
   invoicePdfUrl: (id: string) => `/dp-api/invoices/${id}/pdf`,
+  // Only meaningfully different from invoicePdfUrl when has_own_pdf is true
+  // (see DpFakturPajak) — falls back server-side to the invoice's own PDF
+  // otherwise, same as before.
+  fakturPajakPdfUrl: (id: string) => `/dp-api/invoices/${id}/faktur-pajak/pdf`,
 
   // Settings — DirectPay-scoped, independent of Invoice Processing's own.
   getStp: () => api.get<{ stp_enabled: boolean }>("/dp-api/settings/stp"),

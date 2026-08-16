@@ -52,6 +52,11 @@ class DpDocumentEntry:
     # None when this document's Faktur Pajak wasn't captured separately (or
     # doesn't exist — e.g. an individual/non-PKP vendor).
     faktur_pajak: Optional[dict]
+    # Set only when the FP was uploaded as its own separate physical
+    # document (e.g. Palladium's invoice_fp_4/5/6.pdf) rather than being the
+    # 2nd page of the same PDF as the invoice (PT_BANGUN's case, the
+    # default the FP Extraction page falls back to when this is None).
+    faktur_pajak_pdf_path: Optional[Path] = None
 
 
 @dataclass
@@ -159,12 +164,14 @@ class DpFixtureLoader:
                     pdf_path = entry / doc["pdf"] if doc.get("pdf") else None
                     extraction_path = entry / doc["extraction"] if doc.get("extraction") else None
                     fp_path = entry / doc["faktur_pajak"] if doc.get("faktur_pajak") else None
+                    fp_pdf_path = entry / doc["faktur_pajak_pdf"] if doc.get("faktur_pajak_pdf") else None
                     bundle.documents.append(DpDocumentEntry(
                         key=doc["key"],
                         match=doc.get("match", [doc["key"]]),
                         pdf_path=pdf_path if pdf_path and pdf_path.exists() else None,
                         invoice_extraction=json.loads(extraction_path.read_text()) if extraction_path and extraction_path.exists() else {},
                         faktur_pajak=json.loads(fp_path.read_text()) if fp_path and fp_path.exists() else None,
+                        faktur_pajak_pdf_path=fp_pdf_path if fp_pdf_path and fp_pdf_path.exists() else None,
                     ))
 
             bundles[entry.name] = bundle
