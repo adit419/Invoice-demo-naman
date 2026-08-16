@@ -259,19 +259,24 @@ function ExtractionPostprocessingPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {data.fields.map((f) => (
-                        <tr key={f.field_name} style={{ borderBottom: "1px solid #EBEDF0" }}>
-                          <td style={{ textAlign: "left", fontSize: 13, color: "#414651", padding: "10px 14px", lineHeight: "20px", backgroundColor: "#F4F4F4", borderRight: "1px solid #EBEDF0" }}>
-                            {f.display_name}
-                          </td>
-                          <td style={{ textAlign: "left", fontSize: 13, color: "#101828", fontWeight: 500, padding: "10px 14px", lineHeight: "20px", fontVariantNumeric: "tabular-nums", borderRight: "1px solid #EBEDF0" }}>
-                            {f.formatted_value}
-                          </td>
-                          <td style={{ textAlign: "left", fontSize: 13, color: "#9CA3AF", padding: "10px 14px", lineHeight: "20px" }}>
-                            Payment Schedule — {data.matched_installment}
-                          </td>
-                        </tr>
-                      ))}
+                      {data.fields.map((f) => {
+                        // Same empty-field convention as the Extraction page's own
+                        // Metadata table — yellow highlight, no "—" placeholder text.
+                        const isEmpty = f.derived_value == null;
+                        return (
+                          <tr key={f.field_name} style={{ borderBottom: "1px solid #EBEDF0" }}>
+                            <td style={{ textAlign: "left", fontSize: 13, color: "#414651", boxShadow: isEmpty ? "inset 3px 0 0 #F59E0B" : undefined, padding: "10px 14px", lineHeight: "20px", backgroundColor: "#F4F4F4", borderRight: "1px solid #EBEDF0" }}>
+                              {f.display_name}
+                            </td>
+                            <td style={{ textAlign: "left", fontSize: 13, color: "#101828", fontWeight: 500, padding: "10px 14px", lineHeight: "20px", fontVariantNumeric: "tabular-nums", borderRight: "1px solid #EBEDF0", background: isEmpty ? "#FEF3C7" : undefined }}>
+                              {f.formatted_value}
+                            </td>
+                            <td style={{ textAlign: "left", fontSize: 13, color: "#9CA3AF", padding: "10px 14px", lineHeight: "20px" }}>
+                              Payment Schedule — {data.matched_installment}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

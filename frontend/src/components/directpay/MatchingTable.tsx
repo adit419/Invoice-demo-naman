@@ -46,6 +46,13 @@ const FIELD_LABELS: Record<string, string> = {
   currency: "Currency",
 };
 
+// These 4 money fields have no Acknowledge shortcut at all, by explicit
+// instruction — a mismatch (or a null invoice value, e.g. RATNA_INTAN's
+// missing VAT line) permanently blocks Approve until the underlying value
+// is actually correct. Distinct from mandatory (field_mapping.py) — this
+// controls the ACK button specifically, not blocking on its own.
+const NO_ACK_FIELDS = new Set(["total_amount_before_vat", "vat_gst", "wht", "net_amount_after_wht"]);
+
 function fieldLabel(f: DpFinding): string {
   if (f.field && FIELD_LABELS[f.field]) return FIELD_LABELS[f.field];
   if (f.field) return f.field.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -159,7 +166,7 @@ export function MatchingTable({
           // a REAL mismatch (invoice has its own value, it just disagrees) —
           // a blank invoice value gets no action at all (no value is ever
           // copied onto the invoice from the contract).
-          const canAck = !resolved && !systemAcked && f.expected_value != null && hasInvoiceValue;
+          const canAck = !resolved && !systemAcked && f.expected_value != null && hasInvoiceValue && !(f.field && NO_ACK_FIELDS.has(f.field));
           const value = resolved ? f.expected ?? f.found : f.found;
 
           return (

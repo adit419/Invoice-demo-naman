@@ -537,11 +537,13 @@ function DirectPayDashboard() {
   const handleUploadInvoices = async (files: File[]) => {
     const local: BatchFileStatus[] = files.map(f => ({ name: f.name, status: "pending" }));
     setBatchFiles([...local]);
+    const runIds: string[] = [];
     for (let i = 0; i < files.length; i++) {
       local[i] = { ...local[i], status: "uploading" };
       setBatchFiles([...local]);
       try {
         const run = await directpayService.uploadInvoice(files[i]);
+        runIds.push(run.id);
         if (stpEnabled) {
           await waitForExtraction(run.id);
         } else {
@@ -554,6 +556,23 @@ function DirectPayDashboard() {
       setBatchFiles([...local]);
     }
     const failed = local.filter(l => l.status === "error").length;
+    const uniqueRunIds = Array.from(new Set(runIds));
+    // All selected files resolved to the SAME run — e.g. an invoice and its
+    // separately-uploaded Faktur Pajak (Palladium's case: upload_invoice
+    // dedupes a second upload with the same document_key onto the first
+    // run's own id, see service.py). That's the same single-result outcome
+    // as the one-file upload path below, so it gets the same "resolve
+    // straight to Extraction" treatment instead of leaving the user on the
+    // dashboard to go find and click the row themselves.
+    if (uniqueRunIds.length === 1 && failed === 0) {
+      setBatchFiles(null);
+      setAutoExtracting("invoice");
+      setInvoicePhase("validating");
+      await sleep(INVOICE_VALIDATING_MS);
+      setAutoExtracting(null);
+      router.push(`/directpay/invoice/${uniqueRunIds[0]}/review`);
+      return;
+    }
     await sleep(500);
     setBatchFiles(null);
     await load();

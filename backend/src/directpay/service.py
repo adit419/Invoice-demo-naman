@@ -197,6 +197,50 @@ def contract_out(doc: dict) -> dict:
     }
 
 
+# Rent invoices consistently tie back to their matched installment (see
+# conversation history — PT_BANGUN/RATNA_INTAN's own amounts either match
+# exactly or are handled by the RATNA_INTAN-specific override above). A
+# non-rent charge (Service Charge/Electricity/Water — Palladium's case)
+# doesn't: Electricity/Water have no real schedule counterpart at all, and
+# even Service Charge's own real per-sqft rate can move without a document
+# to confirm it against. _NON_RENT_CHARGE_TYPES gates the difference+reasoning
+# detail below to exactly this case, so a genuine Rent mismatch (a different
+# kind of problem) doesn't get mislabeled with this reasoning too.
+_NON_RENT_CHARGE_TYPES = {"service_fee", "utility_electricity", "utility_water"}
+
+
+def _is_non_rent_invoice(extracted: dict) -> bool:
+    line_items = extracted.get("line_items") or []
+    return any(item.get("charge_type") in _NON_RENT_CHARGE_TYPES for item in line_items)
+
+
+# Metered, consumption-based charges with NO real counterpart anywhere in a
+# payment schedule (Palladium's only ever has Rent and Service Charge rows).
+# _match_payment_installment still returns a "closest" installment for these
+# (used elsewhere — Extraction Postprocessing, Bill Posting — where a
+# fallback figure is still useful for WHT/due-date purposes), but the
+# Matching page's Contract column shouldn't present that as a real
+# comparison — per explicit instruction, it's shown empty instead of a
+# misleadingly specific number from an unrelated schedule category.
+_NO_SCHEDULE_CHARGE_TYPES = {"utility_electricity", "utility_water"}
+# WHT deliberately excluded: it's 0% across this vendor's ENTIRE schedule
+# (every Rent and Service Charge row alike), so "Contract WHT = 0" is true
+# regardless of category — not a false match the way the other three are.
+_NO_SCHEDULE_BLANK_FIELDS = {"total_amount_before_vat", "vat_gst", "net_amount_after_wht"}
+# These 4 money fields are mandatory-and-blocking even when there's no real
+# contract figure to compare against at all (e.g. Electricity/Water's
+# no-schedule-counterpart case above) — per explicit instruction, "no backup
+# document to verify" is a reason to block until someone resolves it, not a
+# reason to let the invoice through. Every other core field keeps the
+# default leniency (a blank contract side is informational, never blocks).
+_ALWAYS_BLOCKING_FIELDS = {"total_amount_before_vat", "vat_gst", "wht", "net_amount_after_wht"}
+
+
+def _has_no_schedule_charge(extracted: dict) -> bool:
+    line_items = extracted.get("line_items") or []
+    return any(item.get("charge_type") in _NO_SCHEDULE_CHARGE_TYPES for item in line_items)
+
+
 def _format_finding_invoice_value(field: str, value, currency: Optional[str]) -> str:
     if field in ("tax_rate", "wht_rate"):
         try:
@@ -348,6 +392,14 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
         if core.invoice_field in covered_invoice_fields:
             continue
         contract_value = _resolve_contract_value(core, contract_fields, installment)
+        # Electricity/Water only, per explicit instruction: _resolve_contract_value
+        # would otherwise return the "closest" installment's figure (always
+        # Service Charge — Month 1, since it's numerically nearer than any
+        # Rent installment) — a real number, but not a real comparison, since
+        # no schedule category exists for these charge types at all. Blank
+        # is more honest than a false match.
+        if core.invoice_field in _NO_SCHEDULE_BLANK_FIELDS and _has_no_schedule_charge(extracted):
+            contract_value = None
         invoice_value = extracted.get(core.invoice_field)
         # RATNA_INTAN only, per explicit instruction: its raw invoice values
         # for these amount fields are real but numerically diverge from the
@@ -362,6 +414,23 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
             and core.invoice_field in _SCHEDULE_FIELD_MAP
         ):
             invoice_value = installment.get(_SCHEDULE_FIELD_MAP[core.invoice_field])
+        # PALLADIUM only, per explicit instruction: WHT is 0% throughout its
+        # schedule, so the invoice's own real total_amount IS the true Net
+        # Amount After WHT (Total Amount Payable) — using the matched
+        # installment's own net_payment_to_lessor instead (the generic
+        # fallback below) silently substitutes the SCHEDULE's assumed total
+        # for THIS invoice's real one, which for a non-rent charge (Service
+        # Charge/Electricity/Water) hides the real per-sq-ft/consumption
+        # rate mismatch entirely — both sides would show the exact same
+        # borrowed figure and never disagree. Real value first here so the
+        # difference-and-reasoning branch below has something genuine to
+        # compare against the contract's installment figure.
+        if (
+            doc.get("fixture_key") == "PALLADIUM"
+            and core.invoice_field == "net_amount_after_wht"
+            and invoice_value is None
+        ):
+            invoice_value = extracted.get("total_amount")
         # wht / net_amount_after_wht are never printed on the invoice itself
         # and (per explicit instruction) never get back-populated into the
         # invoice's own extraction record either — so the Invoice column
@@ -373,7 +442,18 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
         # Always shown, even with nothing on either side (e.g. WHT is
         # genuinely null when no withholding tax applies) — a blank row is
         # itself the answer ("no WHT on this invoice"), not something to hide.
-        if contract_value is None:
+        if contract_value is None and core.invoice_field in _ALWAYS_BLOCKING_FIELDS:
+            # Unlike every other core field, these 4 stay mandatory/blocking
+            # even with nothing on the contract side to compare against —
+            # see _ALWAYS_BLOCKING_FIELDS. No ACK is offered either way
+            # (expected_value is None here, and MatchingTable.tsx's
+            # NO_ACK_FIELDS excludes these regardless), so this can only
+            # resolve once the underlying data actually provides a real
+            # contract figure.
+            severity = "error"
+            detail = f"No contract figure to compare {core.label} against — this must be resolved before proceeding."
+            mandatory = True
+        elif contract_value is None:
             # Nothing to auto-verify against — not "wrong" (that's what
             # error/red means), just unconfirmed. Never blocks approval and
             # never shows an Acknowledge action (there's nothing to
@@ -391,6 +471,32 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
             severity = "warning"
             detail = f"Not stated on the invoice — shown for reference against the matched installment's own {core.label.lower()}."
             mandatory = False
+        elif (
+            core.invoice_field in _INSTALLMENT_MATCH_FIELD_MAP
+            and invoice_value is not None
+            and _is_non_rent_invoice(extracted)
+        ):
+            # Service Charge/Electricity/Water (Palladium's case) don't tie
+            # back to any real contract figure the way Rent does — surface
+            # the actual delta plus why, instead of a bare "compares against
+            # the contract" line that leaves the reader to subtract the two
+            # numbers themselves and guess at the cause.
+            try:
+                diff = float(invoice_value) - float(contract_value)
+            except (TypeError, ValueError):
+                diff = None
+            severity = "error" if core.mandatory else "warning"
+            mandatory = core.mandatory
+            if diff is not None and abs(diff) >= 0.01:
+                diff_formatted = _format_finding_invoice_value(core.invoice_field, abs(diff), currency)
+                direction = "higher" if diff > 0 else "lower"
+                detail = (
+                    f"Invoice is {diff_formatted} {direction} than the contract's payment schedule for "
+                    f"{core.label} — likely a per-sq-ft/consumption rate change since the schedule was set; "
+                    "no backup document available to verify."
+                )
+            else:
+                detail = f"Compares the invoice's {core.label} against the contract."
         else:
             severity = "error" if core.mandatory else "warning"
             detail = f"Compares the invoice's {core.label} against the contract."
@@ -589,7 +695,10 @@ _CONTRACT_DERIVED_COLUMNS = [
 
 def _format_contract_derived_value(key: str, value) -> str:
     if value is None:
-        return "—"
+        # Blank, not an em-dash — the frontend marks an empty field with the
+        # same yellow highlight the Extraction page's own Metadata table
+        # uses, rather than a placeholder character.
+        return ""
     if key in ("vat_rate", "wht_rate"):
         try:
             return f"{float(value) * 100:.0f}%"
@@ -875,7 +984,8 @@ def _match_payment_installment(schedule: Optional[dict], extracted: dict) -> Opt
 
 def _format_derived_value(field_name: str, value) -> str:
     if value is None:
-        return "—"
+        # Blank, not an em-dash — same reasoning as _format_contract_derived_value.
+        return ""
     if field_name in ("wht_rate", "tax_rate"):
         try:
             return f"{float(value) * 100:.0f}%"
@@ -896,10 +1006,24 @@ async def get_extraction_postprocessing(db, oid: ObjectId) -> dict:
     schedule = bundle.payment_schedule if bundle else None
     installment = _match_payment_installment(schedule, extracted)
 
+    # Electricity/Water only, per explicit instruction: the matched
+    # installment is always the numerically-closest Service Charge row (an
+    # unrelated category — no real schedule counterpart exists for these
+    # charge types at all), so its date/amount figures are real numbers but
+    # not a real answer for THIS invoice. Rates (VAT Rate, WHT Rate/Amount)
+    # are excluded from this blanking — they're uniform across this vendor's
+    # entire schedule regardless of category (11% VAT, 0% WHT everywhere),
+    # so borrowing them isn't a false comparison the way a borrowed rupiah
+    # amount or due date would be.
+    _no_schedule_fields = (
+        {"due_date", "total_amount_before_vat", "vat_gst", "total_amount", "net_amount_after_wht"}
+        if _has_no_schedule_charge(extracted) else set()
+    )
+
     fields = []
     if installment:
         for field_name, label in _DERIVED_FIELD_DISPLAY.items():
-            raw_value = installment.get(_SCHEDULE_FIELD_MAP[field_name])
+            raw_value = None if field_name in _no_schedule_fields else installment.get(_SCHEDULE_FIELD_MAP[field_name])
             fields.append({
                 "field_name": field_name,
                 "display_name": label,
@@ -916,7 +1040,15 @@ async def get_extraction_postprocessing(db, oid: ObjectId) -> dict:
         "vendor_name": extracted.get("vendor_name"),
         "currency": extracted.get("currency"),
         "has_payment_schedule": bool(schedule),
-        "matched_installment": installment.get("description") if installment else None,
+        # Blank for Electricity/Water too — installment is still the
+        # closest-by-amount row internally (used for the rate fields above),
+        # but there's no real schedule entry for these charge types, so the
+        # page shouldn't claim one was "matched".
+        "matched_installment": (
+            installment.get("description")
+            if installment and not _has_no_schedule_charge(extracted)
+            else None
+        ),
         "fields": fields,
     }
 
@@ -1225,7 +1357,12 @@ def _bill_posting_out(doc: dict) -> dict:
         # (wht_amount / payable_amount above, and Simulate's own WHT-Payable
         # row) already represent. Showing it here too would double it up —
         # once as this raw line, once as the synthesized WHT row.
-        if item.get("charge_type") == "wht_deduction":
+        #
+        # Stamp duty (e.g. Palladium invoice_1's "MATERAI" row) is a fixed
+        # government duty, not a billable/GL-codeable service charge — no
+        # real VAT/WHT tax code applies to it (per explicit instruction),
+        # so it's excluded from Bill Posting's line items the same way.
+        if item.get("charge_type") in ("wht_deduction", "stamp_duty"):
             continue
         row_id = str(idx)
         item_defaults = default_items[idx] if idx < len(default_items) else {}
@@ -1243,6 +1380,16 @@ def _bill_posting_out(doc: dict) -> dict:
             "vat_tax_code": row_overrides.get("vat_tax_code", item_defaults.get("vat_tax_code", "")),
             "wht_tax_code": row_overrides.get("wht_tax_code", item_defaults.get("wht_tax_code", "")),
         })
+
+    # Excluded from line_items above (not billable/GL-codeable), but still
+    # real money owed to the vendor — Simulate adds this back as its own
+    # dedicated ledger row (no VAT/WHT code, same pattern as Input VAT/WHT
+    # Payable) so Debit still equals Credit.
+    stamp_duty_amount = sum(
+        float(item.get("amount") or 0)
+        for item in (extracted.get("line_items") or [])
+        if item.get("charge_type") == "stamp_duty"
+    )
 
     # "Invoice Received Date" is a genuine system fact (when this run was
     # uploaded into DirectPay) rather than extracted invoice data — there is
@@ -1320,6 +1467,7 @@ def _bill_posting_out(doc: dict) -> dict:
         "payable_amount": payable_amount,
         "wht_applicable": defaults.get("wht_applicable", False),
         "line_items": line_items,
+        "stamp_duty_amount": stamp_duty_amount,
         "erp": doc.get("erp"),
         "updated_at": doc.get("updated_at"),
     }
@@ -1517,6 +1665,25 @@ async def simulate_bill_posting(db, oid: ObjectId) -> dict:
             "description": it.get("description") or it.get("charge_type") or "Line item",
             "tax_code": it.get("vat_tax_code") or "—",
             "debit": round(line_debit, 2),
+            "credit": 0,
+            "is_visible": True,
+        })
+        pos += 1
+
+    # Stamp duty (e.g. Palladium invoice_1's "MATERAI") — excluded from
+    # line_items above (not billable/GL-codeable, no real VAT/WHT code
+    # applies), but still real money owed to the vendor and already included
+    # in grand_total/net_payable on the credit side below — needs its own
+    # debit row here or Debit would no longer equal Credit.
+    stamp_duty_amount = float(bp.get("stamp_duty_amount") or 0)
+    if stamp_duty_amount > 0:
+        rows.append({
+            "position": pos,
+            "posting_key": "40 · Debit",
+            "account": "6400 · Stamp Duty",
+            "description": "Stamp duty (Materai)",
+            "tax_code": "—",
+            "debit": round(stamp_duty_amount, 2),
             "credit": 0,
             "is_visible": True,
         })

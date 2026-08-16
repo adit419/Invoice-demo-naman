@@ -192,15 +192,15 @@ CORE_CROSS_VALIDATION_FIELDS: list[CoreValidationField] = [
     CoreValidationField("billing_period_start", None, "Billing Period Start", False),
     CoreValidationField("billing_period_end", None, "Billing Period End", False),
     CoreValidationField("total_amount_before_vat", "base_fee", "Total Amount Before VAT", True),
-    # Non-mandatory (same treatment as the Bank Account fields above) — some
-    # real invoices (e.g. RATNA_INTAN) genuinely show no separate VAT line at
-    # all, which left this field with a real contract-side figure to compare
-    # against but no invoice value and no way to Acknowledge it (Acknowledge
-    # only ever shows when the invoice HAS a value; Copy-from-contract was
-    # removed entirely — see conversation history), permanently blocking
-    # Approve with no path to resolution. Still always shown on the
-    # checklist for visibility, just never blocks.
-    CoreValidationField("vat_gst", None, "Tax Amount", False),
+    # Reinstated mandatory per explicit instruction, ACK also removed on the
+    # frontend for all 4 amount fields in this group (see MatchingTable.tsx's
+    # _NO_ACK_FIELDS) — a permanent block (e.g. RATNA_INTAN's invoice
+    # genuinely having no VAT line vs. the contract's real figure) is the
+    # intended outcome now: these 4 money fields must be exactly correct to
+    # proceed, with no acknowledge-to-bypass shortcut. This reverses the
+    # earlier non-mandatory decision made for exactly that RATNA_INTAN case —
+    # see conversation history if that tension resurfaces.
+    CoreValidationField("vat_gst", None, "Tax Amount", True),
     CoreValidationField("wht", None, "WHT (Withholding Tax)", True),
     CoreValidationField("net_amount_after_wht", None, "Net Amount After WHT (Total Amount Payable)", True),
 ]
