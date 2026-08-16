@@ -28,5 +28,8 @@
       "net_payment_to_lessor": 454954955.0,
       "payment_status": "Pending"
     }
+  ],
+  "one_time_payments": [
+    {"description": "Security Deposit", "amount": 10000000.0, "due_date_trigger": "Paid at signing", "status": "Paid", "remarks": "Per source: paid 7 July 2024."}
   ]
 }
