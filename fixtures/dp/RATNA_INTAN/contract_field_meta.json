@@ -1,0 +1,345 @@
+{
+  "premises_address": {
+    "label": "Property / Premises Address",
+    "section": "PROPERTY & PARTIES",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "vendor_name": {
+    "label": "Vendor Name",
+    "section": "PROPERTY & PARTIES",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": "Invoice's own vendor_name (\"Ny. Ratna Intan Mulyati G\") is a shortened/honorific variant of this — fuzzy match, not exact"
+  },
+  "lessor_phone": {
+    "label": "Vendor Phone",
+    "section": "PROPERTY & PARTIES",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "vendor_email": {
+    "label": "Vendor Email",
+    "section": "PROPERTY & PARTIES",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "lessor_npwp": {
+    "label": "Vendor NPWP",
+    "section": "PROPERTY & PARTIES",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": "Not stated in the source tracker — an individual lessor, not a company, may not hold an NPWP at all"
+  },
+  "customer_name": {
+    "label": "Customer Name",
+    "section": "PROPERTY & PARTIES",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "actual_start": {
+    "label": "Lease Commencement Date",
+    "section": "AGREEMENT DATES & TERM",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "lease_expiry_date": {
+    "label": "Lease Expiry Date",
+    "section": "AGREEMENT DATES & TERM",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "lock_in_period_months": {
+    "label": "Lock-in Period (Months)",
+    "section": "AGREEMENT DATES & TERM",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "term_months": {
+    "label": "Tenure (Months)",
+    "section": "AGREEMENT DATES & TERM",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "rent_basis_type": {
+    "label": "Rent Basis Type",
+    "section": "RENT & DEPOSIT",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "currency": {
+    "label": "Currency",
+    "section": "RENT & DEPOSIT",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": "MATCH"
+  },
+  "vat_included": {
+    "label": "VAT Incl/Excl",
+    "section": "RENT & DEPOSIT",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "vat_rate": {
+    "label": "VAT Rate",
+    "section": "RENT & DEPOSIT",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "base_rent_monthly_excl_tax": {
+    "label": "Base Rent (Excl Tax) Monthly",
+    "section": "RENT & DEPOSIT",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": "Literal 0 in the tracker — this is a lumpsum-installment lease, not a monthly-rent one"
+  },
+  "monthly_rent_incl_tax": {
+    "label": "Monthly Rent incl. Tax (Cond.)",
+    "section": "RENT & DEPOSIT",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "total_contract_value": {
+    "label": "Total Contract Value, Lumpsum",
+    "section": "RENT & DEPOSIT",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": "Tracker states 1,494,444,444.00; the payment schedule's own 3 installments sum to 1,494,444,445 (Incl. Tax) — a 1-rupiah rounding artifact of the source's own installment split, not corrected here"
+  },
+  "no_of_installments": {
+    "label": "No. of Installments",
+    "section": "RENT & DEPOSIT",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "base_fee": {
+    "label": "Monthly Rent",
+    "section": "RENT & DEPOSIT",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": "Literal source value ('Base Rent (Excl Tax) Monthly') is 0 in the tracker — this is a lumpsum-installment lease with no true monthly-rent concept, not derived/assumed here."
+  },
+  "revenue_share_pct": {
+    "label": "Revenue Share (%)",
+    "section": "RENT & DEPOSIT",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "revenue_threshold": {
+    "label": "Revenue Share Threshold Amount",
+    "section": "RENT & DEPOSIT",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "rent_billing_day": {
+    "label": "Rent Billing Day",
+    "section": "RENT & DEPOSIT",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "security_deposit": {
+    "label": "Security Deposit",
+    "section": "RENT & DEPOSIT",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "escalation_rate": {
+    "label": "Escalation Clause (%)",
+    "section": "ESCALATION",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "escalation_frequency": {
+    "label": "Escalation Frequency",
+    "section": "ESCALATION",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "escalation_starts_after_months": {
+    "label": "Escalation Starts After (months)",
+    "section": "ESCALATION",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "next_escalation_date": {
+    "label": "Next Escalation Date",
+    "section": "ESCALATION",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "first_escalation_date": {
+    "label": "First Escalation Date",
+    "section": "ESCALATION",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "utilities_billing": {
+    "label": "Utilities Billing",
+    "section": "UTILITIES & TAX",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "wht_applicable": {
+    "label": "WHT Applicable",
+    "section": "UTILITIES & TAX",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "wht_rate_pct": {
+    "label": "WHT Rate (%)",
+    "section": "UTILITIES & TAX",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "stamp_duty_registered": {
+    "label": "Stamp Duty / Registered",
+    "section": "LEGAL & COMPLIANCE",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "registration_number": {
+    "label": "Registration Number",
+    "section": "LEGAL & COMPLIANCE",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "notice_period_days": {
+    "label": "Notice Period (Days)",
+    "section": "LEGAL & COMPLIANCE",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": "Source states 3 different notice periods (renewal / tenant early termination / lessor early termination) rather than one single day-count, unlike other vendors' single-value field — preserved verbatim rather than picking one"
+  },
+  "renewal_option": {
+    "label": "Renewal Option",
+    "section": "LEGAL & COMPLIANCE",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "property_code": {
+    "label": "Property Code",
+    "section": "STATUS & TRACKING",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": "Literal 0 in the tracker — no property code was assigned to this contract in the source"
+  },
+  "days_to_expiry": {
+    "label": "Days to Expiry",
+    "section": "STATUS & TRACKING",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": "Literal 0 in the tracker (a formula-driven cell not recalculated in the source snapshot) — not the true day count to 9-Oct-2031"
+  },
+  "computed_status": {
+    "label": "Computed Status",
+    "section": "STATUS & TRACKING",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "rent_commencement_date": {
+    "label": "Rent Commencement Date",
+    "section": "STATUS & TRACKING",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "rent_free_months": {
+    "label": "Rent Free Months",
+    "section": "PAYMENT STRUCTURE",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "co_landlord": {
+    "label": "Co-Landlord",
+    "section": "PAYMENT STRUCTURE",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": "Literal 0 in the tracker"
+  },
+  "lessor_split_pct": {
+    "label": "Vendor Split (%)",
+    "section": "PAYMENT STRUCTURE",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": "Literal 0 in the tracker — unlike Palladium/Graha/Pakuwon/Debora's 100%, not corrected here"
+  },
+  "lessor_payment_share": {
+    "label": "Vendor Payment Share",
+    "section": "PAYMENT STRUCTURE",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": "Matches invoice's own vendor_bank_name (BCA) and vendor_bank_account_number (8810251850) exactly"
+  },
+  "lessor_bank_account_name": {
+    "label": "Bank Account Name",
+    "section": "PAYMENT STRUCTURE",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": "Parsed from the tracker's own \"Lessor Payment Share\" field (\"BCA 8810251850, Name: RATNA INTAN MULYATI G\") — unlike PT_BANGUN, this vendor's source cell does contain a literal account name/number"
+  },
+  "lessor_bank_account_number": {
+    "label": "Bank Account Number",
+    "section": "PAYMENT STRUCTURE",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": "Parsed from the tracker's own \"Lessor Payment Share\" field — same source cell as Bank Account Name"
+  },
+  "split_check": {
+    "label": "Split Check",
+    "section": "PAYMENT STRUCTURE",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "rent_scenario_notes": {
+    "label": "Rent Scenario Notes",
+    "section": "REVENUE & ADDITIONAL",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "contract_type": {
+    "label": "Contract Type",
+    "section": "OTHER",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "floor": {
+    "label": "Floor",
+    "section": "OTHER",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  }
+}

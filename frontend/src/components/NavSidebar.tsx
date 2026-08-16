@@ -895,7 +895,16 @@ export function NavSidebar({ collapsed, onCollapse }: NavSidebarProps) {
                       {DIRECT_PAY_CHILDREN.map(child => {
                         const childTab = child.href.endsWith("tab=contracts") ? "contracts" : "invoices";
                         const currentTab = typeof router.query.tab === "string" ? router.query.tab : "invoices";
-                        const childActive = router.pathname === "/directpay/dashboard" && currentTab === childTab;
+                        // Being on any invoice/contract stage page (Extraction, Matching,
+                        // Bill Posting) should keep the matching tab highlighted too, not
+                        // just the dashboard itself with the right ?tab= query.
+                        const isOnDashboardTab = router.pathname === "/directpay/dashboard" && currentTab === childTab;
+                        const isOnInvoiceStage = router.pathname.startsWith("/directpay/invoice/");
+                        const isOnContractStage = router.pathname.startsWith("/directpay/contract/");
+                        const childActive =
+                          isOnDashboardTab ||
+                          (childTab === "invoices" && isOnInvoiceStage) ||
+                          (childTab === "contracts" && isOnContractStage);
                         return (
                           <Link key={child.href} href={child.href}
                             style={{

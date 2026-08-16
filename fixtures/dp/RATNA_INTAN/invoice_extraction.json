@@ -1,0 +1,46 @@
+{
+  "invoice_number": "KK.BKS.RKJTRSJTASH-3",
+  "invoice_date": "30 Juli 2026",
+  "vendor_name": "Ny. Ratna Intan Mulyati G",
+  "vendor_address": "Jl. Kayu Jati II Gg.6/8 RT 003 RW 004, Kel. Rawamangun Kec. Pulogadung, Kota Jakarta Timur, DKI Jakarta",
+  "vendor_vat_id": null,
+  "customer_legal_entity": "PT. Bumi Berkah Boga (Kopi Kenangan)",
+  "customer_address": "Plaza Blok M, Lantai 7, Jl. Bulungan No. 76, RT.6/RW.6, Kel. Kramat Pela, Kec. Kebayoran Baru, Kota Jakarta Selatan, DKI Jakarta - 12130",
+  "customer_vat_id": null,
+  "billing_period_start": null,
+  "billing_period_end": null,
+  "payment_terms": null,
+  "due_date": "10 Agustus 2026",
+  "total_amount_before_vat": 855555556.0,
+  "tax_type": null,
+  "tax_rate": null,
+  "vat_gst": null,
+  "wht_rate": null,
+  "wht": 85555556.0,
+  "net_amount_after_wht": 770000000.0,
+  "total_amount": 855555556.0,
+  "currency": "IDR",
+  "vendor_bank_name": "BCA",
+  "vendor_bank_account_name": "RATNA INTAN MULYATI G",
+  "vendor_bank_account_number": "8810251850",
+  "vendor_bank_swift": null,
+  "notes": null,
+  "line_items": [
+    {
+      "label": "Pembayaran Sewa - Ruko Jatiasih",
+      "item_code": null,
+      "charge_type": "rental_fee",
+      "quantity": null,
+      "unit_price": null,
+      "amount": 855555556.0
+    },
+    {
+      "label": "Pemotongan PPH",
+      "item_code": null,
+      "charge_type": "wht_deduction",
+      "quantity": null,
+      "unit_price": null,
+      "amount": -85555556.0
+    }
+  ]
+}

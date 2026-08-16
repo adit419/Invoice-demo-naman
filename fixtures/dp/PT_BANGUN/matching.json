@@ -1,167 +1,34 @@
 {
   "expected": {
-    "vendor": "PT Bangun Era Sejahtera",
-    "customer": "PT Bumi Berkah Boga",
-    "subtotal": 80645161,
-    "gst_total": 0,
-    "grand_total": 80645161,
-    "escalation_periods": 0,
-    "escalation_rate_pct": 0.0,
+    "vendor": "PT BANGUN ERA SEJAHTERA",
+    "customer": "PT BUMI BERKAH BOGA (Edward Tirtanata, Direktur Utama)",
+    "subtotal": 0,
+    "currency": "IDR",
     "line_items": [
       {
         "charge_type": "rental_fee",
-        "label": "Rental Fee",
-        "expected_amount": 80645161,
-        "gst_amount": 0,
-        "total": 80645161,
-        "unit": "IDR/month",
-        "clause_id": "CL-48-027",
-        "clause_number": null,
-        "billing_frequency": null,
-        "clause_eff_from": null,
-        "clause_eff_to": null
+        "label": "Monthly Rent",
+        "expected_amount": 0,
+        "unit": "IDR",
+        "clause_id": null
       }
     ]
   },
   "summary": {
-    "errors": 3,
+    "errors": 0,
     "warnings": 1,
     "info": 0,
-    "total": 4
+    "total": 1
   },
   "findings": [
     {
-      "finding_id": "F-001",
-      "severity": "error",
-      "title": "Vendor name mismatch",
-      "detail": "Invoice shows 'PT.Bangun Era Sejahtera' but contract party is 'PT Bangun Era Sejahtera'.",
-      "expected": "PT Bangun Era Sejahtera",
-      "found": "PT.Bangun Era Sejahtera",
-      "field": "vendor_name",
-      "expected_value": "PT Bangun Era Sejahtera",
-      "source_pages": [],
-      "source_rects": [],
-      "contract_source_pages": [
-        1,
-        2,
-        3,
-        15
-      ],
-      "contract_source_rects": [
-        {
-          "page": 1,
-          "x0": 0.3702,
-          "y0": 0.131,
-          "x1": 0.4806,
-          "y1": 0.154
-        },
-        {
-          "page": 2,
-          "x0": 0.4614,
-          "y0": 0.423,
-          "x1": 0.5233,
-          "y1": 0.4444
-        },
-        {
-          "page": 3,
-          "x0": 0.5727,
-          "y0": 0.4047,
-          "x1": 0.6269,
-          "y1": 0.4282
-        }
-      ],
-      "contract_source_summary": "Clause 1, 2 · stamp paper header",
-      "contract_source_clause_numbers": [
-        "1",
-        "2",
-        "2.a-c",
-        "3"
-      ]
-    },
-    {
-      "finding_id": "F-002",
-      "severity": "error",
-      "title": "Billing period before contract start",
-      "detail": "Invoice billing starts 2026-08-13 but contract commences 2026-08-30.",
-      "expected": "On or after 2026-08-30",
-      "found": "2026-08-13",
-      "field": "billing_period_start",
-      "expected_value": "2026-08-30",
-      "source_pages": [],
-      "source_rects": [],
-      "contract_source_pages": [
-        4,
-        7,
-        8,
-        12,
-        13,
-        16,
-        17,
-        18,
-        19,
-        20,
-        21,
-        22,
-        26
-      ],
-      "contract_source_rects": [
-        {
-          "page": 4,
-          "x0": 0.4573,
-          "y0": 0.5217,
-          "x1": 0.5218,
-          "y1": 0.5432
-        }
-      ],
-      "contract_source_summary": "Clause 1, 2 · page footer",
-      "contract_source_clause_numbers": [
-        "1",
-        "2",
-        "3",
-        "3.a",
-        "3.b",
-        "3.c",
-        "3.e",
-        "3.f",
-        "4",
-        "5",
-        "6",
-        "7"
-      ]
-    },
-    {
-      "finding_id": "F-003",
-      "severity": "error",
-      "title": "Rental Fee mismatch",
-      "detail": "Invoice shows IDR 675,675,676.00 for rental fee but contract expects IDR 80,645,161.00.",
-      "expected": "IDR 80,645,161.00",
-      "found": "IDR 675,675,676.00",
-      "field": "subtotal",
-      "expected_value": 80645161,
-      "charge_type": "rental_fee",
-      "invoice_search_terms": [
-        "SEWA BANGUNAN JATI SQUARE NO.13-14 PERIODE 13 AGUSTUS 2026 S.D 29 AGUSTUS 2031",
-        "₹675,675,676",
-        "675,675,676",
-        "675675676"
-      ],
-      "source_pages": [],
-      "source_rects": [],
-      "contract_source_pages": [
-        4
-      ],
-      "contract_source_rects": [],
-      "contract_source_summary": "stamp paper header",
-      "contract_source_clause_numbers": []
-    },
-    {
       "finding_id": "F-004",
       "severity": "warning",
-      "title": "GST rate is 11%, expected 18%",
-      "detail": "Invoice GST ₹74,324,324 implies a rate of 11.0%, not the standard 18%.",
+      "title": "Tax rate is 11%, expected 18%",
+      "detail": "Invoice tax ₹74,324,324 implies a rate of 11.0%, not the standard 18%.",
       "expected": "18%",
       "found": "11.0%",
-      "field": "gst_rate",
+      "field": "tax_rate",
       "expected_value": 0.18,
       "charge_type": "gst",
       "invoice_search_terms": [
@@ -171,27 +38,10 @@
       ],
       "source_pages": [],
       "source_rects": [],
-      "contract_source_pages": [
-        4,
-        5,
-        18
-      ],
-      "contract_source_rects": [
-        {
-          "page": 4,
-          "x0": 0.1606,
-          "y0": 0.1534,
-          "x1": 0.2236,
-          "y1": 0.176
-        }
-      ],
-      "contract_source_summary": "Clause 1, 2.c · stamp paper header",
-      "contract_source_clause_numbers": [
-        "1",
-        "2.c",
-        "3",
-        "3.i"
-      ]
+      "contract_source_pages": [],
+      "contract_source_rects": [],
+      "contract_source_summary": "",
+      "contract_source_clause_numbers": []
     }
   ]
 }

@@ -3,9 +3,12 @@
 // same mismatch row colors, same field-column shading, same Acknowledge
 // button/Auto-approved badge placement INSIDE the Invoice cell (not a
 // separate column) — adapted for DirectPay's invoice-vs-contract findings
-// instead of invoice-vs-PO/GRN. No copy-value affordance: P2P's own
-// MetadataTab has none either — a mismatch is either fixed (by editing on
-// the Extraction screen) or acknowledged, never "copied" in place here.
+// instead of invoice-vs-PO/GRN. A field the invoice has NO value for at all
+// gets neither Acknowledge nor any action — there's nothing to acknowledge
+// about a blank field, and no value is ever copied in from the contract onto
+// the invoice (see service.py's approve_extraction_postprocessing comment —
+// nothing back-populates the invoice's own extraction record). A real
+// mismatch (invoice HAS a value, it just disagrees) still gets Acknowledge.
 import { useMemo } from "react";
 import { Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
@@ -19,15 +22,27 @@ const tableClassName = "dp-matching-table";
 // title-cased version of the key for any field without an explicit label.
 const FIELD_LABELS: Record<string, string> = {
   vendor_name: "Vendor Name",
-  billing_period_start: "Billing Period Start",
-  billing_period_end: "Billing Period End",
-  subtotal: "Subtotal",
-  gst_total: "Tax Total",
-  gst_rate: "GST Rate",
-  grand_total: "Grand Total",
+  vendor_vat_id: "Vendor VAT ID",
+  customer_legal_entity: "Customer Legal Entity",
+  customer_vat_id: "Customer VAT ID",
+  vendor_address: "Store Location",
+  vendor_bank_account_name: "Vendor Bank Account Name",
+  vendor_bank_account_number: "Vendor Bank Account Number",
+  billing_period_start: "Billing / Service Period Start",
+  billing_period_end: "Billing / Service Period End",
+  payment_terms: "Payment Terms",
+  due_date: "Due Date",
+  // Business-checklist labels — see field_mapping.CORE_CROSS_VALIDATION_FIELDS.
+  total_amount_before_vat: "Total Amount Before VAT",
+  tax_type: "Tax Type",
+  tax_rate: "Tax Rate",
+  vat_gst: "Tax Amount",
+  wht_rate: "WHT Rate",
+  wht: "WHT (Withholding Tax)",
+  total_amount: "Total Amount After VAT",
+  net_amount_after_wht: "Net Amount After WHT (Total Amount Payable)",
   invoice_number: "Invoice Number",
   invoice_date: "Invoice Date",
-  customer_name: "Customer Name",
   currency: "Currency",
 };
 
@@ -39,13 +54,25 @@ function fieldLabel(f: DpFinding): string {
 
 /** A finding is "resolved" once its mapped invoice field already equals the
  * contract's expected value — e.g. after a manual edit on the Extraction
- * screen. Exported so pages can derive the same blocking-count logic the
- * table itself uses. */
+ * screen. A finding with no expected_value at all (a core cross-validation
+ * field with no literal contract-side figure to compare against, e.g. Tax
+ * Amount) can never become "equal" to anything, so it's never auto-resolved —
+ * a mandatory field with nothing to automatically verify still needs an
+ * explicit human Acknowledge. Exported so pages can derive the same
+ * blocking-count logic the table itself uses. */
 export function isFindingResolved(f: DpFinding, extracted: DpInvoiceExtracted): boolean {
-  if (!f.field || f.expected_value === undefined || f.expected_value === null) return false;
+  if (!f.field) return false;
+  if (f.expected_value === undefined || f.expected_value === null) return false;
   const current = (extracted as Record<string, unknown>)[f.field];
-  if (current === undefined || current === null) return false;
-  return String(current) === String(f.expected_value);
+  if (current !== undefined && current !== null && String(current) === String(f.expected_value)) return true;
+  // WHT / Net Amount After WHT are never written back onto the invoice's own
+  // extraction record even once derived (see service.py's
+  // approve_extraction_postprocessing) — their Invoice-column value instead
+  // falls back, display-only, to the same matched-installment figure the
+  // Contract column shows. When that fallback numerically equals the
+  // contract's own figure, the two formatted display strings come out
+  // identical too — treat that the same as a real extracted-data match.
+  return f.found != null && f.found === f.expected;
 }
 
 interface MatchingTableProps {
@@ -92,7 +119,8 @@ export function MatchingTable({
       {
         title: "Field",
         key: "field",
-        onHeaderCell: () => ({ style: { background: "#F4F4F4", borderRight: "1px solid #E5E7EB", minWidth: 260 } }),
+        width: 260,
+        onHeaderCell: () => ({ style: { background: "#F4F4F4", borderRight: "1px solid #E5E7EB" } }),
         onCell: (record) => ({
           style: {
             background: "#F4F4F4",
@@ -104,7 +132,6 @@ export function MatchingTable({
               ? "inset 2px 0 0 #D97706"
               : undefined,
             borderRight: "1px solid #E5E7EB",
-            minWidth: 260,
           },
         }),
         render: (_, f) => (
@@ -119,13 +146,20 @@ export function MatchingTable({
       {
         title: "Invoice",
         key: "invoice",
-        onHeaderCell: () => ({ style: { minWidth: 280 } }),
-        onCell: () => ({ style: { minWidth: 280 } }),
+        width: 280,
         render: (_, f) => {
           const acked = isAcked(f);
           const systemAcked = isSystemAcked(f);
           const resolved = isResolved(f);
-          const canAck = !resolved && !systemAcked;
+          const hasInvoiceValue = f.found !== undefined && f.found !== null && f.found !== "";
+          // Only offer Acknowledge where the contract actually has a value to
+          // compare against — a field with nothing on the contract side
+          // (expected_value null, e.g. no bank details in the source) has
+          // nothing to acknowledge, just an informational row. And only for
+          // a REAL mismatch (invoice has its own value, it just disagrees) —
+          // a blank invoice value gets no action at all (no value is ever
+          // copied onto the invoice from the contract).
+          const canAck = !resolved && !systemAcked && f.expected_value != null && hasInvoiceValue;
           const value = resolved ? f.expected ?? f.found : f.found;
 
           return (
@@ -190,8 +224,7 @@ export function MatchingTable({
       {
         title: "Contract",
         key: "contract",
-        onHeaderCell: () => ({ style: { minWidth: 220 } }),
-        onCell: () => ({ style: { minWidth: 220 } }),
+        width: 220,
         render: (_, f) => (
           <span style={{ color: f.expected ? "#414651" : "#9CA3AF", fontSize: 14, wordBreak: "break-word" }}>
             {f.expected ?? ""}
@@ -247,6 +280,7 @@ export function MatchingTable({
         rowClassName={(record) => getRowClassName(record)}
         bordered
         size="middle"
+        tableLayout="fixed"
         locale={{ emptyText: "No discrepancies found — invoice and contract fully match." }}
       />
     </>

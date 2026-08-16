@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/router";
-import { CalendarOutlined, FileTextOutlined, TagOutlined, UserOutlined } from "@ant-design/icons";
+import { CalendarOutlined, FileProtectOutlined, FileTextOutlined, TagOutlined, UserOutlined } from "@ant-design/icons";
 import { Button as AntButton, Select as AntSelect, Space } from "antd";
 import { withAuthGuard } from "@/components/AuthGuard";
 import { ComponentHeaderAntd } from "@/components/matching";
@@ -15,6 +15,21 @@ import {
 } from "@/services/directpay";
 import { isFindingResolved, MatchingTable } from "@/components/directpay/MatchingTable";
 import AiContractBanner from "@/components/directpay/AiContractBanner";
+import { DocumentPreviewModal } from "@/components/directpay/DocumentPreviewModal";
+import { ContractExtractionModal } from "@/components/directpay/ContractExtractionModal";
+import { StageTransitionOverlay } from "@/components/StageTransitionOverlay";
+
+// Simulated processing latency for the forward transition after Approve —
+// mirrors P2P's own matching.tsx exactly: the real approve call only spins
+// the button (see `busy` below), and StageTransitionOverlay is reserved for
+// this separate post-approval hand-off, paced in two phases so both the
+// "matching" and "preparing the bill" steps get their own visible moment.
+const MATCHING_PHASE_DELAY_MS = 5000;
+const PREPARING_BILL_PHASE_DELAY_MS = 3000;
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function InvoiceMatchPage() {
   const router = useRouter();
@@ -28,11 +43,33 @@ function InvoiceMatchPage() {
   const [busy, setBusy] = useState(false);
   const [busyLabel, setBusyLabel] = useState("Saving…");
   const [rejectOpen, setRejectOpen] = useState(false);
+  const [invoicePdfOpen, setInvoicePdfOpen] = useState(false);
+  const [contractPdfOpen, setContractPdfOpen] = useState(false);
+  const [contractExtractionOpen, setContractExtractionOpen] = useState(false);
+  const [pdfToken, setPdfToken] = useState<string | null>(null);
+  const [transitioning, setTransitioning] = useState(false);
+  const [transitionPhase, setTransitionPhase] = useState<"matching" | "preparing">("matching");
+
+  useEffect(() => {
+    setPdfToken(localStorage.getItem("access_token"));
+  }, []);
 
   const load = useCallback(async () => {
     if (!id) return;
     try {
       let [inv, con] = await Promise.all([directpayService.getInvoice(id), directpayService.listContracts()]);
+      // An IDR invoice must clear Faktur Pajak, then Extraction
+      // Postprocessing, before Matching — guards direct/stale navigation to
+      // this page (the normal path only ever arrives here via
+      // extraction-postprocessing.tsx's own Approve).
+      if (inv.status === "fp_extraction") {
+        router.replace(`/directpay/invoice/${id}/fp-extraction`);
+        return;
+      }
+      if (inv.status === "postprocessing") {
+        router.replace(`/directpay/invoice/${id}/extraction-postprocessing`);
+        return;
+      }
       setContracts(con.items.filter((c) => c.status === "saved"));
       // Always call this (unless already decided) — it's idempotent (never
       // re-picks once a contract is set) and is the only way to learn
@@ -60,7 +97,7 @@ function InvoiceMatchPage() {
     } finally {
       setLoading(false);
     }
-  }, [id, toast]);
+  }, [id, toast, router]);
 
   useEffect(() => {
     load();
@@ -95,21 +132,26 @@ function InvoiceMatchPage() {
     }
   };
 
-  const submitAction = async (action: "approve" | "reject", force = false, reason?: string) => {
+  const submitAction = async (action: "approve" | "reject", reason?: string) => {
     if (!id) return;
     setBusyLabel(action === "reject" ? "Rejecting…" : "Saving decision…");
     setBusy(true);
     try {
-      await directpayService.reviewAction(id, action, force, reason);
+      await directpayService.reviewAction(id, action, reason);
       if (action === "reject") {
         const updated = await directpayService.getInvoice(id);
         setRun(updated);
         setRejectOpen(false);
       } else {
-        // Approving moves the invoice on to Bill Posting — the redirect
-        // effect above would also catch this on next render, but navigating
-        // directly here avoids a flash of this page in its terminal-looking
-        // state first.
+        // The approve call itself only spun the button above — the visible
+        // "processing" moment is this hand-off to Bill Posting, shown via
+        // the same StageTransitionOverlay P2P uses between its own stages.
+        setBusy(false);
+        setTransitionPhase("matching");
+        setTransitioning(true);
+        await sleep(MATCHING_PHASE_DELAY_MS);
+        setTransitionPhase("preparing");
+        await sleep(PREPARING_BILL_PHASE_DELAY_MS);
         router.push(`/directpay/invoice/${id}/bill-posting`);
       }
     } catch (err) {
@@ -129,7 +171,7 @@ function InvoiceMatchPage() {
   };
 
   const handleReject = async (reason: string) => {
-    await submitAction("reject", false, reason);
+    await submitAction("reject", reason);
   };
 
   if (loading) {
@@ -141,24 +183,76 @@ function InvoiceMatchPage() {
   }
   if (!run) return null;
 
+  if (transitioning) {
+    return (
+      <StageTransitionOverlay
+        title={
+          transitionPhase === "matching"
+            ? "We're matching the invoice against the contract."
+            : "Preparing the bill for ERP posting."
+        }
+        subtitle="This may take a few minutes. Please keep this page open."
+        steps={
+          transitionPhase === "matching"
+            ? [{ label: "Matching against contract", status: "active" }]
+            : [
+                { label: "Matching against contract", status: "done" },
+                { label: "Preparing bill for ERP", status: "active" },
+              ]
+        }
+      />
+    );
+  }
+
   const metaItems = [
     { icon: <TagOutlined />, text: "Manual Upload" },
-    run.extracted.invoice_number ? { icon: <FileTextOutlined />, text: run.extracted.invoice_number } : null,
-    run.extracted.vendor_name ? { icon: <UserOutlined />, text: run.extracted.vendor_name } : null,
+    run.extracted.invoice_number
+      ? { icon: <FileTextOutlined />, text: run.extracted.invoice_number, onClick: () => setInvoicePdfOpen(true) }
+      : null,
+    run.extracted.vendor_name
+      ? {
+          icon: <UserOutlined />,
+          text: run.extracted.vendor_name,
+          onClick: run.contract_id ? () => setContractPdfOpen(true) : undefined,
+        }
+      : null,
     run.extracted.invoice_date ? { icon: <CalendarOutlined />, text: run.extracted.invoice_date } : null,
-  ].filter(Boolean) as { icon: React.ReactNode; text: string }[];
+    // Distinct from the vendor-name link above (which opens a read-only PDF
+    // preview) — this opens the actual Contract Extraction table for the
+    // matched contract, so the full field-by-field data is one click away.
+    run.contract_id
+      ? {
+          icon: <FileProtectOutlined />,
+          text: "Contract",
+          onClick: () => setContractExtractionOpen(true),
+        }
+      : null,
+  ].filter(Boolean) as { icon: React.ReactNode; text: string; onClick?: () => void }[];
 
   const findings = run.findings ?? [];
   // Every finding is acknowledgeable regardless of severity (mirrors P2P's
   // MetadataTab, where Acknowledge is exactly how a mandatory-field mismatch
-  // gets unblocked) — so "blocking" means any finding still neither resolved
-  // nor acknowledged, same set the backend's has_open_issues() gate checks.
+  // gets unblocked) — so "blocking" means any MANDATORY finding still
+  // neither resolved nor acknowledged, same set the backend's
+  // has_open_issues() gate checks (non-mandatory mismatches, e.g. tax_rate,
+  // are informational only and never require acknowledgement to proceed).
   const blockingCount = findings.filter(
     (f) =>
+      f.mandatory &&
       !run.acknowledged_findings.includes(f.finding_id) &&
       !run.system_acknowledged_findings.includes(f.finding_id) &&
       !isFindingResolved(f, run.extracted)
   ).length;
+  // The table always shows the fixed core cross-validation checklist
+  // (Vendor Name, Bank Details, Store Location, Billing/Service Period, and
+  // the four key amounts — see field_mapping.CORE_CROSS_VALIDATION_FIELDS),
+  // matched or not. The backend synthesizes a row for any checklist field
+  // the fixture didn't already flag as a mismatch, so a field that simply
+  // matches still shows up here (rendered as an ordinary matched row).
+  // Non-checklist findings (e.g. tax_rate) drop out of this table entirely.
+  // Bank Details is on the checklist (`core`) but explicitly non-mandatory
+  // (`mandatory`), so this filters on `core`, not `mandatory`.
+  const displayFindings = findings.filter((f) => f.core);
   const hasContract = !!run.contract_id;
   // Traces the current contract selection back to the AI's pick — reverting
   // once a human picks a different contract from the dropdown, same property
@@ -222,7 +316,15 @@ function InvoiceMatchPage() {
 
       <ComponentHeaderAntd
         title="Matching"
-        onBack={() => router.push(`/directpay/invoice/${id}/review`)}
+        onBack={() =>
+          router.push(
+            run.has_payment_schedule
+              ? `/directpay/invoice/${id}/extraction-postprocessing`
+              : run.has_faktur_pajak
+              ? `/directpay/invoice/${id}/fp-extraction`
+              : `/directpay/invoice/${id}/review`
+          )
+        }
         metaItems={metaItems}
         right={actionButtons}
       />
@@ -316,7 +418,7 @@ function InvoiceMatchPage() {
           )}
 
           <MatchingTable
-            findings={findings}
+            findings={displayFindings}
             acknowledgedFindings={run.acknowledged_findings}
             systemAcknowledgedFindings={run.system_acknowledged_findings}
             extracted={run.extracted}
@@ -331,6 +433,28 @@ function InvoiceMatchPage() {
         onClose={() => setRejectOpen(false)}
         onConfirm={handleReject}
         stage="matching"
+      />
+
+      <DocumentPreviewModal
+        open={invoicePdfOpen}
+        onClose={() => setInvoicePdfOpen(false)}
+        title={run.extracted.invoice_number ? `Invoice ${run.extracted.invoice_number}` : "Invoice Preview"}
+        pdfUrl={directpayService.invoicePdfUrl(run.id)}
+        authToken={pdfToken}
+      />
+      {run.contract_id && (
+        <DocumentPreviewModal
+          open={contractPdfOpen}
+          onClose={() => setContractPdfOpen(false)}
+          title={run.extracted.vendor_name ? `Contract — ${run.extracted.vendor_name}` : "Contract Preview"}
+          pdfUrl={directpayService.contractPdfUrl(run.contract_id)}
+          authToken={pdfToken}
+        />
+      )}
+      <ContractExtractionModal
+        open={contractExtractionOpen}
+        onClose={() => setContractExtractionOpen(false)}
+        contractId={run.contract_id}
       />
     </div>
   );

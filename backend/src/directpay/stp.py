@@ -1,18 +1,21 @@
 """
-DirectPay Auto-Process (STP) — a DirectPay-scoped toggle and cascade,
-independent of P2P's `api/v1/stp.py` (own setting, own learned-ack memory,
-own gate logic) per the deliberate isolation decision for this module.
-Applies to invoices only — contracts have no validation/mismatch concept and
-always require a manual "Approve" click, Auto-Process or not.
+DirectPay Auto-Process (STP) — a DirectPay-scoped toggle, independent of
+P2P's `api/v1/stp.py` (own setting, own learned-ack memory, own gate logic)
+per the deliberate isolation decision for this module. Applies to invoices
+only — contracts have no validation/mismatch concept and always require a
+manual "Approve" click, Auto-Process or not.
 
-Cascade: extraction -> required-fields check -> AI contract recommendation
--> (hold if AI is uncertain, or if the resulting match has open issues) ->
-approve -> post bill. A confident AI pick with a clean comparison completes
-fully unattended all the way to "posted"; anything uncertain or unresolved
-holds at "waiting_review" for a human to finish via the normal Matching-page
-flow — mirroring how P2P's STP calls the same internal functions a human's
-click would (including auto-posting the bill after a clean approval), and
-never fabricates a bespoke "auto-only" business rule.
+Scope (matches P2P's own real behavior, verified directly against its
+dashboard.tsx/stp.py — P2P's STP does NOT auto-drive an uploaded invoice all
+the way through matching/bill-posting either; the only place STP affects
+navigation in P2P is the *reverse* direction, bouncing a human's manual
+Extraction-approve back to the dashboard so automation keeps driving from
+there): on upload, Auto-Process runs ONLY the extraction step, then hands the
+invoice to the human on the Extraction screen — it skips the manual "click
+Review, wait for extract" step, nothing more. Matching, approval, and bill
+posting are never auto-driven by this cascade; from the Extraction screen
+onward an Auto-Process invoice follows the exact same manual flow as one
+uploaded with Auto-Process off.
 """
 import asyncio
 import logging
@@ -76,17 +79,21 @@ async def _set_stp_state(db, run_id: ObjectId, state: str, reason: str | None = 
 
 
 async def run_dp_stp_for_invoice(run_id: ObjectId) -> None:
+    """Auto-Process's entire job: run extraction, then stop. The frontend
+    polls for this to land the human on the Extraction screen the moment it's
+    done — everything past that point (confirm, matching, approval, posting)
+    is the same manual flow as when Auto-Process is off."""
     from ..database import get_db
 
     key = str(run_id)
     if key in _ACTIVE_DP_STP_RUNS:
-        logger.info("DirectPay STP: cascade already running for %s — skipping duplicate trigger", key)
+        logger.info("DirectPay STP: extraction already running for %s — skipping duplicate trigger", key)
         return
     _ACTIVE_DP_STP_RUNS.add(key)
 
     db = get_db()
     final_state = "waiting_review"
-    final_reason: str | None = None
+    final_reason: str | None = "extraction_failed"
 
     try:
         await _set_stp_state(db, run_id, "processing")
@@ -95,42 +102,12 @@ async def run_dp_stp_for_invoice(run_id: ObjectId) -> None:
         doc = await service.get_invoice_doc(db, run_id)
         if doc.get("status") == "extraction":
             await service.extract_invoice(db, run_id)
-            doc = await service.get_invoice_doc(db, run_id)
-
-        extracted = service._merge(doc.get("base_extracted") or {}, doc.get("edited_extracted"))
-        missing = service.missing_required_fields(extracted)
-        if missing:
-            final_reason = "mandatory_fields_missing"
-            return
-
-        if not doc.get("contract_id"):
-            rec = await service.get_contract_recommendation(db, run_id)
-            if rec.get("status") == "no_match":
-                final_reason = "no_contract_available"
-                return
-            # rec.status == "applied" — a confident AI pick was just made and
-            # match_invoice() already ran inside get_contract_recommendation.
-            # Deliberately NOT held here: an uncertain AI pick already
-            # returned above; a confident one proceeds straight to the same
-            # issue-check every match goes through, exactly like a human's
-            # own contract selection would.
-            await asyncio.sleep(0.5)
-
-        doc = await service.get_invoice_doc(db, run_id)
-        try:
-            await service.review_action(db, run_id, action="approve", force=False, reason=None)
-        except service.NeedsConfirmationError:
-            final_reason = "open_issues_pending_review"
-            return
-
-        await asyncio.sleep(0.5)  # demo "processing latency" before the ERP post
-        await service.post_bill(db, run_id)
 
         final_state = "done"
         final_reason = None
 
     except Exception:
-        logger.exception("DirectPay STP: cascade failed for run_id=%s", run_id)
+        logger.exception("DirectPay STP: extraction failed for run_id=%s", run_id)
     finally:
         _ACTIVE_DP_STP_RUNS.discard(key)
         try:

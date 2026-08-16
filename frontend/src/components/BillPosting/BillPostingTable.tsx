@@ -96,6 +96,12 @@ interface BillPostingTableProps {
   currency: string;
   /** Country-specific VAT code options from the backend. Falls back to VAT_OPTIONS_FALLBACK. */
   vatOptions?: VatCodeOption[];
+  /**
+   * Grouped WHT code options. Falls back to WHT_OPTIONS (Philippine BIR EWT
+   * codes) — pass a caller-specific list to override, e.g. DirectPay's own
+   * Indonesian PPh code set, which has no analog in the Philippine list.
+   */
+  whtOptions?: { label: string; options: { value: string; label: string }[] }[];
   onVatChange: (itemId: string, vatCode: string) => void;
   onWhtChange: (itemId: string, whtCode: string) => void;
   onRequestEditMode?: () => void;
@@ -126,10 +132,12 @@ export function BillPostingTable({
   allowedErpFields,
   currency,
   vatOptions,
+  whtOptions,
   onVatChange,
   onWhtChange,
 }: BillPostingTableProps) {
   const activeVatOptions = vatOptions && vatOptions.length > 0 ? vatOptions : VAT_OPTIONS_FALLBACK;
+  const activeWhtOptions = whtOptions && whtOptions.length > 0 ? whtOptions : WHT_OPTIONS;
   const symbol = getCurrencySymbol(currency);
 
   // Column visibility: workflow settings mask=false → hide column.
@@ -233,7 +241,7 @@ export function BillPostingTable({
               suffixIcon={caretIcon}
               popupMatchSelectWidth={false}
               placeholder="— select tax type / code —"
-              options={WHT_OPTIONS}
+              options={activeWhtOptions}
               style={{ minWidth: 180 }}
               allowClear={isEditMode}
               showSearch={isEditMode}
@@ -246,7 +254,7 @@ export function BillPostingTable({
     }
 
     return base;
-  }, [symbol, lineEdits, isEditMode, showVatColumn, showWhtColumn, activeVatOptions, onVatChange, onWhtChange]);
+  }, [symbol, lineEdits, isEditMode, showVatColumn, showWhtColumn, activeVatOptions, activeWhtOptions, onVatChange, onWhtChange]);
 
   if (rows.length === 0) {
     return (

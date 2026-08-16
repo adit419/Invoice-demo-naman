@@ -23,7 +23,14 @@ export function formatDate(
 ): string {
   if (!s) return fallback;
   try {
-    return new Date(s).toLocaleDateString("en-GB", EN_GB_DATE);
+    const d = new Date(s);
+    // `new Date(...)` doesn't throw on an unparseable string (e.g. "10
+    // Agustus 2026") — it silently produces an Invalid Date object, and
+    // toLocaleDateString() on that returns the literal string "Invalid
+    // Date" rather than throwing. Check explicitly so the fallback below
+    // (show the original string) actually runs for these.
+    if (Number.isNaN(d.getTime())) return s;
+    return d.toLocaleDateString("en-GB", EN_GB_DATE);
   } catch {
     return s;
   }
@@ -38,7 +45,9 @@ export function formatDateTime(
 ): string {
   if (!s) return fallback;
   try {
-    return new Date(s).toLocaleString("en-GB", {
+    const d = new Date(s);
+    if (Number.isNaN(d.getTime())) return s;
+    return d.toLocaleString("en-GB", {
       ...EN_GB_DATE,
       hour: "2-digit",
       minute: "2-digit",

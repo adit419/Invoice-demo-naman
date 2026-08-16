@@ -1,46 +1,57 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/router";
-import dynamic from "next/dynamic";
 import {
   CalendarOutlined,
   CheckCircleOutlined,
+  FileProtectOutlined,
   FileTextOutlined,
   InfoCircleOutlined,
   PaperClipOutlined,
   TagOutlined,
   UserOutlined,
 } from "@ant-design/icons";
-import { Alert, Button as AntButton, Modal, Space } from "antd";
+import { Alert, Button as AntButton, Space } from "antd";
 import { withAuthGuard } from "@/components/AuthGuard";
 import { ComponentHeaderAntd } from "@/components/matching";
-import { SourceViewerToolbar, ZOOM_MIN, ZOOM_MAX, ZOOM_STEP } from "@/components/SourceViewerToolbar";
 import { Loader, useToast } from "@/components/ui";
 import { RejectModal } from "@/components/RejectModal";
 import { DpBillPostingMetadataGrid } from "@/components/directpay/DpBillPostingMetadataGrid";
+import { DocumentPreviewModal } from "@/components/directpay/DocumentPreviewModal";
+import { ContractExtractionModal } from "@/components/directpay/ContractExtractionModal";
 import { ApiError } from "@/services/api";
 import { directpayService, DpBillPostingData, DpBillPostingLineItem } from "@/services/directpay";
-import { BillPostingTable, VAT_OPTIONS_FALLBACK } from "@/components/BillPosting";
-import type { BillLineItem, LineItemEdit } from "@/components/BillPosting";
-
-const PdfViewer = dynamic(() => import("@/components/PdfViewer").then((m) => m.PdfViewer), {
-  ssr: false,
-  loading: () => (
-    <div className="flex h-full items-center justify-center text-gray-400">
-      <Loader size="large" />
-    </div>
-  ),
-});
+import { BillPostingTable } from "@/components/BillPosting";
+import type { BillLineItem, LineItemEdit, VatCodeOption } from "@/components/BillPosting";
 
 // Same page/layout as Invoice Processing's own bill-posting.tsx — unified
 // card with Metadata grid stacked above the Line Items table (BillPostingTable
 // is reused as-is, it's pure presentation with no P2P-specific API calls),
 // success banner, posting spinner overlay, WHT-subject alert. The Metadata
-// grid's field set (PO Number, Doc Header, Ref Keys...) is replicated
-// verbatim with mock/synthesized values — DirectPay's real bill-posting
-// response shape hasn't been shared yet, so field names/sources here are
-// placeholders to be corrected once it is. The ERP-posting side effect
-// itself stays mocked — no real Zoho/QBD call, so there's no "View in ERP"
-// deep link, just the posted bill number.
+// grid's field SET deliberately diverges from P2P's own (PO Number, Doc
+// Header, Ref Keys...) — that's SAP-posting metadata with no DirectPay
+// equivalent (no PO, no SAP integration behind this) — showing the invoice's
+// own real data instead (see DpBillPostingMetadataGrid). The ERP-posting
+// side effect itself stays mocked — no real Zoho/QBD call, so there's no
+// "View in ERP" deep link, just the posted bill number.
+
+// P2P's own WHT_OPTIONS (BillPostingTable's default) are Philippine BIR
+// Expanded Withholding Tax codes — no analog for Indonesian PPh withholding,
+// so a lease invoice like PT_BANGUN's would get mislabeled (e.g. "rental of
+// MOVABLE property" for a building lease, even though the 10% rate happens
+// to match). This is DirectPay's own override, passed to BillPostingTable's
+// whtOptions prop — P2P's own page is untouched, still gets its default.
+const DP_WHT_OPTIONS = [
+  {
+    label: "PPH 4(2) — FINAL TAX ON LAND/BUILDING RENTAL",
+    options: [
+      { value: "PPH4(2)-SEWA", label: "PPH4(2)-SEWA · SEWA TANAH DAN/ATAU BANGUNAN 10%" },
+    ],
+  },
+  {
+    label: "NO WITHHOLDING",
+    options: [{ value: "00", label: "00 · NO WITHHOLDING" }],
+  },
+];
 
 function toBillLineItem(item: DpBillPostingLineItem): BillLineItem {
   return {
@@ -64,22 +75,34 @@ function InvoiceBillPostingPage() {
   const [loading, setLoading] = useState(true);
   const [posting, setPosting] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
-  const [pdfOpen, setPdfOpen] = useState(false);
-  const [pdfPage, setPdfPage] = useState(1);
-  const [numPages, setNumPages] = useState(1);
+  const [invoicePdfOpen, setInvoicePdfOpen] = useState(false);
+  const [contractPdfOpen, setContractPdfOpen] = useState(false);
+  const [contractExtractionOpen, setContractExtractionOpen] = useState(false);
   const [pdfToken, setPdfToken] = useState<string | null>(null);
-  const [pdfScale, setPdfScale] = useState(0.8);
-  const [pdfRotate, setPdfRotate] = useState(0);
-
-  // Metadata edits (Reference, Text, Ref Keys, Doc Header...) — client-side
-  // only for now, same mock-data caveat as DpBillPostingMetadataGrid itself.
-  const [metaEdits, setMetaEdits] = useState<Record<string, string>>({});
+  // Country-specific VAT code options — fetched once per currency after data
+  // loads, same pattern as P2P's own bill-posting.tsx. Falls back to
+  // VAT_OPTIONS_FALLBACK (inside BillPostingTable) if the fetch fails or the
+  // currency has no real code list.
+  const [vatOptions, setVatOptions] = useState<VatCodeOption[]>([]);
 
   const load = useCallback(async () => {
     if (!id) return;
     try {
       const bp = await directpayService.getBillPosting(id);
       setData(bp);
+
+      const currency = bp.currency ?? "";
+      directpayService.getVatCodes(currency)
+        .then(({ codes }) => {
+          setVatOptions(codes.map((c) => {
+            const pct = `${parseFloat(c.percentage)}%`;
+            const desc = c.description.trimEnd();
+            const label = desc.endsWith(pct) ? `${c.tax_code}: ${desc}` : `${c.tax_code}: ${desc} ${pct}`;
+            return { value: c.tax_code, label };
+          }));
+        })
+        .catch(() => { /* fallback to VAT_OPTIONS_FALLBACK in BillPostingTable */ });
+
       const map = new Map<string, LineItemEdit>();
       for (const li of bp.line_items) {
         map.set(li.id, { vat_tax_code: li.vat_tax_code ?? "", wht_tax_code: li.wht_tax_code ?? "" });
@@ -143,10 +166,6 @@ function InvoiceBillPostingPage() {
     }
   };
 
-  const handleMetaEdit = (key: string, value: string) => {
-    setMetaEdits((prev) => ({ ...prev, [key]: value }));
-  };
-
   // Persist current line-item VAT/WHT edits to the backend before running
   // simulate, so the server computes against the user's latest inputs —
   // same ordering as P2P's own persistEditsForSimulate.
@@ -163,7 +182,7 @@ function InvoiceBillPostingPage() {
   const handleReject = async (reason: string) => {
     if (!id) return;
     try {
-      await directpayService.reviewAction(id, "reject", false, reason);
+      await directpayService.reviewAction(id, "reject", reason);
       setRejectOpen(false);
       router.push("/directpay/dashboard");
     } catch (err) {
@@ -186,10 +205,22 @@ function InvoiceBillPostingPage() {
   const metaItems = [
     { icon: <TagOutlined />, text: "Manual Upload" },
     data.invoice_number
-      ? { icon: <FileTextOutlined />, text: data.invoice_number, onClick: () => { setPdfPage(1); setPdfOpen(true); } }
+      ? { icon: <FileTextOutlined />, text: data.invoice_number, onClick: () => setInvoicePdfOpen(true) }
       : null,
-    data.vendor_name ? { icon: <UserOutlined />, text: data.vendor_name } : null,
+    data.vendor_name
+      ? {
+          icon: <UserOutlined />,
+          text: data.vendor_name,
+          onClick: data.contract_id ? () => setContractPdfOpen(true) : undefined,
+        }
+      : null,
     data.invoice_date ? { icon: <CalendarOutlined />, text: data.invoice_date } : null,
+    // Distinct from the vendor-name link above (which opens a read-only PDF
+    // preview) — this opens the actual Contract Extraction table for the
+    // matched contract, same as the Matching page's own "Contract" link.
+    data.contract_id
+      ? { icon: <FileProtectOutlined />, text: "Contract", onClick: () => setContractExtractionOpen(true) }
+      : null,
   ].filter(Boolean) as { icon: React.ReactNode; text: string; onClick?: () => void }[];
 
   const actionButtons = isCompleted ? (
@@ -283,9 +314,6 @@ function InvoiceBillPostingPage() {
           <div className="rounded-lg border border-gray-200 overflow-hidden">
             <DpBillPostingMetadataGrid
               data={data}
-              isEditMode={!isCompleted}
-              edits={metaEdits}
-              onEdit={handleMetaEdit}
               invoiceId={id ?? ""}
               persistEdits={persistLineEdits}
             />
@@ -300,7 +328,8 @@ function InvoiceBillPostingPage() {
                 isEditMode={!isCompleted}
                 isVendorSubjectToWht={isVendorSubjectToWht}
                 currency={data.currency ?? ""}
-                vatOptions={VAT_OPTIONS_FALLBACK}
+                vatOptions={vatOptions}
+                whtOptions={DP_WHT_OPTIONS}
                 onVatChange={handleVatChange}
                 onWhtChange={handleWhtChange}
               />
@@ -311,45 +340,29 @@ function InvoiceBillPostingPage() {
 
       <RejectModal open={rejectOpen} onClose={() => setRejectOpen(false)} onConfirm={handleReject} stage="bill_posting" />
 
-      <Modal
-        open={pdfOpen}
-        onCancel={() => setPdfOpen(false)}
-        title={data.invoice_number ? `Invoice ${data.invoice_number}` : "Invoice Preview"}
-        width="80vw"
-        style={{ top: 24 }}
-        styles={{ body: { display: "flex", flexDirection: "column", height: "82vh", padding: 0, overflow: "hidden" } }}
-        footer={null}
-        destroyOnHidden
-      >
-        {pdfOpen && id && (
-          <>
-            <div className="flex-1 overflow-auto py-4 px-5" style={{ background: "#f8fafc" }}>
-              <PdfViewer
-                pdfUrl={directpayService.invoicePdfUrl(id)}
-                authToken={pdfToken}
-                page={pdfPage}
-                scale={pdfScale}
-                rotate={pdfRotate}
-                onNumPages={setNumPages}
-                activeBbox={null}
-              />
-            </div>
-            <SourceViewerToolbar
-              scale={pdfScale}
-              onZoomOut={() => setPdfScale((s) => Math.max(ZOOM_MIN, parseFloat((s - ZOOM_STEP).toFixed(1))))}
-              onZoomIn={() => setPdfScale((s) => Math.min(ZOOM_MAX, parseFloat((s + ZOOM_STEP).toFixed(1))))}
-              rotate={pdfRotate}
-              onRotateLeft={() => setPdfRotate((r) => (r - 90 + 360) % 360)}
-              onRotateRight={() => setPdfRotate((r) => (r + 90) % 360)}
-              currentPage={pdfPage}
-              totalPages={numPages}
-              onPrev={() => setPdfPage((p) => Math.max(1, p - 1))}
-              onNext={() => setPdfPage((p) => Math.min(numPages, p + 1))}
-              label={data.invoice_number ?? "Invoice Preview"}
-            />
-          </>
-        )}
-      </Modal>
+      {id && (
+        <DocumentPreviewModal
+          open={invoicePdfOpen}
+          onClose={() => setInvoicePdfOpen(false)}
+          title={data.invoice_number ? `Invoice ${data.invoice_number}` : "Invoice Preview"}
+          pdfUrl={directpayService.invoicePdfUrl(id)}
+          authToken={pdfToken}
+        />
+      )}
+      {data.contract_id && (
+        <DocumentPreviewModal
+          open={contractPdfOpen}
+          onClose={() => setContractPdfOpen(false)}
+          title={data.vendor_name ? `Contract — ${data.vendor_name}` : "Contract Preview"}
+          pdfUrl={directpayService.contractPdfUrl(data.contract_id)}
+          authToken={pdfToken}
+        />
+      )}
+      <ContractExtractionModal
+        open={contractExtractionOpen}
+        onClose={() => setContractExtractionOpen(false)}
+        contractId={data.contract_id ?? null}
+      />
     </div>
   );
 }

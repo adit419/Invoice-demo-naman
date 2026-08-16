@@ -1,0 +1,38 @@
+{
+  "invoice_number": "INV/A37/04/26/00033",
+  "invoice_date": "05 April 2026",
+  "vendor_name": "PT. Palladium Megah Lestari",
+  "vendor_address": "Jalan Diponegoro, No. 1, Kota Batu 65134",
+  "vendor_vat_id": null,
+  "customer_legal_entity": "PT Bumi Berkah Boga",
+  "customer_address": "GEDUNG MENARA SENTRAYA LT.15 UNIT A1 JL ISKANDARSYAH RAYA, MELAWAI, KEBAYORAN BARU, KOTA ADM. JAKARTA SELATAN, DKI JAKARTA, 12160",
+  "customer_vat_id": null,
+  "billing_period_start": null,
+  "billing_period_end": null,
+  "payment_terms": null,
+  "due_date": "01 Mei 2026",
+  "total_amount_before_vat": 4390310.0,
+  "tax_type": null,
+  "tax_rate": null,
+  "vat_gst": 482934.0,
+  "wht_rate": null,
+  "wht": null,
+  "net_amount_after_wht": null,
+  "total_amount": 4873244.0,
+  "currency": "IDR",
+  "vendor_bank_name": "Bank MANDIRI",
+  "vendor_bank_account_name": "PT. Palladium Megah Lestari",
+  "vendor_bank_account_number": "8639708278300041",
+  "vendor_bank_swift": null,
+  "notes": null,
+  "line_items": [
+    {
+      "label": "ELECTRICITY SPECIALTY : Feb 28 2026 TO Mar 29 2026",
+      "item_code": null,
+      "charge_type": "utility_electricity",
+      "quantity": 1,
+      "unit_price": 4390310.0,
+      "amount": 4390310.0
+    }
+  ]
+}

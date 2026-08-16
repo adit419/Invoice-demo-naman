@@ -61,6 +61,58 @@ def bill_posted_html(
 </html>"""
 
 
+def directpay_posted_html(
+    invoice_number: str,
+    vendor_name: str,
+    currency: str,
+    total_amount: str,
+    posted_date: str,
+) -> str:
+    """Same visual pattern as bill_posted_html, minus the Zoho-specific
+    fields/CTA — DirectPay's "Post to ERP" step is entirely mocked, so
+    there's no reference number or external link to show."""
+    return f"""<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 0;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+        <tr><td style="background:#0a0e1a;padding:28px 36px;">
+          <span style="color:#fff;font-size:20px;font-weight:700;letter-spacing:-0.5px;">Neoflo</span>
+          <span style="color:rgba(255,255,255,0.4);font-size:13px;margin-left:10px;">DirectPay</span>
+        </td></tr>
+        <tr><td style="padding:36px;">
+          <h2 style="margin:0 0 8px;font-size:22px;color:#0f172a;">Invoice Posted Successfully</h2>
+          <p style="margin:0 0 24px;color:#64748b;font-size:14px;">
+            Your invoice has been reviewed against its contract and posted to our ERP system.
+          </p>
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0;">
+            <tr style="background:#f1f5f9;">
+              <td style="padding:10px 16px;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;width:45%;">Field</td>
+              <td style="padding:10px 16px;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Value</td>
+            </tr>
+            <tr><td style="padding:12px 16px;font-size:14px;color:#475569;border-top:1px solid #e2e8f0;">Bill Number</td>
+                <td style="padding:12px 16px;font-size:14px;color:#0f172a;font-weight:600;border-top:1px solid #e2e8f0;">{invoice_number}</td></tr>
+            <tr><td style="padding:12px 16px;font-size:14px;color:#475569;border-top:1px solid #e2e8f0;">Vendor</td>
+                <td style="padding:12px 16px;font-size:14px;color:#0f172a;border-top:1px solid #e2e8f0;">{vendor_name}</td></tr>
+            <tr><td style="padding:12px 16px;font-size:14px;color:#475569;border-top:1px solid #e2e8f0;">Amount</td>
+                <td style="padding:12px 16px;font-size:14px;color:#0f172a;border-top:1px solid #e2e8f0;">{currency} {total_amount}</td></tr>
+            <tr><td style="padding:12px 16px;font-size:14px;color:#475569;border-top:1px solid #e2e8f0;">Posted Date</td>
+                <td style="padding:12px 16px;font-size:14px;color:#0f172a;border-top:1px solid #e2e8f0;">{posted_date}</td></tr>
+          </table>
+          <p style="margin:32px 0 0;font-size:12px;color:#94a3b8;">
+            This is an automated notification from Neoflo's DirectPay pipeline.
+            Please do not reply to this email.
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+
 def stp_failure_html(
     invoice_number: str,
     vendor_name: str,

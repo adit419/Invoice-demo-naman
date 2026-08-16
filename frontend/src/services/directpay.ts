@@ -5,28 +5,57 @@
  */
 import { api } from "./api";
 
+// Field set is fixture-defined (see field_meta below) rather than fixed —
+// the handful of keys below are the ones other DirectPay screens (dashboard,
+// invoice match dropdown, the AI recommendation scorer) reference by name;
+// every other key on a given contract is only ever accessed dynamically via
+// field_meta's own key list, hence the index signature.
 export interface DpContractFields {
   contract_type?: string | null;
   vendor_name?: string | null;
+  vendor_email?: string | null;
   customer_name?: string | null;
-  premises_address?: string | null;
-  floor?: string | null;
-  base_fee?: number | null;
   currency?: string | null;
-  fee_type?: string | null;
-  escalation_rate?: number | null;
-  payment_due_days?: number | null;
-  actual_start?: string | null;
-  term_months?: number | null;
-  contract_id?: string | null;
+  [key: string]: string | number | null | undefined;
+}
+
+export interface DpFieldBbox {
+  page: number;
+  // Normalized (0-1) fractions of the rendered PDF page, top-left origin —
+  // same convention as P2P's own bbox_schema / PdfViewer's ActiveBbox.
+  bbox_left: number;
+  bbox_top: number;
+  bbox_width: number;
+  bbox_height: number;
+  value_confidence: number;
+}
+
+export interface DpContractFieldMeta {
+  label: string;
+  section: string | null;
+  mandatory: boolean;
+  // Where the extracted value came from — shown as an audit trail.
+  audit_trail?: string | null;
+  // Why an invoice was (or wasn't) matched against this field's value.
+  ai_match_reasoning?: string | null;
+  // Where on the contract PDF this value was found — drives the
+  // click-a-field-to-highlight-it-on-the-PDF interaction.
+  bbox?: DpFieldBbox | null;
 }
 
 export interface DpContractRun {
   id: string;
   fixture_key: string;
   file_name: string;
-  status: "review" | "saved";
+  status: "review" | "postprocessing" | "saved";
   fields: DpContractFields;
+  // Keyed identically to `fields`; order reflects the fixture's own
+  // extraction-sheet order, which the review screen renders as-is.
+  field_meta: Record<string, DpContractFieldMeta>;
+  // Whether this vendor has a real payment_schedule.json — drives whether
+  // approving Contract Review lands on Extraction Postprocessing or goes
+  // straight to "saved" (see dashboard.tsx's contractRoute).
+  has_payment_schedule: boolean;
   pdf_url: string;
   created_at: string;
   updated_at: string;
@@ -34,28 +63,62 @@ export interface DpContractRun {
 
 export interface DpLineItem {
   label?: string;
+  // P2P/spreadsheet's own "item_code" field (e.g. "SEWA") — kept alongside
+  // charge_type (DP's own categorical tag for GL coding) rather than
+  // replacing it, since charge_type drives bill-posting logic this raw code
+  // doesn't participate in.
+  item_code?: string | null;
   charge_type?: string;
   quantity?: number;
   amount?: number;
+  unit_price?: number;
 }
 
+// Field names match P2P's own real invoice extraction vocabulary exactly
+// (see backend/src/directpay/field_mapping.py and the "all_inv_ext_res.pdf"
+// extraction-data source, whose own column headers are this same
+// vocabulary) — invoice_number/invoice_date/vendor_name/currency are shared
+// verbatim with P2P; customer_legal_entity/vendor_vat_id/customer_vat_id/
+// vendor_address/customer_address/payment_terms/due_date/
+// total_amount_before_vat/vat_gst/wht/total_amount/vendor_bank_name/
+// vendor_bank_account_name/vendor_bank_account_number/vendor_bank_swift are
+// P2P's own field names, renamed from this schema's earlier DP-specific
+// choices (customer_name, vendor_npwp, customer_npwp, store_location,
+// payment_due_days, payment_due_date, subtotal, tax_total, wht_total,
+// grand_total, bank_account_name, bank_account_number). billing_period_start/
+// billing_period_end/tax_type/tax_rate/wht_rate/notes have no P2P
+// counterpart — DP-only additions for the Matching page's contract-date-range
+// and derived-rate checks (see field_mapping.py's CORE_CROSS_VALIDATION_FIELDS).
+// faktur_pajak_number/dpp_amount moved OUT of this schema entirely and into
+// the dedicated Faktur Pajak stage (see DpFakturPajak below) — mirrors P2P
+// exactly, which has no FP fields on its own invoice extraction either.
 export interface DpInvoiceExtracted {
   invoice_number?: string | null;
   invoice_date?: string | null;
   vendor_name?: string | null;
-  customer_name?: string | null;
-  vendor_gstin?: string | null;
-  customer_gstin?: string | null;
+  vendor_address?: string | null;
+  vendor_vat_id?: string | null;
+  customer_legal_entity?: string | null;
+  customer_address?: string | null;
+  customer_vat_id?: string | null;
   billing_period_start?: string | null;
   billing_period_end?: string | null;
-  payment_due_days?: number | null;
-  payment_due_date?: string | null;
-  subtotal?: number | null;
-  gst_total?: number | null;
-  tds_total?: number | null;
-  grand_total?: number | null;
-  gst_rate?: number | null;
+  payment_terms?: string | null;
+  due_date?: string | null;
+  total_amount_before_vat?: number | null;
+  tax_type?: string | null;
+  tax_rate?: number | null;
+  vat_gst?: number | null;
+  wht_rate?: number | null;
+  wht?: number | null;
+  total_amount?: number | null;
+  net_amount_after_wht?: number | null;
   currency?: string | null;
+  vendor_bank_name?: string | null;
+  vendor_bank_account_name?: string | null;
+  vendor_bank_account_number?: string | null;
+  vendor_bank_swift?: string | null;
+  notes?: string | null;
   line_items?: DpLineItem[];
 }
 
@@ -73,6 +136,12 @@ export interface DpFinding {
   // single copyable invoice field.
   field?: string;
   expected_value?: string | number | boolean | null;
+  // Whether this field is on the Matching page's fixed, always-shown
+  // checklist (field_mapping.CORE_CROSS_VALIDATION_FIELDS) — drives display.
+  core?: boolean;
+  // Whether this finding can block approval — a subset of `core` (e.g. Bank
+  // Details is core but not mandatory). Drives the banner/button gating.
+  mandatory?: boolean;
   [key: string]: unknown;
 }
 
@@ -87,7 +156,7 @@ export interface DpInvoiceRun {
   id: string;
   fixture_key: string;
   file_name: string;
-  status: "extraction" | "extracted" | "matching" | "bill_posting" | "posted" | "rejected";
+  status: "extraction" | "extracted" | "postprocessing" | "fp_extraction" | "matching" | "bill_posting" | "posted" | "rejected";
   contract_id: string | null;
   extracted: DpInvoiceExtracted;
   expected?: Record<string, unknown> | null;
@@ -101,6 +170,22 @@ export interface DpInvoiceRun {
   // "Auto-approved" badge, distinct from a human's own green-check ack.
   system_acknowledged_findings: string[];
   has_edit_history: boolean;
+  // One-way flag: has a human clicked Confirm Extraction at least once?
+  // Drives the Extraction page's own isActionable — status alone can't tell
+  // (it reuses "extracted" for both "just extracted, not yet confirmed" and
+  // "post-Postprocessing, ready for Matching"), and contract_id isn't set
+  // until several stages later, at Matching.
+  extraction_confirmed: boolean;
+  // Whether this specific invoice actually has a Faktur Pajak document /
+  // payment-schedule-derived postprocessing stage — a vendor like
+  // RATNA_INTAN has no FP at all, so "back" navigation from later stages
+  // must check these rather than assuming every stage applied.
+  has_faktur_pajak: boolean;
+  has_payment_schedule: boolean;
+  // Notification/tag metadata — only ever set when the run was created via
+  // /ingestion/trigger-upload with those fields; not surfaced in the UI yet.
+  tag?: string | null;
+  notify_email?: string | null;
   stp_state?: "processing" | "waiting_review" | "done" | null;
   stp_failure_reason?: string | null;
   review: DpReview;
@@ -158,18 +243,107 @@ export interface DpBillPostingErp {
 export interface DpBillPostingData {
   id: string;
   status: "bill_posting" | "posted";
+  contract_id?: string | null;
   vendor_name?: string | null;
   invoice_number?: string | null;
   invoice_date?: string | null;
+  // When this invoice run was uploaded — "received" into DirectPay.
+  invoice_received_date?: string | null;
+  payment_due_date?: string | null;
+  bank_account_name?: string | null;
+  bank_account_number?: string | null;
   currency?: string | null;
   subtotal?: number | null;
   tax_amount?: number | null;
   wht_amount?: number | null;
   grand_total?: number | null;
+  // Actual cash owed to the vendor — net_amount_after_wht when WHT applies,
+  // else the same as grand_total.
+  payable_amount?: number | null;
   wht_applicable: boolean;
   line_items: DpBillPostingLineItem[];
   erp: DpBillPostingErp | null;
   updated_at: string;
+}
+
+// Extraction Postprocessing stage — DirectPay's own addition (no P2P analog).
+// Sits between Extraction and Faktur Pajak: derives invoice fields the
+// document itself never prints (due_date, wht_rate, wht,
+// net_amount_after_wht) from the underlying lease's own payment schedule
+// (see backend/src/directpay/service.py's _DERIVED_FIELD_DISPLAY).
+export interface DpDerivedField {
+  field_name: "due_date" | "wht_rate" | "wht" | "net_amount_after_wht";
+  display_name: string;
+  derived_value: string | number | null;
+  formatted_value: string;
+  already_applied: boolean;
+}
+
+export interface DpExtractionPostprocessing {
+  id: string;
+  status: DpInvoiceRun["status"];
+  invoice_number?: string | null;
+  invoice_date?: string | null;
+  vendor_name?: string | null;
+  currency?: string | null;
+  has_payment_schedule: boolean;
+  matched_installment?: string | null;
+  fields: DpDerivedField[];
+}
+
+// Contract-side counterpart — reviewed once per contract (not tied to any
+// one invoice yet, so every installment is shown, not just a matched one).
+// See backend/src/directpay/service.py's _CONTRACT_DERIVED_COLUMNS — the
+// same Total Amount Before VAT / Tax Amount / WHT / Net Amount After WHT
+// figures Matching later pulls per-invoice from whichever installment its
+// amount matches.
+export interface DpContractDerivedField {
+  field_name: string;
+  display_name: string;
+  value: string | number | null;
+  formatted_value: string;
+}
+
+export interface DpContractInstallment {
+  description?: string | null;
+  fields: DpContractDerivedField[];
+}
+
+export interface DpContractExtractionPostprocessing {
+  id: string;
+  status: DpContractRun["status"];
+  vendor_name?: string | null;
+  has_payment_schedule: boolean;
+  installments: DpContractInstallment[];
+}
+
+// Faktur Pajak stage — mirrors P2P's own fp-extraction.tsx/fp_extraction.py
+// field-for-field (see backend/src/directpay/service.py's
+// _FP_FIELD_DISPLAY/_FP_INVOICE_FIELD_MAP). No bbox coordinates — unlike
+// P2P's real OCR-extracted fixture, DP's FP fixtures have no PDF-position
+// data, so the FP page shows the invoice PDF without a click-to-highlight
+// overlay.
+export interface DpFakturPajakField {
+  field_name: "vendor_name" | "customer_name" | "taxable_amount" | "vat_amount";
+  display_name: string;
+  fp_value: string | number | null;
+  invoice_value: string | number | null;
+  match_status: "match" | "mismatch";
+  required: boolean;
+  acknowledged: boolean;
+}
+
+export interface DpFakturPajak {
+  id: string;
+  status: DpInvoiceRun["status"];
+  invoice_number?: string | null;
+  invoice_date?: string | null;
+  vendor_name?: string | null;
+  currency?: string | null;
+  fp_number?: string | null;
+  has_fp_document: boolean;
+  fields: DpFakturPajakField[];
+  acknowledged_fields: string[];
 }
 
 export interface DpEditHistoryItem {
@@ -182,11 +356,23 @@ export interface DpEditHistoryItem {
   new_value: string | null;
 }
 
+// Next.js dev's proxy for the /dp-api/* rewrite caps request bodies at
+// ~10MB (see next.config.ts's rewrites() comment) — kept a couple MB under
+// that as margin for multipart overhead.
+const LARGE_FILE_THRESHOLD_BYTES = 8 * 1024 * 1024;
+
 export const directpayService = {
   fixtures: () => api.get<{ scenarios: DpFixtureChip[] }>("/dp-api/fixtures"),
 
   // Contracts
+  // Real fixture PDFs can exceed Next.js dev's proxy body cap (~10MB) — a
+  // large file's bytes are never actually used anyway (fixture resolution
+  // and the PDF preview both work off the file name alone), so above the
+  // threshold this sends just the name instead of the real upload.
   uploadContract: (file: File) => {
+    if (file.size > LARGE_FILE_THRESHOLD_BYTES) {
+      return api.post<DpContractRun>("/dp-api/contracts/trigger-upload", { file_name: file.name });
+    }
     const fd = new FormData();
     fd.append("file", file);
     return api.postForm<DpContractRun>("/dp-api/contracts/upload", fd);
@@ -197,9 +383,16 @@ export const directpayService = {
     api.patch<DpContractRun>(`/dp-api/contracts/${id}/edit`, { fields }),
   approveContract: (id: string, fields?: Partial<DpContractFields>) =>
     api.post<DpContractRun>(`/dp-api/contracts/${id}/approve`, { fields }),
+  getContractExtractionPostprocessing: (id: string) =>
+    api.get<DpContractExtractionPostprocessing>(`/dp-api/contracts/${id}/extraction-postprocessing`),
+  approveContractExtractionPostprocessing: (id: string) =>
+    api.post<DpContractRun>(`/dp-api/contracts/${id}/extraction-postprocessing/approve`),
 
   // Invoices
   uploadInvoice: (file: File) => {
+    if (file.size > LARGE_FILE_THRESHOLD_BYTES) {
+      return api.post<DpInvoiceRun>("/dp-api/ingestion/trigger-upload", { file_name: file.name });
+    }
     const fd = new FormData();
     fd.append("file", file);
     return api.postForm<DpInvoiceRun>("/dp-api/invoices/upload", fd);
@@ -218,6 +411,22 @@ export const directpayService = {
   getEditHistory: (id: string) =>
     api.get<{ items: DpEditHistoryItem[] }>(`/dp-api/invoices/${id}/edit-history`),
 
+  // Extraction Postprocessing
+  getExtractionPostprocessing: (id: string) =>
+    api.get<DpExtractionPostprocessing>(`/dp-api/invoices/${id}/extraction-postprocessing`),
+  approveExtractionPostprocessing: (id: string) =>
+    api.post<DpInvoiceRun>(`/dp-api/invoices/${id}/extraction-postprocessing/approve`),
+
+  // Faktur Pajak
+  getFakturPajak: (id: string) => api.get<DpFakturPajak>(`/dp-api/invoices/${id}/faktur-pajak`),
+  acknowledgeFakturPajakField: (id: string, fieldName: string, acknowledged = true) =>
+    api.post<{ ok: boolean; acknowledged_fields: string[] }>(`/dp-api/invoices/${id}/faktur-pajak/acknowledge`, {
+      field_name: fieldName,
+      acknowledged,
+    }),
+  approveFakturPajak: (id: string, force = false) =>
+    api.post<DpInvoiceRun>(`/dp-api/invoices/${id}/faktur-pajak/approve`, { force }),
+
   acknowledgeFinding: (invoiceId: string, findingId: string, acknowledged = true) =>
     api.post<{ ok: boolean; acknowledged_findings: string[] }>("/dp-api/validate/acknowledge", {
       invoice_id: invoiceId,
@@ -225,11 +434,12 @@ export const directpayService = {
       acknowledged,
     }),
 
-  reviewAction: (invoiceId: string, action: "approve" | "reject", force = false, reason?: string) =>
+  // Matching's mandatory field checks are a hard rule — no force/bypass
+  // parameter exists here (unlike Faktur Pajak's own force-retry approve).
+  reviewAction: (invoiceId: string, action: "approve" | "reject", reason?: string) =>
     api.post<{ ok: boolean; review: DpReview }>("/dp-api/validate/review-action", {
       invoice_id: invoiceId,
       action,
-      force,
       reason,
     }),
 
@@ -239,6 +449,14 @@ export const directpayService = {
     api.patch<DpBillPostingData>(`/dp-api/invoices/${id}/bill-posting`, { line_items: lineItems }),
   postBill: (id: string) => api.post<DpBillPostingData>(`/dp-api/invoices/${id}/bill-posting/post`),
   simulateBillPosting: <T>(id: string) => api.post<T>(`/dp-api/invoices/${id}/bill-posting/simulate`),
+  // Reuses P2P's own real, currency-driven SAP VAT code reference endpoint
+  // as-is (backend/src/api/v1/bill_posting.py's /vat-codes) — it's public
+  // reference data (country codes from scripts/vat_codes.json), not
+  // P2P-pipeline-specific, so there's no need for a DirectPay-scoped copy.
+  getVatCodes: (currency: string) =>
+    api.get<{ country: string; codes: Array<{ tax_code: string; description: string; percentage: string }> }>(
+      `/api/v1/vat-codes?currency=${encodeURIComponent(currency)}`,
+    ),
 
   contractPdfUrl: (id: string) => `/dp-api/contracts/${id}/pdf`,
   invoicePdfUrl: (id: string) => `/dp-api/invoices/${id}/pdf`,

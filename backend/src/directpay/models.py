@@ -12,6 +12,17 @@ class DpFixturesResponse(BaseModel):
     scenarios: list[DpFixtureChip]
 
 
+class DpContractTriggerUploadRequest(BaseModel):
+    """Mirrors DpTriggerUploadRequest on the invoice side: same result as
+    POST /contracts/upload, but the contract is referenced by a
+    fixture-resolvable file name instead of actual bytes. Used by the FE
+    when the real file is large enough that sending its bytes through the
+    dev proxy isn't worth it — DirectPay's fixture resolution and the PDF
+    preview (read back from the fixture's own on-disk file, never from
+    whatever the browser sent) work off the file name alone regardless."""
+    file_name: str
+
+
 class DpContractEditRequest(BaseModel):
     fields: dict[str, Any]
 
@@ -41,8 +52,16 @@ class DpAcknowledgeRequest(BaseModel):
 class DpReviewActionRequest(BaseModel):
     invoice_id: str
     action: str  # approve | reject
-    force: bool = False
     reason: Optional[str] = None
+
+
+class DpFpAcknowledgeRequest(BaseModel):
+    field_name: str
+    acknowledged: bool = True
+
+
+class DpFpApproveRequest(BaseModel):
+    force: bool = False
 
 
 class DpBillPostingEditRequest(BaseModel):
@@ -51,6 +70,15 @@ class DpBillPostingEditRequest(BaseModel):
 
 class DpStpRequest(BaseModel):
     enabled: bool
+
+
+class DpTriggerUploadRequest(BaseModel):
+    """Mirrors P2P's own /ingestion/trigger-upload request shape exactly:
+    same result as /invoices/upload, but the invoice is referenced by
+    fixture-resolvable file name instead of an actual uploaded file."""
+    file_name: str
+    email: Optional[str] = None
+    tag: Optional[str] = None
 
 
 class DpAckThresholdRequest(BaseModel):
