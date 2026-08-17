@@ -73,10 +73,18 @@ class DpStpRequest(BaseModel):
 
 
 class DpTriggerUploadRequest(BaseModel):
-    """Mirrors P2P's own /ingestion/trigger-upload request shape exactly:
-    same result as /invoices/upload, but the invoice is referenced by
-    fixture-resolvable file name instead of an actual uploaded file."""
-    file_name: str
+    """Mirrors P2P's own /ingestion/trigger-upload request shape for a single
+    file (file_name) — same result as /invoices/upload, but the invoice is
+    referenced by fixture-resolvable file name instead of an actual uploaded
+    file. Extended, DP-only (P2P's own invoice/PO/GRN model has no equivalent
+    need), with an optional file_names batch: a vendor's real documents come
+    as a separate invoice + Faktur Pajak pair, a single file with the FP
+    already embedded, or a mixed batch covering several documents at once —
+    file_names lets a caller submit all of them in one request instead of one
+    call per file. Exactly one of file_name / file_names should be given; if
+    both are, file_names takes precedence."""
+    file_name: Optional[str] = None
+    file_names: Optional[list[str]] = None
     email: Optional[str] = None
     tag: Optional[str] = None
 

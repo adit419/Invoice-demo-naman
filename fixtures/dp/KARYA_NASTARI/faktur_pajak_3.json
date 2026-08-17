@@ -1,0 +1,8 @@
+{
+  "fp_number": "04002600279925528 (Admin Fee) / 08002600279925080 (Water) / 08002600279925110 (Electricity)",
+  "vendor_name": "KARYA NASTARI PRAPTA",
+  "customer_name": "BUMI BERKAH BOGA",
+  "taxable_amount": 5038510.0,
+  "vat_amount": 554236.0,
+  "notes": "This invoice bundles 3 separate real Faktur Pajak, each embedded in the same PDF as invoice_3 (not a separate FP document) — one per line item: Admin Fee (fp 04002600279925528, taxable 20,000.00, vat 2,200.00), Water (fp 08002600279925080, taxable 277,390.00, vat 30,513.00), Electricity (fp 08002600279925110, taxable 4,741,120.00, vat 521,523.00). Aggregated here (sum of the 3) since this fixture format supports one FP record per document. The aggregated taxable_amount (5,038,510.00) matches invoice_3's own total_amount_before_vat exactly; the aggregated vat_amount (554,236.00) is real but does NOT match invoice_3's own stated vat_gst (2,200.00) — the invoice itself only reflects the Admin Fee's VAT, while the Water and Electricity FPs show real VAT was actually charged despite not appearing in the invoice's own total. Preserved as a genuine discrepancy, not reconciled."
+}

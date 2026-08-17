@@ -1,0 +1,63 @@
+{
+  "invoice_number": "BIL/2026/9OQC/00001348",
+  "invoice_date": "2026-02-01",
+  "vendor_name": "PT. KARYA NASTARI PRAPTA",
+  "vendor_address": "Mal Ambasador Lt. 5, Jl. Prof. Dr. Satrio No. 14, Karet Kuningan Setia Budi - Jakarta Selatan",
+  "vendor_vat_id": null,
+  "customer_legal_entity": "PT. Bumi Berkah Boga",
+  "customer_address": "Plaza Blok M, Lantai 7, Jalan Bulungan No. 76 RT 006 RW 006, Kramat Pela, Kebayoran Baru, Kota Adm Jakarta Selatan, DKI Jakarta",
+  "customer_vat_id": null,
+  "description": "Penyewaan Sitting Area di Mall Ambassador CAFESTAREA/LT.D/04 - Down Payment (Sewa)",
+  "billing_period_start": null,
+  "billing_period_end": null,
+  "payment_terms": null,
+  "due_date": "2026-02-20",
+  "total_amount_before_vat": 341867205.0,
+  "tax_type": null,
+  "tax_rate": null,
+  "vat_gst": 37605393.0,
+  "wht_rate": null,
+  "wht": null,
+  "net_amount_after_wht": null,
+  "total_amount": 379482598.0,
+  "currency": "IDR",
+  "vendor_bank_name": "BCA / Mandiri (Virtual Account)",
+  "vendor_bank_account_name": null,
+  "vendor_bank_account_number": "206743304059 (BCA) / 89787 0343304059 (Mandiri)",
+  "vendor_bank_swift": null,
+  "notes": null,
+  "line_items": [
+    {
+      "label": "CAFESTAREA/LT.D/04; Sewa; DP",
+      "item_code": null,
+      "charge_type": "rental_fee",
+      "quantity": 1,
+      "unit_price": 139627100.0,
+      "amount": 139627100.0
+    },
+    {
+      "label": "Sewa; DP (second area)",
+      "item_code": null,
+      "charge_type": "rental_fee",
+      "quantity": 1,
+      "unit_price": 115187605.0,
+      "amount": 115187605.0
+    },
+    {
+      "label": "CAFESTAREA/LT.D/07; Sewa; DP",
+      "item_code": null,
+      "charge_type": "rental_fee",
+      "quantity": 1,
+      "unit_price": 87052500.0,
+      "amount": 87052500.0
+    },
+    {
+      "label": "StampDuty",
+      "item_code": null,
+      "charge_type": "stamp_duty",
+      "quantity": 1,
+      "unit_price": 10000.0,
+      "amount": 10000.0
+    }
+  ]
+}

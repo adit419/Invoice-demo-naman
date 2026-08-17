@@ -187,6 +187,10 @@ export interface DpInvoiceRun {
   // must check these rather than assuming every stage applied.
   has_faktur_pajak: boolean;
   has_payment_schedule: boolean;
+  // "manual" (real multipart /invoices/upload) vs "trigger"
+  // (/ingestion/trigger-upload, single or batch) — drives the dashboard's
+  // source icon, same distinction/naming as P2P's own pipeline_runs.source.
+  source?: "manual" | "trigger";
   // Notification/tag metadata — only ever set when the run was created via
   // /ingestion/trigger-upload with those fields; not surfaced in the UI yet.
   tag?: string | null;

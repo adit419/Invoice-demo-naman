@@ -1,0 +1,39 @@
+{
+  "invoice_number": "PSA/SP/26-06/00874",
+  "invoice_date": "25 June 2026",
+  "vendor_name": "PT. Pakuwon Sentosa Abadi",
+  "vendor_address": "Plaza Blok M Lantai 7, JL. Bulungan no. 7B, Jakarta 12130, Indonesia",
+  "vendor_vat_id": null,
+  "customer_legal_entity": "BUMI BERKAH BOGA, PT",
+  "customer_address": "PLAZA BLOK M, LANTAI 7, JALAN BULUNGAN NO. 76 RT. 006 RW. 006, KRAMAT PELA, KEBAYORAN BARU, KOTA ADM. JAKARTA SELATAN",
+  "customer_vat_id": null,
+  "description": "IURAN PELAYANAN AIR MEI 26 — AIR/LISTRIK/GAS, Unit PSA-000-06-000-025 (Kopi Kenangan)",
+  "billing_period_start": null,
+  "billing_period_end": null,
+  "payment_terms": null,
+  "due_date": "14 July 2026",
+  "total_amount_before_vat": 488300.0,
+  "tax_type": null,
+  "tax_rate": null,
+  "vat_gst": 0.0,
+  "wht_rate": null,
+  "wht": null,
+  "net_amount_after_wht": null,
+  "total_amount": 488300.0,
+  "currency": "IDR",
+  "vendor_bank_name": "BCA Cab. Penjernihan",
+  "vendor_bank_account_name": "BUMI BERKAH BOGA, PT",
+  "vendor_bank_account_number": "00801-625000 (Virtual Acc)",
+  "vendor_bank_swift": null,
+  "notes": "Invoice states VAT = 0.00 with annotation \"PPN DIBEBASKAN - PP 49/2022\" (VAT exempted per Government Regulation 49/2022) — kept verbatim. Note this directly contradicts the paired Faktur Pajak (FP5), which shows a real vat_amount of 53,713 — a genuine invoice-vs-FP discrepancy, not reconciled here.",
+  "line_items": [
+    {
+      "label": "Air — IURAN PELAYANAN AIR MEI 26",
+      "item_code": "CA-06-025",
+      "charge_type": "utility_water",
+      "quantity": 1,
+      "unit_price": 488300.0,
+      "amount": 488300.0
+    }
+  ]
+}

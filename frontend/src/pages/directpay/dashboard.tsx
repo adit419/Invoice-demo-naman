@@ -100,6 +100,38 @@ function StageTag({ tag }: { tag: { label: string; tone: keyof typeof ANTD_TAG }
   );
 }
 
+// ── Source icons (mirrors pages/dashboard.tsx's own SourceIcon/getSourceTypes
+// — same inline SVGs, same email-vs-manual distinction, minus "freshdesk"
+// which DP has no equivalent ingestion path for) ─────────────────────────────
+
+type InvoiceSourceType = "email" | "manual";
+
+function SourceIcon({ type }: { type: InvoiceSourceType }) {
+  const color = type === "email" ? "#1876FF" : "#8D92A6";
+  if (type === "email") {
+    return (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+        <rect width="20" height="16" x="2" y="4" rx="2" />
+        <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+      </svg>
+    );
+  }
+  // manual upload
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="17 8 12 3 7 8" />
+      <line x1="12" x2="12" y1="3" y2="15" />
+    </svg>
+  );
+}
+
+// DP's own /ingestion/trigger-upload (single or batch) mimics email
+// ingestion the same way P2P's does — see service.upload_invoice's `source`.
+function getInvoiceSourceType(inv: DpInvoiceRun): InvoiceSourceType {
+  return inv.source === "trigger" ? "email" : "manual";
+}
+
 const CELL_PRIMARY: React.CSSProperties = {
   fontSize: 14,
   fontWeight: 500,
@@ -1009,6 +1041,7 @@ function DirectPayDashboard() {
                       ) : (
                         pagedInvoices.map((inv) => {
                           const action = invoiceAction(inv);
+                          const sourceType = getInvoiceSourceType(inv);
                           return (
                             <tr
                               key={inv.id}
@@ -1023,10 +1056,17 @@ function DirectPayDashboard() {
                               }}
                             >
                               <td style={{ padding: "10px 16px", cursor: "pointer" }} onClick={() => router.push(invoiceRoute(inv))}>
-                                <span style={{ ...CELL_PRIMARY, fontWeight: 600, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                  {inv.file_name}
-                                </span>
-                                <span style={{ ...CELL_MUTED, fontSize: 12.5, whiteSpace: "nowrap" }}>{formatTimestamp(inv.created_at)}</span>
+                                <div style={{ display: "flex", alignItems: "flex-start", gap: 8, overflow: "hidden" }}>
+                                  <span style={{ marginTop: 2 }}>
+                                    <SourceIcon type={sourceType} />
+                                  </span>
+                                  <div style={{ minWidth: 0, flex: 1 }}>
+                                    <span title={inv.file_name} style={{ ...CELL_PRIMARY, fontWeight: 600, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                      {inv.file_name}
+                                    </span>
+                                    <span style={{ ...CELL_MUTED, fontSize: 12.5, whiteSpace: "nowrap" }}>{formatTimestamp(inv.created_at)}</span>
+                                  </div>
+                                </div>
                               </td>
                               <td style={{ padding: "10px 16px", cursor: "pointer" }} onClick={() => router.push(invoiceRoute(inv))}>
                                 <span style={{ ...CELL_PRIMARY, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>

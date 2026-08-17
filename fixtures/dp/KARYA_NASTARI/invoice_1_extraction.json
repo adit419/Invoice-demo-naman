@@ -1,0 +1,63 @@
+{
+  "invoice_number": "BIL/2026/9OQC/00001877",
+  "invoice_date": "2026-03-01",
+  "vendor_name": "PT. KARYA NASTARI PRAPTA",
+  "vendor_address": "Mal Ambasador Lt. 5, Jl. Prof. Dr. Satrio No. 14, Karet Kuningan Setia Budi - Jakarta Selatan",
+  "vendor_vat_id": null,
+  "customer_legal_entity": "PT. Bumi Berkah Boga",
+  "customer_address": "Plaza Blok M, Lantai 7, Jalan Bulungan No. 76 RT 006 RW 006, Kramat Pela, Kebayoran Baru, Kota Adm Jakarta Selatan, DKI Jakarta",
+  "customer_vat_id": null,
+  "description": "Penyewaan Sitting Area di Mall Ambassador CAFESTAREA/LT.D/04 - Angsuran #1 (Sewa)",
+  "billing_period_start": null,
+  "billing_period_end": null,
+  "payment_terms": null,
+  "due_date": "2026-03-20",
+  "total_amount_before_vat": 136746882.0,
+  "tax_type": null,
+  "tax_rate": null,
+  "vat_gst": 15042157.0,
+  "wht_rate": null,
+  "wht": null,
+  "net_amount_after_wht": null,
+  "total_amount": 151799039.0,
+  "currency": "IDR",
+  "vendor_bank_name": "BCA / Mandiri (Virtual Account)",
+  "vendor_bank_account_name": null,
+  "vendor_bank_account_number": "206743304059 (BCA) / 89787 0343304059 (Mandiri)",
+  "vendor_bank_swift": null,
+  "notes": null,
+  "line_items": [
+    {
+      "label": "CAFESTAREA/LT.D/04; Sewa; Angsuran #1",
+      "item_code": null,
+      "charge_type": "rental_fee",
+      "quantity": 1,
+      "unit_price": 55850840.0,
+      "amount": 55850840.0
+    },
+    {
+      "label": "Sewa; Angsuran #1 (second area)",
+      "item_code": null,
+      "charge_type": "rental_fee",
+      "quantity": 1,
+      "unit_price": 46075042.0,
+      "amount": 46075042.0
+    },
+    {
+      "label": "CAFESTAREA/LT.D/07; Sewa; Angsuran #1",
+      "item_code": null,
+      "charge_type": "rental_fee",
+      "quantity": 1,
+      "unit_price": 34821000.0,
+      "amount": 34821000.0
+    },
+    {
+      "label": "StampDuty",
+      "item_code": null,
+      "charge_type": "stamp_duty",
+      "quantity": 1,
+      "unit_price": 10000.0,
+      "amount": 10000.0
+    }
+  ]
+}

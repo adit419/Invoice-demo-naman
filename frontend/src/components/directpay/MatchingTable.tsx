@@ -51,7 +51,7 @@ const FIELD_LABELS: Record<string, string> = {
 // missing VAT line) permanently blocks Approve until the underlying value
 // is actually correct. Distinct from mandatory (field_mapping.py) — this
 // controls the ACK button specifically, not blocking on its own.
-const NO_ACK_FIELDS = new Set(["total_amount_before_vat", "vat_gst", "wht", "net_amount_after_wht"]);
+const NO_ACK_FIELDS = new Set(["total_amount_before_vat", "vat_gst", "total_amount"]);
 
 function fieldLabel(f: DpFinding): string {
   if (f.field && FIELD_LABELS[f.field]) return FIELD_LABELS[f.field];

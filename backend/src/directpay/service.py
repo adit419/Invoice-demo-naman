@@ -223,17 +223,27 @@ def _is_non_rent_invoice(extracted: dict) -> bool:
 # comparison — per explicit instruction, it's shown empty instead of a
 # misleadingly specific number from an unrelated schedule category.
 _NO_SCHEDULE_CHARGE_TYPES = {"utility_electricity", "utility_water"}
-# WHT deliberately excluded: it's 0% across this vendor's ENTIRE schedule
-# (every Rent and Service Charge row alike), so "Contract WHT = 0" is true
-# regardless of category — not a false match the way the other three are.
-_NO_SCHEDULE_BLANK_FIELDS = {"total_amount_before_vat", "vat_gst", "net_amount_after_wht"}
-# These 4 money fields are mandatory-and-blocking even when there's no real
+_NO_SCHEDULE_BLANK_FIELDS = {"total_amount_before_vat", "vat_gst", "total_amount"}
+# These 3 money fields are mandatory-and-blocking even when there's no real
 # contract figure to compare against at all (e.g. Electricity/Water's
 # no-schedule-counterpart case above) — per explicit instruction, "no backup
 # document to verify" is a reason to block until someone resolves it, not a
 # reason to let the invoice through. Every other core field keeps the
 # default leniency (a blank contract side is informational, never blocks).
-_ALWAYS_BLOCKING_FIELDS = {"total_amount_before_vat", "vat_gst", "wht", "net_amount_after_wht"}
+_ALWAYS_BLOCKING_FIELDS = {"total_amount_before_vat", "vat_gst", "total_amount"}
+# RATNA_INTAN only, per explicit instruction: this vendor (an individual,
+# non-PKP landlord) genuinely charges no VAT at all — the real invoice's own
+# total_amount_before_vat equals its total_amount, and vat_gst/tax_rate are
+# both null. The payment schedule's own Amount (Excl. Tax)/VAT Amount figures
+# for this vendor's installments (e.g. Rp770,770,771 / Rp84,784,785) assume
+# an 11% VAT split that doesn't apply here — a schedule-side ASSUMPTION, not
+# a fact about this specific vendor relationship. Excluded from every
+# schedule-derived fallback/override below so neither the Matching page nor
+# Extraction Postprocessing ever fabricates a VAT breakdown this vendor
+# doesn't have. tax_rate ("VAT Rate") is included for Extraction
+# Postprocessing's own derived-fields list — it isn't a Matching-page
+# checklist field, so it's simply never looked up there.
+_RATNA_INTAN_NO_VAT_FIELDS = {"total_amount_before_vat", "vat_gst", "tax_rate"}
 
 
 def _has_no_schedule_charge(extracted: dict) -> bool:
@@ -305,18 +315,17 @@ def _is_finding_resolved(f: dict, extracted: dict) -> bool:
     return f.get("found") is not None and f["found"] == f.get("expected")
 
 
-# Total Amount Before VAT / Tax Amount / WHT / Net Amount After WHT have no
+# Total Amount Before VAT / Tax Amount / Total Amount After VAT have no
 # single flat contract field to compare against for a lumpsum-installment
 # lease (that's what base_fee/"Monthly Rent" would be for a plain monthly
 # rent contract) — the real per-installment figures live in the payment
 # schedule instead (see fixtures/dp/<KEY>/payment_schedule.json and the
-# Contract Extraction Postprocessing stage, which reviews these same four
-# fields before a contract is saved).
+# Contract Extraction Postprocessing stage, which reviews these same fields
+# before a contract is saved).
 _INSTALLMENT_MATCH_FIELD_MAP = {
     "total_amount_before_vat": "amount_excl_tax",
     "vat_gst": "vat_amount",
-    "wht": "wht_amount",
-    "net_amount_after_wht": "net_payment_to_lessor",
+    "total_amount": "total_amount_incl_tax",
     # Billing Period Start/End: Contract column only, by explicit instruction
     # — deliberately NOT added to _SCHEDULE_FIELD_MAP below, so the Invoice
     # column never falls back to this installment figure the way WHT/Net
@@ -391,6 +400,7 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
     for core in field_mapping.CORE_CROSS_VALIDATION_FIELDS:
         if core.invoice_field in covered_invoice_fields:
             continue
+        ratna_no_vat = doc.get("fixture_key") == "RATNA_INTAN" and core.invoice_field in _RATNA_INTAN_NO_VAT_FIELDS
         contract_value = _resolve_contract_value(core, contract_fields, installment)
         # Electricity/Water only, per explicit instruction: _resolve_contract_value
         # would otherwise return the "closest" installment's figure (always
@@ -400,6 +410,11 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
         # is more honest than a false match.
         if core.invoice_field in _NO_SCHEDULE_BLANK_FIELDS and _has_no_schedule_charge(extracted):
             contract_value = None
+        # RATNA_INTAN's own no-VAT case (see _RATNA_INTAN_NO_VAT_FIELDS) — the
+        # schedule's Amount (Excl. Tax)/VAT Amount don't apply to this vendor
+        # at all, so there's genuinely nothing on the contract side either.
+        if ratna_no_vat:
+            contract_value = None
         invoice_value = extracted.get(core.invoice_field)
         # RATNA_INTAN only, per explicit instruction: its raw invoice values
         # for these amount fields are real but numerically diverge from the
@@ -408,42 +423,31 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
         # one, display-only (never written back onto the invoice's own
         # extraction record). Every other vendor keeps the default
         # raw-value-first behavior in the fallback below untouched.
+        # total_amount_before_vat/vat_gst are excluded (see ratna_no_vat
+        # above) — this vendor has no VAT, so the invoice's own real value
+        # (or genuine absence of one) is used instead of the schedule's
+        # VAT-assuming figure.
         if (
             doc.get("fixture_key") == "RATNA_INTAN"
             and installment
             and core.invoice_field in _SCHEDULE_FIELD_MAP
+            and not ratna_no_vat
         ):
             invoice_value = installment.get(_SCHEDULE_FIELD_MAP[core.invoice_field])
-        # PALLADIUM only, per explicit instruction: WHT is 0% throughout its
-        # schedule, so the invoice's own real total_amount IS the true Net
-        # Amount After WHT (Total Amount Payable) — using the matched
-        # installment's own net_payment_to_lessor instead (the generic
-        # fallback below) silently substitutes the SCHEDULE's assumed total
-        # for THIS invoice's real one, which for a non-rent charge (Service
-        # Charge/Electricity/Water) hides the real per-sq-ft/consumption
-        # rate mismatch entirely — both sides would show the exact same
-        # borrowed figure and never disagree. Real value first here so the
-        # difference-and-reasoning branch below has something genuine to
-        # compare against the contract's installment figure.
-        if (
-            doc.get("fixture_key") == "PALLADIUM"
-            and core.invoice_field == "net_amount_after_wht"
-            and invoice_value is None
-        ):
-            invoice_value = extracted.get("total_amount")
-        # wht / net_amount_after_wht are never printed on the invoice itself
-        # and (per explicit instruction) never get back-populated into the
-        # invoice's own extraction record either — so the Invoice column
-        # falls back here, display-only, to the same matched-installment
-        # figure Extraction Postprocessing showed (see _SCHEDULE_FIELD_MAP),
-        # without ever writing it onto the invoice.
-        if invoice_value is None and installment and core.invoice_field in _SCHEDULE_FIELD_MAP:
+        # Fallback for a core amount field the invoice itself leaves blank
+        # (e.g. total_amount_before_vat/vat_gst missing on a raw invoice) —
+        # falls back, display-only, to the same matched-installment figure
+        # Extraction Postprocessing showed (see _SCHEDULE_FIELD_MAP), without
+        # ever writing it onto the invoice. total_amount is normally always
+        # printed on the invoice itself, so this rarely applies to it.
+        # Excluded for RATNA_INTAN's no-VAT fields — a genuinely null vat_gst
+        # here means "no VAT applies", not "missing data to backfill".
+        if invoice_value is None and installment and core.invoice_field in _SCHEDULE_FIELD_MAP and not ratna_no_vat:
             invoice_value = installment.get(_SCHEDULE_FIELD_MAP[core.invoice_field])
-        # Always shown, even with nothing on either side (e.g. WHT is
-        # genuinely null when no withholding tax applies) — a blank row is
-        # itself the answer ("no WHT on this invoice"), not something to hide.
+        # Always shown, even with nothing on either side — a blank row is
+        # itself the answer, not something to hide.
         if contract_value is None and core.invoice_field in _ALWAYS_BLOCKING_FIELDS:
-            # Unlike every other core field, these 4 stay mandatory/blocking
+            # Unlike every other core field, these 3 stay mandatory/blocking
             # even with nothing on the contract side to compare against —
             # see _ALWAYS_BLOCKING_FIELDS. No ACK is offered either way
             # (expected_value is None here, and MatchingTable.tsx's
@@ -558,6 +562,12 @@ async def invoice_out(db, doc: dict) -> dict:
         "has_edit_history": bool(doc.get("edit_history")),
         "extraction_confirmed": bool(doc.get("extraction_confirmed")),
         "tag": doc.get("tag"),
+        # "manual" (real multipart /invoices/upload) vs "trigger" (referenced
+        # by file name via /ingestion/trigger-upload, single or batch) — same
+        # distinction and naming as P2P's own pipeline_runs.source, which the
+        # dashboard's SourceIcon/getSourceTypes key off of. Defaults to
+        # "manual" for any run predating this field.
+        "source": doc.get("source") or "manual",
         "notify_email": (doc.get("source_meta") or {}).get("sender"),
         "stp_state": doc.get("stp_state"),
         "stp_failure_reason": doc.get("stp_failure_reason"),
@@ -784,7 +794,7 @@ async def get_invoice_doc(db, oid: ObjectId) -> dict:
 
 
 async def upload_invoice(
-    db, filename: str, email: Optional[str] = None, tag: Optional[str] = None
+    db, filename: str, email: Optional[str] = None, tag: Optional[str] = None, source: str = "manual"
 ) -> dict:
     bundle, document = get_dp_loader().resolve_document(filename or "")
     if bundle is None:
@@ -834,6 +844,10 @@ async def upload_invoice(
         # ingestion/trigger-upload request even though DirectPay's own UI
         # doesn't yet surface either.
         "tag": tag,
+        # "manual" (real multipart /invoices/upload) vs "trigger"
+        # (/ingestion/trigger-upload, single or batch) — drives the
+        # dashboard's source icon (see invoice_out).
+        "source": source,
         "source_meta": {"sender": email} if email else {},
         "created_at": now,
         "updated_at": now,
@@ -1023,6 +1037,12 @@ async def get_extraction_postprocessing(db, oid: ObjectId) -> dict:
     fields = []
     if installment:
         for field_name, label in _DERIVED_FIELD_DISPLAY.items():
+            # RATNA_INTAN only, per explicit instruction: Amount (Excl. Tax) /
+            # VAT Rate / VAT Amount are dropped entirely for this vendor — see
+            # _RATNA_INTAN_NO_VAT_FIELDS — rather than shown with a fictional
+            # schedule-assumed VAT split this vendor doesn't actually have.
+            if doc.get("fixture_key") == "RATNA_INTAN" and field_name in _RATNA_INTAN_NO_VAT_FIELDS:
+                continue
             raw_value = None if field_name in _no_schedule_fields else installment.get(_SCHEDULE_FIELD_MAP[field_name])
             fields.append({
                 "field_name": field_name,
