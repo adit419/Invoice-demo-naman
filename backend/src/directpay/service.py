@@ -492,6 +492,12 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
     for core in field_mapping.CORE_CROSS_VALIDATION_FIELDS:
         if core.invoice_field in covered_invoice_fields:
             continue
+        # A mandatory field that has been positively CLEARED by a real rule
+        # (rather than by being equal, or by a human acknowledging it). Lets a
+        # field stay mandatory — Total Amount Before VAT always is — while a
+        # threshold pass still lets approval through, instead of the field
+        # having to be demoted to non-mandatory to unblock. See has_open_issues.
+        satisfied = False
         ratna_no_vat = doc.get("fixture_key") == "RATNA_INTAN" and core.invoice_field in _RATNA_INTAN_NO_VAT_FIELDS
         # See _NO_STORE_LOCATION_MATCH_VENDORS above.
         no_store_match = (
@@ -630,7 +636,10 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
                 reference_label = "supporting document amount" if used_supporting_document else "contract amount"
                 if within_threshold:
                     severity = "info"
-                    mandatory = False
+                    # Mandatory either way (the field is never optional) — the
+                    # threshold pass satisfies it rather than demoting it.
+                    mandatory = core.mandatory
+                    satisfied = True
                     detail = (
                         f"Within the configured {threshold_pct:g}% threshold — invoice must not exceed "
                         f"{max_allowed_formatted} ({reference_label} + {threshold_pct:g}%)."
@@ -695,8 +704,15 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
                 if invoice_value is not None else None,
             "field": core.invoice_field,
             "expected_value": contract_value,
+            # Raw (unformatted) invoice-side counterpart of expected_value —
+            # needed by anything that has to do arithmetic on the comparison
+            # rather than just display it (the Matching page's variance bar).
+            # Not simply extracted[field]: for the schedule-derived/override
+            # cases above this is the value Matching actually compared.
+            "found_value": invoice_value,
             "core": True,
             "mandatory": mandatory,
+            "satisfied": satisfied,
             # Where the Contract-column value actually came from. "contract"
             # (the default, omitted-equivalent) means the contract/its payment
             # schedule; "supporting_document" means the contract only states
@@ -739,6 +755,10 @@ async def invoice_out(db, doc: dict) -> dict:
         # so the Matching page's own "back" button needs this to avoid
         # routing to a Faktur Pajak screen that never applied.
         "has_faktur_pajak": bool(faktur_pajak),
+        # Whether a supporting-document PDF exists to link to (see the
+        # /supporting-document/pdf route). Distinct from whether the run has
+        # supporting-document DATA — the extraction can exist without the PDF.
+        "has_supporting_document_pdf": bool(document and document.supporting_document_pdf_path),
         "has_payment_schedule": bool(bundle and bundle.payment_schedule),
         "expected": (match_result or {}).get("expected"),
         "summary": (match_result or {}).get("summary"),
@@ -780,6 +800,10 @@ def has_open_issues(findings: list[dict], acknowledged: list[str], system_acknow
     handled = set(acknowledged) | set(system_acknowledged)
     for f in findings:
         if not f.get("mandatory") or f.get("finding_id") in handled:
+            continue
+        # Positively cleared by a rule (e.g. inside the Total Amount Before VAT
+        # tolerance) — mandatory, but not open.
+        if f.get("satisfied"):
             continue
         if _is_finding_resolved(f, extracted):
             continue
@@ -902,8 +926,12 @@ _CONTRACT_DERIVED_COLUMNS = [
     ("vat_amount", "Tax Amount"),
     ("total_amount_incl_tax", "Total Amount (Incl. VAT)"),
     ("wht_rate", "WHT Rate"),
-    ("wht_amount", "WHT (Withholding Tax)"),
-    ("net_payment_to_lessor", "Net Amount After WHT (Total Amount Payable)"),
+    # WHT (Withholding Tax) and Net Amount After WHT (Total Amount Payable)
+    # were removed from this review table per explicit instruction. The
+    # underlying payment_schedule.json still carries wht_amount /
+    # net_payment_to_lessor and Bill Posting still uses them (see
+    # _bill_posting_out) — this only drops them from the Contract Extraction
+    # Postprocessing display.
     ("payment_status", "Payment Status"),
 ]
 
@@ -1440,9 +1468,22 @@ async def approve_faktur_pajak(db, oid: ObjectId, force: bool = False) -> dict:
         raise InvalidStateError("This invoice is not at the Faktur Pajak stage")
 
     fp_data = await get_faktur_pajak(db, oid)
+    # MUST stay identical to fp-extraction.tsx's own `blockingFields` — when
+    # these two drift the page shows "All fields matched / good to go" while
+    # this gate still 409s, with nothing the user can click to resolve it.
+    # Both extra conditions below were once only on the frontend and caused
+    # exactly that:
+    #   - system_acknowledged: pre-blessed by the DP Acknowledge Threshold's
+    #     learned memory (the purple "Auto-approved" badge) — already handled.
+    #   - a blank invoice-side value: there is nothing to acknowledge about a
+    #     field the invoice never stated, and no ACK is offered for it.
     blocking = [
         f for f in fp_data["fields"]
-        if f["required"] and f["match_status"] == "mismatch" and not f["acknowledged"]
+        if f["required"]
+        and f["match_status"] == "mismatch"
+        and not f["acknowledged"]
+        and not f.get("system_acknowledged")
+        and f.get("invoice_value") not in (None, "")
     ]
     if blocking and not force:
         raise NeedsConfirmationError()
@@ -1760,10 +1801,70 @@ async def edit_bill_posting(db, oid: ObjectId, line_item_overrides: dict) -> dic
     return await get_bill_posting(db, oid)
 
 
+# The explicit "no withholding applies" code (see bill-posting.tsx's
+# DP_WHT_OPTIONS / NO_WHT_CODE). A vendor not subject to WHT must carry THIS,
+# not a real withholding code and not a blank — the WHT column is always
+# shown, so "no withholding" has to be stated rather than implied.
+_NO_WHT_CODE = "00"
+
+
+def _validate_bill_posting_tax_codes(bp: dict) -> Optional[str]:
+    """Reject a tax code that can't apply to this vendor, before anything is
+    posted. Returns a human-readable message naming the field to fix, or None
+    when everything is coherent.
+
+    Both directions matter: a VAT code on a vendor that charges no VAT is as
+    wrong as a missing one on a vendor that does, and likewise for WHT."""
+    line_items = bp.get("line_items") or []
+    if not line_items:
+        return None
+
+    vat_applicable = bp.get("vat_applicable", True)
+    wht_applicable = bp.get("wht_applicable", False)
+
+    def label(it: dict) -> str:
+        return it.get("description") or it.get("charge_type") or f"line {it.get('id')}"
+
+    for it in line_items:
+        vat = (it.get("vat_tax_code") or "").strip()
+        if vat_applicable and not vat:
+            return (
+                f"Select a VAT/GST Tax Code for “{label(it)}” before posting — "
+                "this vendor is subject to VAT."
+            )
+        if not vat_applicable and vat:
+            return (
+                f"“{label(it)}” has VAT/GST Tax Code “{vat}”, but this vendor is not "
+                "subject to VAT. Clear the VAT code before posting."
+            )
+
+    for it in line_items:
+        wht = (it.get("wht_tax_code") or "").strip()
+        if wht_applicable and (not wht or wht == _NO_WHT_CODE):
+            return (
+                f"Select the applicable WHT Tax Code for “{label(it)}” before posting — "
+                "this vendor is subject to withholding tax."
+            )
+        if not wht_applicable and wht and wht != _NO_WHT_CODE:
+            return (
+                f"“{label(it)}” has WHT Tax Code “{wht}”, but this vendor is not subject "
+                "to withholding tax. Set it to “No Withholding” before posting."
+            )
+
+    return None
+
+
 async def post_bill(db, oid: ObjectId) -> dict:
     doc = await get_invoice_doc(db, oid)
     if doc.get("status") != "bill_posting":
         raise InvalidStateError("This invoice is not at the Bill Posting stage")
+
+    # Authoritative gate — the frontend also pre-checks so the user gets the
+    # message without a round trip, but nothing posts without passing here.
+    contract_doc = await _fetch_matched_contract_doc(db, doc)
+    tax_error = _validate_bill_posting_tax_codes(_bill_posting_out(doc, contract_doc))
+    if tax_error:
+        raise InvalidStateError(tax_error)
 
     now = _now()
     erp = {
@@ -2042,6 +2143,14 @@ async def simulate_bill_posting(db, oid: ObjectId) -> dict:
                 f"Simulation failed — invalid VAT/GST Tax Code '{invalid_codes[0]}' on line item. "
                 f"This invoice requires '{required_vat_code}'."
             )
+
+    # Same applicability rules post_bill enforces, surfaced here so Simulate
+    # catches a wrong code before the user tries to post.
+    if status == "success":
+        tax_error = _validate_bill_posting_tax_codes(bp)
+        if tax_error:
+            status = "error"
+            message = f"Simulation failed — {tax_error}"
 
     return {"status": status, "message": message, "document": document}
 

@@ -94,6 +94,13 @@ interface BillPostingTableProps {
    */
   isVendorSubjectToVat?: boolean;
   /**
+   * When true the WHT Tax Code column is rendered even for a vendor not
+   * subject to WHT (which then shows its own explicit "no withholding" code
+   * rather than the column vanishing). Opt-in so P2P's existing
+   * isVendorSubjectToWht-gated behavior is unchanged.
+   */
+  alwaysShowWhtColumn?: boolean;
+  /**
    * Set of erp_fields keys where mask=true (from workflow settings).
    * null/undefined = no filtering (show all).
    * vat_tax_code absent → hide VAT column.
@@ -137,6 +144,7 @@ export function BillPostingTable({
   isEditMode,
   isVendorSubjectToWht,
   isVendorSubjectToVat = true,
+  alwaysShowWhtColumn = false,
   allowedErpFields,
   currency,
   vatOptions,
@@ -151,7 +159,7 @@ export function BillPostingTable({
   // Column visibility: workflow settings mask=false → hide column.
   // null allowedErpFields = no filtering (show all).
   const showVatColumn = isVendorSubjectToVat && (!allowedErpFields || allowedErpFields.has("vat_tax_code"));
-  const showWhtColumn = isVendorSubjectToWht && (!allowedErpFields || allowedErpFields.has("wht_tax_code"));
+  const showWhtColumn = (isVendorSubjectToWht || alwaysShowWhtColumn) && (!allowedErpFields || allowedErpFields.has("wht_tax_code"));
 
   const rows: Row[] = useMemo(
     () => lineItems.map((item, idx) => ({ key: item.id, index: idx + 1, item })),

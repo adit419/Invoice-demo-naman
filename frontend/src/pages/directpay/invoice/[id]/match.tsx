@@ -16,6 +16,7 @@ import {
 import { isFindingResolved, MatchingTable } from "@/components/directpay/MatchingTable";
 import AiContractBanner from "@/components/directpay/AiContractBanner";
 import { TotalBeforeVatThresholdControl } from "@/components/directpay/TotalBeforeVatThresholdControl";
+import { TotalBeforeVatVarianceBar } from "@/components/directpay/TotalBeforeVatVarianceBar";
 import { DocumentPreviewModal } from "@/components/directpay/DocumentPreviewModal";
 import { ContractExtractionModal } from "@/components/directpay/ContractExtractionModal";
 import { StageTransitionOverlay } from "@/components/StageTransitionOverlay";
@@ -47,6 +48,10 @@ function InvoiceMatchPage() {
   const [invoicePdfOpen, setInvoicePdfOpen] = useState(false);
   const [contractPdfOpen, setContractPdfOpen] = useState(false);
   const [contractExtractionOpen, setContractExtractionOpen] = useState(false);
+  const [supportingDocOpen, setSupportingDocOpen] = useState(false);
+  // Mirrors the saved threshold so the variance bar can show the tolerance and
+  // its resulting cap. Refreshed whenever the control saves.
+  const [threshold, setThreshold] = useState<{ enabled: boolean; threshold_pct: number }>({ enabled: true, threshold_pct: 5 });
   const [pdfToken, setPdfToken] = useState<string | null>(null);
   const [transitioning, setTransitioning] = useState(false);
   const [transitionPhase, setTransitionPhase] = useState<"matching" | "preparing">("matching");
@@ -54,6 +59,11 @@ function InvoiceMatchPage() {
   useEffect(() => {
     setPdfToken(localStorage.getItem("access_token"));
   }, []);
+
+  const loadThreshold = useCallback(() => {
+    directpayService.getTotalBeforeVatThreshold().then(setThreshold).catch(() => { /* keep default */ });
+  }, []);
+  useEffect(() => { loadThreshold(); }, [loadThreshold]);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -236,6 +246,10 @@ function InvoiceMatchPage() {
   const blockingCount = findings.filter(
     (f) =>
       f.mandatory &&
+      // Mandatory but rule-satisfied (e.g. within the Total Amount Before VAT
+      // tolerance) — must match the backend's has_open_issues exactly, or the
+      // button and the gate disagree.
+      !f.satisfied &&
       !run.acknowledged_findings.includes(f.finding_id) &&
       !run.system_acknowledged_findings.includes(f.finding_id) &&
       !isFindingResolved(f, run.extracted)
@@ -249,7 +263,16 @@ function InvoiceMatchPage() {
   // Non-checklist findings (e.g. tax_rate) drop out of this table entirely.
   // Bank Details is on the checklist (`core`) but explicitly non-mandatory
   // (`mandatory`), so this filters on `core`, not `mandatory`.
-  const displayFindings = findings.filter((f) => f.core);
+  // Total Amount Before VAT is rendered by the variance bar at the bottom
+  // instead of as a table row (per explicit instruction), so it's excluded
+  // here. It still counts toward blockingCount above — the bar is where its
+  // state is surfaced, and it can never be acknowledged away (NO_ACK_FIELDS).
+  const totalBeforeVatFinding = findings.find((f) => f.field === "total_amount_before_vat") ?? null;
+  // Escalation only makes sense once the Total Amount Before VAT match can't be
+  // satisfied — i.e. the invoice is outside tolerance (or there's no reference
+  // amount to compare against at all). Until then the button stays inactive.
+  const totalBeforeVatUnsatisfied = Boolean(totalBeforeVatFinding && !totalBeforeVatFinding.satisfied);
+  const displayFindings = findings.filter((f) => f.core && f.field !== "total_amount_before_vat");
   const hasContract = !!run.contract_id;
   // Traces the current contract selection back to the AI's pick — reverting
   // once a human picks a different contract from the dropdown, same property
@@ -277,6 +300,21 @@ function InvoiceMatchPage() {
     </AntButton>
   ) : (
     <Space>
+      {/* Placeholder — intentionally does nothing yet. Inactive by default,
+          becoming active only when the Total Amount Before VAT match isn't
+          satisfied, since emailing an escalation is only meaningful once this
+          invoice genuinely can't clear Matching on its own. */}
+      <AntButton
+        onClick={() => toast("Escalation by email isn't wired up yet.", "info")}
+        disabled={busy || !totalBeforeVatUnsatisfied}
+        title={
+          totalBeforeVatUnsatisfied
+            ? "Escalate this invoice by email (not yet wired up)"
+            : "Available only when the Total Amount Before VAT match can't be satisfied"
+        }
+      >
+        Escalate
+      </AntButton>
       <AntButton danger onClick={() => setRejectOpen(true)} disabled={busy}>
         Reject
       </AntButton>
@@ -293,7 +331,7 @@ function InvoiceMatchPage() {
   );
 
   return (
-    <div className="min-h-screen flex flex-col bg-white" style={{ fontFamily: "Inter, -apple-system, BlinkMacSystemFont, sans-serif" }}>
+    <div className="h-screen overflow-hidden flex flex-col bg-white" style={{ fontFamily: "Inter, -apple-system, BlinkMacSystemFont, sans-serif" }}>
       {busy && (
         <div
           style={{
@@ -350,8 +388,6 @@ function InvoiceMatchPage() {
       <div className="flex-1 overflow-y-auto">
         <div className="px-6 py-6">
           {showAiBanner && recommendation && <AiContractBanner rec={recommendation} />}
-
-          <TotalBeforeVatThresholdControl onSaved={load} />
 
           {isRejected ? (
             <div
@@ -424,6 +460,36 @@ function InvoiceMatchPage() {
           />
         </div>
       </div>
+
+      {hasContract && !isRejected && totalBeforeVatFinding && (
+        <TotalBeforeVatVarianceBar
+          invoiceValue={typeof totalBeforeVatFinding.found_value === "number" ? totalBeforeVatFinding.found_value : null}
+          referenceValue={typeof totalBeforeVatFinding.expected_value === "number" ? totalBeforeVatFinding.expected_value : null}
+          invoiceFormatted={totalBeforeVatFinding.found}
+          referenceFormatted={totalBeforeVatFinding.expected}
+          expectedSource={totalBeforeVatFinding.expected_source}
+          thresholdEnabled={threshold.enabled}
+          thresholdPct={threshold.threshold_pct}
+          currency={run.extracted.currency}
+          blocking={Boolean(totalBeforeVatFinding.mandatory) && !totalBeforeVatFinding.satisfied}
+          onOpenSupportingDoc={
+            run.has_supporting_document_pdf ? () => setSupportingDocOpen(true) : undefined
+          }
+          thresholdControl={
+            <TotalBeforeVatThresholdControl onSaved={() => { loadThreshold(); void load(); }} />
+          }
+        />
+      )}
+
+      {run.has_supporting_document_pdf && (
+        <DocumentPreviewModal
+          open={supportingDocOpen}
+          onClose={() => setSupportingDocOpen(false)}
+          title="Supporting Document"
+          pdfUrl={directpayService.supportingDocumentPdfUrl(run.id)}
+          authToken={pdfToken}
+        />
+      )}
 
       <RejectModal
         open={rejectOpen}

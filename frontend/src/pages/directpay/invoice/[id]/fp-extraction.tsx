@@ -276,7 +276,11 @@ function FpExtractionPage() {
 
   const getRowClassName = (record: DpFakturPajakField): string => {
     if (selectedField === record.field_name) return "dp-fp-row-selected";
-    if (record.match_status === "mismatch" && !record.acknowledged) {
+    // An auto-approved (system-acknowledged) field is fully handled, so it
+    // renders as an ordinary matched row — same rule as MatchingTable.tsx's
+    // isHandled(). Without the system_acknowledged check here the row kept its
+    // red mismatch background while showing an "Auto-approved" badge.
+    if (record.match_status === "mismatch" && !record.acknowledged && !record.system_acknowledged) {
       const hasInvoiceValue = record.invoice_value !== undefined && record.invoice_value !== null && record.invoice_value !== "";
       return record.required && hasInvoiceValue ? "dp-fp-row-mandatory-mismatch" : "dp-fp-row-optional-mismatch";
     }

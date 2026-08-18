@@ -150,12 +150,19 @@ export interface DpFinding {
   // single copyable invoice field.
   field?: string;
   expected_value?: string | number | boolean | null;
+  // Raw numeric invoice-side counterpart of expected_value, for code that has
+  // to compute on the comparison rather than display it (the variance bar).
+  found_value?: string | number | boolean | null;
   // Whether this field is on the Matching page's fixed, always-shown
   // checklist (field_mapping.CORE_CROSS_VALIDATION_FIELDS) — drives display.
   core?: boolean;
   // Whether this finding can block approval — a subset of `core` (e.g. Bank
   // Details is core but not mandatory). Drives the banner/button gating.
   mandatory?: boolean;
+  // Mandatory, but positively cleared by a rule (e.g. inside the Total Amount
+  // Before VAT tolerance) — so it doesn't block approval despite being
+  // mandatory and not literally equal. Mirrors has_open_issues' own check.
+  satisfied?: boolean;
   // Where the Contract-column value came from. "supporting_document" means
   // the contract only states the billing rule for this charge (utility
   // "billed on actuals") and the amount came from the invoice's supporting
@@ -200,6 +207,8 @@ export interface DpInvoiceRun {
   // vendor like RATNA_INTAN has none at all, so "back" navigation from later
   // stages must check this rather than assuming the stage always applied.
   has_faktur_pajak: boolean;
+  // Whether a supporting-document PDF exists to link out to (§15).
+  has_supporting_document_pdf?: boolean;
   has_payment_schedule: boolean;
   // "manual" (real multipart /invoices/upload) vs "trigger"
   // (/ingestion/trigger-upload, single or batch) — drives the dashboard's
@@ -493,6 +502,7 @@ export const directpayService = {
   // (see DpFakturPajak) — falls back server-side to the invoice's own PDF
   // otherwise, same as before.
   fakturPajakPdfUrl: (id: string) => `/dp-api/invoices/${id}/faktur-pajak/pdf`,
+  supportingDocumentPdfUrl: (id: string) => `/dp-api/invoices/${id}/supporting-document/pdf`,
 
   // Settings — DirectPay-scoped, independent of Invoice Processing's own.
   getStp: () => api.get<{ stp_enabled: boolean }>("/dp-api/settings/stp"),

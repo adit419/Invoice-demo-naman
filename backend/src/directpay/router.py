@@ -379,6 +379,25 @@ async def get_invoice_faktur_pajak_pdf(run_id: str):
     return Response(content=pdf_path.read_bytes(), media_type="application/pdf")
 
 
+# The utility bill backing a charge the contract only bills "on actuals" (see
+# fixtures.py's DpDocumentEntry.supporting_document_pdf_path). Unlike the
+# invoice/FP PDFs there is no review stage for it — this exists purely so the
+# Matching page's variance bar can link out to the document its reference
+# amount came from.
+@router.get("/invoices/{run_id}/supporting-document/pdf")
+async def get_invoice_supporting_document_pdf(run_id: str):
+    db = get_db()
+    doc = await dp_invoice_runs(db).find_one({"_id": _oid(run_id, "invoice ID")})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    bundle = get_dp_loader().discover().get(doc["fixture_key"])
+    document = service._document_entry(bundle, doc.get("document_key"))
+    pdf_path = document.supporting_document_pdf_path if document else None
+    if not pdf_path:
+        raise HTTPException(status_code=404, detail="Supporting document PDF not available")
+    return Response(content=pdf_path.read_bytes(), media_type="application/pdf")
+
+
 @router.post("/invoices/{run_id}/extract")
 async def extract_invoice(run_id: str):
     db = get_db()
