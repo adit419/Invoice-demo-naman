@@ -142,8 +142,15 @@ def _search_candidates(field: str, value) -> list[tuple[str, float]]:
         collapsed = re.sub(r"\s+", " ", s)
         if collapsed != s:
             out.append((collapsed, NORMALIZED_CONFIDENCE))
-        if field == "currency":
-            out.extend((sym, NORMALIZED_CONFIDENCE) for sym in _CURRENCY_SYMBOLS.get(s, []))
+        # currency's symbol variant (e.g. "IDR" -> "Rp") is deliberately NOT
+        # added here — page.search_for() is a raw substring search, and a
+        # 2-3 character symbol matches as a substring of an unrelated word
+        # constantly (verified: "Rp" matched twice inside PT_BANGUN's own
+        # contract's "Perpanjangan"). _fuzzy_word_match's own symbol
+        # handling is safe because it works from whole-word tokens and
+        # gates short candidates on a near-exact ratio (see its own
+        # min_ratio) — this exact/substring tier has no equivalent guard to
+        # add that safety to, so the candidate is tried there instead.
         return out
     if isinstance(value, (int, float)):
         cands = []
@@ -470,6 +477,19 @@ def _fuzzy_word_match(
         target_digits = "".join(ch for ch in "".join(target_tokens) if ch.isdigit()) if is_numeric else None
         candidate_text = " ".join(target_tokens)
         n = len(target_tokens)
+        # A SINGLE-token candidate of <=3 chars (a currency symbol like "Rp",
+        # not a multi-token short string like "C.O.D" -> ["c","o","d"]) needs
+        # a near-exact ratio, not just this tier's normal threshold —
+        # difflib's ratio on a 2-3 character target is barely discriminating
+        # at all (verified: PT_BANGUN's contract "Rp" once scored 0.8 — above
+        # the normal 0.6/0.8 tier thresholds — against a fragment of
+        # "Perpanjangan" that has nothing to do with currency). A genuine
+        # exact "Rp" OCR word always scores a clean 1.0 here, so this costs
+        # nothing on real matches, only false ones. Scoped to n==1 only —
+        # broadening it to any short candidate_text once cost PT_BANGUN's own
+        # payment_terms ("C.O.D" -> 3 short tokens, genuinely correct at a
+        # borderline 0.8 ratio) its already-confirmed-good match.
+        min_ratio = max(threshold, 0.99) if n == 1 and len(candidate_text) <= 3 else threshold
 
         for page_number, words in words_by_page.items():
             if not words:
@@ -499,6 +519,8 @@ def _fuzzy_word_match(
                         if window_digits != target_digits:
                             continue
                     ratio = difflib.SequenceMatcher(None, window_text, candidate_text).ratio()
+                    if ratio < min_ratio:
+                        continue
                     if best is not None and ratio <= best[0]:
                         continue
                     word_idxs = sorted({wi for _, wi in window})

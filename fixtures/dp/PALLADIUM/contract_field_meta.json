@@ -99,7 +99,15 @@
     "section": "AGREEMENT DATES & TERM",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.315726,
+      "bbox_top": 0.451839,
+      "bbox_width": 0.013306,
+      "bbox_height": 0.007186,
+      "value_confidence": 0.9
+    }
   },
   "rent_basis_type": {
     "label": "Rent Basis Type",
@@ -113,7 +121,15 @@
     "section": "RENT & DEPOSIT",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": "MATCH"
+    "ai_match_reasoning": "MATCH",
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.497419,
+      "bbox_top": 0.660394,
+      "bbox_width": 0.016452,
+      "bbox_height": 0.009239,
+      "value_confidence": 0.9
+    }
   },
   "vat_included": {
     "label": "VAT Incl/Excl",
@@ -127,7 +143,15 @@
     "section": "RENT & DEPOSIT",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.525,
+      "bbox_top": 0.672027,
+      "bbox_width": 0.023226,
+      "bbox_height": 0.007015,
+      "value_confidence": 0.9
+    }
   },
   "base_rent_monthly_excl_tax": {
     "label": "Base Rent (Excl Tax) Monthly",
@@ -211,7 +235,15 @@
     "section": "ESCALATION",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.652742,
+      "bbox_top": 0.834217,
+      "bbox_width": 0.013065,
+      "bbox_height": 0.007015,
+      "value_confidence": 0.9
+    }
   },
   "next_escalation_date": {
     "label": "Next Escalation Date",

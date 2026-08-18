@@ -271,15 +271,7 @@
     "section": "UTILITIES & TAX",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null,
-    "bbox": {
-      "page": 33,
-      "bbox_left": 0.2696,
-      "bbox_top": 0.429341,
-      "bbox_width": 0.0056,
-      "bbox_height": 0.003324,
-      "value_confidence": 0.8
-    }
+    "ai_match_reasoning": null
   },
   "wht_rate_pct": {
     "label": "WHT Rate (%)",

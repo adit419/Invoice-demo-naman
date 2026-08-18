@@ -137,10 +137,43 @@ def _contract_value_variants(value) -> list:
 # unrelated reasons. There is no purely textual way to tell "the real WHT
 # rate" from "some other 2-digit number that happens to also be 10" without
 # surrounding context this script doesn't model — so these are skipped
-# outright rather than shown with false confidence. A short-generic value
-# NEVER gets a bbox, on any tier, full stop.
+# outright rather than shown with false confidence, UNLESS that context
+# comes from the document's own drafting convention (see
+# _has_nearby_parenthetical below) — a real third rescue, not a repeat of
+# the first two.
 _SHORT_NUMBER_RE = re.compile(r"-?\d{1,3}(\.\d+)?$")
 _MIN_COMPOSITE_SEGMENT_CHARS = 15
+
+# A bare short number is allowed through ONLY when the match sits right next
+# to a parenthesis — these Indonesian lease agreements consistently spell a
+# contractually-stated figure both as a digit AND in words in the same
+# breath ("24 (Dua Puluh Empat) bulan", "PPN 11% (Mengikuti peraturan...)"),
+# a drafting convention no incidental table cell, page number, or date ever
+# follows. Verified against PALLADIUM's own contract: term_months(24),
+# vat_rate(11) and escalation_starts_after_months(12) each landed on a
+# genuinely correct, parenthetical-adjacent occurrence (some restated more
+# than once in the document, always consistently) — while
+# lessor_split_pct(100)'s best textual match, a row boundary in an unrelated
+# area-based fee table ("0 - 100"), had zero parenthetical neighbors and is
+# correctly still rejected by this gate.
+_PAREN_CHARS = ("(", ")")
+_PAREN_WINDOW_TOKENS = 2
+
+
+def _has_nearby_parenthetical(words_by_page: dict, page_number: int, rect: "fitz.Rect") -> bool:
+    words = words_by_page.get(page_number)
+    if not words:
+        return False
+    ws = sorted(words, key=lambda w: (round(w[1] / 5) * 5, w[0]))
+    idx = None
+    for i, w in enumerate(ws):
+        if abs(w[0] - rect.x0) < 5 and abs(w[1] - rect.y0) < 5:
+            idx = i
+            break
+    if idx is None:
+        return False
+    nbrs = ws[max(0, idx - _PAREN_WINDOW_TOKENS):idx + _PAREN_WINDOW_TOKENS + 1]
+    return any(c in w[4] for w in nbrs for c in _PAREN_CHARS)
 
 
 def _is_short_generic_value(value) -> bool:
@@ -157,11 +190,11 @@ def _locate_field_best(doc, native_words, ocr_pages, page_rects, field, value):
     """Tries the raw value AND every contract-specific variant (best of
     both), keeping whichever result has the highest value_confidence — an
     exact match on any variant always wins over a fuzzy match on another.
-    A short/generic value (see _is_short_generic_value) is never attempted
-    at all — see the comment above for why even an exact whole-word match
-    isn't safe enough for these."""
-    if _is_short_generic_value(value):
-        return None
+    A short/generic value (see _is_short_generic_value) only ever survives
+    if its best match also clears _has_nearby_parenthetical — every other
+    tier's normal matching still runs and picks its usual best candidate,
+    this is purely an extra acceptance gate on top."""
+    is_short = _is_short_generic_value(value)
     best = None
     for candidate_value in [value, *_contract_value_variants(value)]:
         result = inv._locate_field(doc, native_words, ocr_pages, page_rects, field, candidate_value, None)
@@ -170,6 +203,19 @@ def _locate_field_best(doc, native_words, ocr_pages, page_rects, field, value):
         bbox, source = result
         if best is None or bbox["value_confidence"] > best[0]["value_confidence"]:
             best = (bbox, source)
+    if best is None:
+        return None
+    if is_short:
+        bbox, source = best
+        rect = fitz.Rect(
+            bbox["bbox_left"] * page_rects[bbox["page"]].width,
+            bbox["bbox_top"] * page_rects[bbox["page"]].height,
+            (bbox["bbox_left"] + bbox["bbox_width"]) * page_rects[bbox["page"]].width,
+            (bbox["bbox_top"] + bbox["bbox_height"]) * page_rects[bbox["page"]].height,
+        )
+        words_by_page = native_words if bbox["page"] in native_words else ocr_pages
+        if not _has_nearby_parenthetical(words_by_page, bbox["page"], rect):
+            return None
     return best
 
 
