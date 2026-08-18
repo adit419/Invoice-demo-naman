@@ -89,6 +89,16 @@
       "value_confidence": 0.9
     }
   },
+  "tax_rate": {
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.752941,
+      "bbox_top": 0.358716,
+      "bbox_width": 0.038454,
+      "bbox_height": 0.008371,
+      "value_confidence": 0.9
+    }
+  },
   "vat_gst": {
     "bbox": {
       "page": 1,

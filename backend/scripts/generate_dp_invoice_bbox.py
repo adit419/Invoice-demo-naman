@@ -95,6 +95,14 @@ OCR_MAX_CONFIDENCE = 0.9
 # well below a genuine text-layer invoice page (PT_BANGUN/PALLADIUM: ~1900+).
 MIN_PAGE_TEXT_CHARS = 250
 
+# `currency` holds an ISO code ("IDR", "USD", ...), but an Indonesian invoice
+# never prints that code as text — it prints the symbol instead ("Rp"), so a
+# literal search for the code itself always comes up empty (verified:
+# RATNA_INTAN's invoice says "Rp 855.555.556", never "IDR" anywhere). Tried as
+# an extra candidate, never a replacement for the raw value, in case some
+# future fixture's document DOES print the code literally.
+_CURRENCY_SYMBOLS = {"IDR": ["Rp"], "USD": ["$", "US$"]}
+
 
 def _id_number_variants(value: float) -> list[str]:
     """Indonesian-locale renderings of a number as it actually appears on
@@ -134,6 +142,8 @@ def _search_candidates(field: str, value) -> list[tuple[str, float]]:
         collapsed = re.sub(r"\s+", " ", s)
         if collapsed != s:
             out.append((collapsed, NORMALIZED_CONFIDENCE))
+        if field == "currency":
+            out.extend((sym, NORMALIZED_CONFIDENCE) for sym in _CURRENCY_SYMBOLS.get(s, []))
         return out
     if isinstance(value, (int, float)):
         cands = []
@@ -221,6 +231,19 @@ OCR_UPSCALE = 3
 OCR_PSMS = (6, 11, 4)  # uniform block / sparse text / single column — different assumptions, different misses
 OCR_MIN_CONF = 40  # Tesseract's own 0-100 confidence; below this is noise, not a genuine miss
 
+# A SECOND, finer grid, merged with the one above rather than replacing it
+# (see _ocr_words_by_page) — some text needs bigger tiles (a wrapped
+# multi-line description reads best as one contiguous block) while other
+# text needs smaller ones (RATNA_INTAN's "Rp 855.555.556" total line was
+# ABSENT from every 4x2 tile's word list at every PSM, yet read back
+# correctly, digit-for-digit, from the exact same line cropped tight and
+# OCR'd in isolation — a busy 4x2 tile's own page-segmentation can silently
+# drop a line a smaller, closer-to-isolated crop reads fine). Doubles OCR
+# time per scanned page; still tractable for a 1-2 page invoice.
+OCR_TILE_ROWS_FINE = 6
+OCR_TILE_COLS_FINE = 3
+OCR_TILE_OVERLAP_FINE = 0.25
+
 
 def _tiled_ocr_words(
     page: "fitz.Page",
@@ -307,12 +330,30 @@ def _ocr_words_by_page(doc: "fitz.Document", page_numbers: set[int], **ocr_kwarg
     build_field_meta; OCR-ing a page that already has real text just adds
     false-positive risk. `ocr_kwargs` forwards to _tiled_ocr_words (e.g. a
     cheaper tile grid/PSM set for a many-page document — see its own
-    docstring)."""
+    docstring).
+
+    Called with no `ocr_kwargs` (this script's own default invoice/FP path,
+    never generate_dp_contract_bbox.py's — it always passes its own cheaper
+    grid explicitly), the default grid's words are merged with a second,
+    finer pass (OCR_TILE_ROWS_FINE etc.) rather than either grid replacing
+    the other — see those constants' own docstring for why one grid can't
+    just be tuned to replace the other outright: a wrapped multi-line
+    description needs bigger tiles to read as one contiguous block, while
+    an isolated line near a table border needs smaller ones. Extra
+    (duplicate-ish) candidate words from merging two grids cost the fuzzy
+    matcher a bit of search time, never correctness — the same window still
+    scores the same ratio regardless of how many times a word appears."""
     cache: dict[int, list[tuple]] = {}
     for page_number in page_numbers:
         page = doc[page_number - 1]
         try:
-            cache[page_number] = _tiled_ocr_words(page, **ocr_kwargs)
+            words = _tiled_ocr_words(page, **ocr_kwargs)
+            if not ocr_kwargs:
+                words = words + _tiled_ocr_words(
+                    page, tile_rows=OCR_TILE_ROWS_FINE, tile_cols=OCR_TILE_COLS_FINE,
+                    overlap=OCR_TILE_OVERLAP_FINE,
+                )
+            cache[page_number] = words
         except Exception as exc:  # tesseract missing/misconfigured — skip OCR entirely
             print(f"    ! OCR unavailable ({exc!r}) — skipping OCR fallback", file=sys.stderr)
             return {}
@@ -398,51 +439,77 @@ def _fuzzy_word_match(
     `threshold`). Returns the raw ratio (uncapped) so a caller comparing this
     against another word source's own match can tell which is genuinely the
     better textual match, before any confidence-display capping is applied."""
-    if isinstance(value, (int, float)) and not isinstance(value, bool):
-        target_tokens = _norm_tokens(_id_number_variants(float(value))[0])
+    # A numeric value additionally requires its window's digits to match the
+    # target's digits EXACTLY (see `target_digits` below) — difflib's ratio
+    # on two formatted numbers is misleadingly forgiving (e.g. "85.555.556"
+    # vs "855.555.556" scores high: 10 of 11 characters line up), which once
+    # landed RATNA_INTAN's total_amount_before_vat on its own WHT line
+    # instead of its real line one row up. Wording/OCR slack (punctuation,
+    # spacing, misread letters) is still fully absorbed for text values —
+    # this gate only fires for numbers, where "close" is never good enough.
+    #
+    # A `currency` value also tries its symbol variant (_CURRENCY_SYMBOLS)
+    # alongside the raw ISO code — same reasoning as _search_candidates' own
+    # exact-tier currency handling, needed again here since this tier works
+    # from the raw value directly rather than from _search_candidates'
+    # output, and a fully scanned page (e.g. RATNA_INTAN's invoice) never
+    # reaches the exact tier at all.
+    is_numeric = isinstance(value, (int, float)) and not isinstance(value, bool)
+    if is_numeric:
+        value_strs = [_id_number_variants(float(value))[0]]
     else:
-        target_tokens = _norm_tokens(str(value))
-    if not target_tokens:
-        return None
-    candidate_text = " ".join(target_tokens)
-    n = len(target_tokens)
+        value_strs = [str(value)]
+        if field == "currency":
+            value_strs += _CURRENCY_SYMBOLS.get(str(value).strip(), [])
 
     best = None  # (ratio, page_number, rect)
-    for page_number, words in words_by_page.items():
-        if not words:
+    for value_str in value_strs:
+        target_tokens = _norm_tokens(value_str)
+        if not target_tokens:
             continue
-        # Flatten to (token, source_word_index) so a matched window can map
-        # back to exactly the words it came from (not padding neighbors).
-        flat: list[tuple[str, int]] = [
-            (tok, wi) for wi, w in enumerate(words) for tok in _norm_tokens(w[4])
-        ]
-        if not flat:
-            continue
-        m = len(flat)
-        # Window-length band to try: tight (n-1..n+2) works well for short
-        # values (names, numbers, dates) where OCR token-count variance is
-        # small. A long multi-line address/description needs much more
-        # slack — OCR can split or merge several of its ~15-20 tokens
-        # differently line to line, and a fixed +/-2 band never finds a
-        # window covering enough of it to clear the ratio threshold at all.
-        wlen_lo = max(n - 1, 1) if n <= 8 else max(int(n * 0.5), 1)
-        wlen_hi = (n + 3) if n <= 8 else int(n * 1.6) + 3
-        for wlen in range(wlen_lo, wlen_hi):
-            for start in range(0, m - wlen + 1):
-                window = flat[start:start + wlen]
-                window_text = " ".join(tok for tok, _ in window)
-                ratio = difflib.SequenceMatcher(None, window_text, candidate_text).ratio()
-                if best is not None and ratio <= best[0]:
-                    continue
-                word_idxs = sorted({wi for _, wi in window})
-                ws = [words[i] for i in word_idxs]
-                if not _is_spatially_coherent(ws):
-                    continue
-                x0 = min(w[0] for w in ws)
-                y0 = min(w[1] for w in ws)
-                x1 = max(w[2] for w in ws)
-                y1 = max(w[3] for w in ws)
-                best = (ratio, page_number, fitz.Rect(x0, y0, x1, y1))
+        target_digits = "".join(ch for ch in "".join(target_tokens) if ch.isdigit()) if is_numeric else None
+        candidate_text = " ".join(target_tokens)
+        n = len(target_tokens)
+
+        for page_number, words in words_by_page.items():
+            if not words:
+                continue
+            # Flatten to (token, source_word_index) so a matched window can map
+            # back to exactly the words it came from (not padding neighbors).
+            flat: list[tuple[str, int]] = [
+                (tok, wi) for wi, w in enumerate(words) for tok in _norm_tokens(w[4])
+            ]
+            if not flat:
+                continue
+            m = len(flat)
+            # Window-length band to try: tight (n-1..n+2) works well for short
+            # values (names, numbers, dates) where OCR token-count variance is
+            # small. A long multi-line address/description needs much more
+            # slack — OCR can split or merge several of its ~15-20 tokens
+            # differently line to line, and a fixed +/-2 band never finds a
+            # window covering enough of it to clear the ratio threshold at all.
+            wlen_lo = max(n - 1, 1) if n <= 8 else max(int(n * 0.5), 1)
+            wlen_hi = (n + 3) if n <= 8 else int(n * 1.6) + 3
+            for wlen in range(wlen_lo, wlen_hi):
+                for start in range(0, m - wlen + 1):
+                    window = flat[start:start + wlen]
+                    window_text = " ".join(tok for tok, _ in window)
+                    if target_digits is not None:
+                        window_digits = "".join(ch for ch in window_text if ch.isdigit())
+                        if window_digits != target_digits:
+                            continue
+                    ratio = difflib.SequenceMatcher(None, window_text, candidate_text).ratio()
+                    if best is not None and ratio <= best[0]:
+                        continue
+                    word_idxs = sorted({wi for _, wi in window})
+                    ws = [words[i] for i in word_idxs]
+                    if not _is_spatially_coherent(ws):
+                        continue
+                    x0 = min(w[0] for w in ws)
+                    y0 = min(w[1] for w in ws)
+                    x1 = max(w[2] for w in ws)
+                    y1 = max(w[3] for w in ws)
+                    best = (ratio, page_number, fitz.Rect(x0, y0, x1, y1))
 
     if best is None or best[0] < threshold:
         return None

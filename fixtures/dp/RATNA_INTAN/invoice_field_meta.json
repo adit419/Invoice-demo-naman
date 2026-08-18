@@ -59,6 +59,16 @@
       "value_confidence": 0.8
     }
   },
+  "currency": {
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.587059,
+      "bbox_top": 0.357172,
+      "bbox_width": 0.01817,
+      "bbox_height": 0.011717,
+      "value_confidence": 0.9
+    }
+  },
   "wht": {
     "bbox": {
       "page": 1,
