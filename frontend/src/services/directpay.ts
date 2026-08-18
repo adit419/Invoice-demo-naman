@@ -156,6 +156,12 @@ export interface DpFinding {
   // Whether this finding can block approval — a subset of `core` (e.g. Bank
   // Details is core but not mandatory). Drives the banner/button gating.
   mandatory?: boolean;
+  // Where the Contract-column value came from. "supporting_document" means
+  // the contract only states the billing rule for this charge (utility
+  // "billed on actuals") and the amount came from the invoice's supporting
+  // document — drives the ⓘ explainer next to the value. Absent/"contract"
+  // for every ordinary row.
+  expected_source?: "contract" | "supporting_document";
   [key: string]: unknown;
 }
 

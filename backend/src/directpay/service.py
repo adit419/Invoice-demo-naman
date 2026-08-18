@@ -502,10 +502,23 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
         # would otherwise return the "closest" installment's figure (always
         # Service Charge — Month 1, since it's numerically nearer than any
         # Rent installment) — a real number, but not a real comparison, since
-        # no schedule category exists for these charge types at all. Blank
-        # is more honest than a false match.
+        # no schedule category exists for these charge types at all (the
+        # contract itself only says "billed on actuals"). A supporting
+        # document persisted onto this run at extract time (see
+        # extract_invoice/fixtures.py's DpDocumentEntry.supporting_document)
+        # supplies the real actuals-based figure instead, when one exists —
+        # the contract still governs the billing RULE, the supporting
+        # document just supplies the AMOUNT that rule produced. Falls back
+        # to blank (more honest than a false match) when there's no
+        # supporting document for this specific charge either.
+        used_supporting_document = False
         if core.invoice_field in _NO_SCHEDULE_BLANK_FIELDS and _has_no_schedule_charge(extracted):
-            contract_value = None
+            supporting_value = (doc.get("supporting_document") or {}).get(core.invoice_field)
+            if supporting_value is not None:
+                contract_value = supporting_value
+                used_supporting_document = True
+            else:
+                contract_value = None
         # RATNA_INTAN's own no-VAT case (see _RATNA_INTAN_NO_VAT_FIELDS) — the
         # schedule's Amount (Excl. Tax)/VAT Amount don't apply to this vendor
         # at all, so there's genuinely nothing on the contract side either.
@@ -609,19 +622,25 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
                 detail = f"Compares the invoice's {core.label} against the contract."
             else:
                 max_allowed_formatted = _format_finding_invoice_value(core.invoice_field, max_allowed, currency)
+                # Billed-on-actuals charges (Electricity/Water) have no flat
+                # contract figure at all — the reference amount here comes
+                # from the supporting document instead (see
+                # used_supporting_document above), so the wording shouldn't
+                # imply a "contract amount" that doesn't exist for this row.
+                reference_label = "supporting document amount" if used_supporting_document else "contract amount"
                 if within_threshold:
                     severity = "info"
                     mandatory = False
                     detail = (
                         f"Within the configured {threshold_pct:g}% threshold — invoice must not exceed "
-                        f"{max_allowed_formatted} (contract amount + {threshold_pct:g}%)."
+                        f"{max_allowed_formatted} ({reference_label} + {threshold_pct:g}%)."
                     )
                 else:
                     severity = "error"
                     mandatory = True
                     detail = (
                         f"Exceeds the configured {threshold_pct:g}% threshold — invoice must not exceed "
-                        f"{max_allowed_formatted} (contract amount + {threshold_pct:g}%)."
+                        f"{max_allowed_formatted} ({reference_label} + {threshold_pct:g}%)."
                     )
         elif (
             core.invoice_field in _INSTALLMENT_MATCH_FIELD_MAP
@@ -644,11 +663,21 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
             if diff is not None and abs(diff) >= 0.01:
                 diff_formatted = _format_finding_invoice_value(core.invoice_field, abs(diff), currency)
                 direction = "higher" if diff > 0 else "lower"
-                detail = (
-                    f"Invoice is {diff_formatted} {direction} than the contract's payment schedule for "
-                    f"{core.label} — likely a per-sq-ft/consumption rate change since the schedule was set; "
-                    "no backup document available to verify."
-                )
+                if used_supporting_document:
+                    # A real backup document DOES exist here (that's exactly
+                    # what supplied contract_value) — the reasoning below is
+                    # about consumption/rate drift, not a missing document.
+                    detail = (
+                        f"Invoice is {diff_formatted} {direction} than the supporting document's stated "
+                        f"{core.label} — this is billed on actuals per the contract, so a difference here "
+                        "means the invoice and supporting document disagree on the actual consumption/rate."
+                    )
+                else:
+                    detail = (
+                        f"Invoice is {diff_formatted} {direction} than the contract's payment schedule for "
+                        f"{core.label} — likely a per-sq-ft/consumption rate change since the schedule was set; "
+                        "no backup document available to verify."
+                    )
             else:
                 detail = f"Compares the invoice's {core.label} against the contract."
         else:
@@ -668,6 +697,14 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
             "expected_value": contract_value,
             "core": True,
             "mandatory": mandatory,
+            # Where the Contract-column value actually came from. "contract"
+            # (the default, omitted-equivalent) means the contract/its payment
+            # schedule; "supporting_document" means the contract only states
+            # the billing RULE for this charge ("billed on actuals") and the
+            # AMOUNT came from the invoice's supporting document instead —
+            # surfaced as an ⓘ next to the value so that's transparent rather
+            # than implicit. See used_supporting_document above.
+            "expected_source": "supporting_document" if used_supporting_document else "contract",
         })
     return annotated
 
@@ -1066,6 +1103,13 @@ async def upload_invoice(
         "status": "extraction",  # idle — matches kopi-demo: extraction hasn't run until /extract
         "base_extracted": None,
         "edited_extracted": None,
+        # Set only at extract time, and only for a document whose
+        # documents.json entry carries one (Palladium's Electricity/Water —
+        # see fixtures.py's DpDocumentEntry.supporting_document). Persisted
+        # here rather than read live off the fixture bundle so Matching's
+        # comparison is a stable snapshot like base_extracted/base_fields,
+        # not something that could shift under an in-progress review.
+        "supporting_document": None,
         "contract_id": None,
         "match_result": None,
         "original_findings": None,
@@ -1118,12 +1162,21 @@ async def extract_invoice(db, oid: ObjectId) -> dict:
         extracted = document.invoice_extraction
     else:
         extracted = bundle.invoice_extraction if bundle else {}
+    # Internal-only — no upload flow, no review UI (unlike Invoice/FP/
+    # Contract extraction). None for every document that doesn't carry one.
+    supporting_document = document.supporting_document if document else None
 
     await dp_invoice_runs(db).update_one(
         {"_id": oid},
-        {"$set": {"base_extracted": extracted, "status": "extracted", "updated_at": _now()}},
+        {"$set": {
+            "base_extracted": extracted,
+            "supporting_document": supporting_document,
+            "status": "extracted",
+            "updated_at": _now(),
+        }},
     )
     doc["base_extracted"] = extracted
+    doc["supporting_document"] = supporting_document
     doc["status"] = "extracted"
     return await invoice_out(db, doc)
 
