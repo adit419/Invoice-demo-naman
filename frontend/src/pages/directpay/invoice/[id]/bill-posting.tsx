@@ -201,6 +201,7 @@ function InvoiceBillPostingPage() {
 
   const isCompleted = data.status === "posted";
   const isVendorSubjectToWht = data.wht_applicable;
+  const isVendorSubjectToVat = data.vat_applicable;
 
   const metaItems = [
     { icon: <TagOutlined />, text: "Manual Upload" },
@@ -327,6 +328,7 @@ function InvoiceBillPostingPage() {
                 lineEdits={lineEdits}
                 isEditMode={!isCompleted}
                 isVendorSubjectToWht={isVendorSubjectToWht}
+                isVendorSubjectToVat={isVendorSubjectToVat}
                 currency={data.currency ?? ""}
                 vatOptions={vatOptions}
                 whtOptions={DP_WHT_OPTIONS}

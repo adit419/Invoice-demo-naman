@@ -467,6 +467,9 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
         if contract_doc:
             contract_fields = _strip_na(_merge(contract_doc.get("base_fields") or {}, contract_doc.get("edited_fields")))
 
+    from .stp import get_dp_total_before_vat_threshold  # local import — stp.py never imports service.py's endpoints back
+    vat_threshold = await get_dp_total_before_vat_threshold(db)
+
     bundle = get_dp_loader().discover().get(doc.get("fixture_key"))
     schedule = _effective_payment_schedule(bundle.payment_schedule if bundle else None, contract_doc)
     installment = _match_payment_installment(schedule, extracted) if schedule else None
@@ -578,6 +581,49 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
             )
             mandatory = False
         elif (
+            core.invoice_field == "total_amount_before_vat"
+            and vat_threshold["enabled"]
+            and contract_value is not None
+            and invoice_value is not None
+        ):
+            # User-configurable tolerance check (Matching page control) —
+            # allows the invoice to run up to threshold_pct ABOVE the
+            # contract figure, instead of requiring an exact match. Checked
+            # BEFORE the non-rent-invoice diff branch below on purpose: once
+            # enabled, the threshold is the authoritative check for this
+            # field regardless of invoice type (plain rent or a Service
+            # Charge/Electricity/Water invoice like Palladium's). Disabled by
+            # default; when disabled this branch is never reached and
+            # behavior is identical to the branches below.
+            threshold_pct = vat_threshold["threshold_pct"]
+            try:
+                contract_f = float(contract_value)
+                invoice_f = float(invoice_value)
+                max_allowed = contract_f * (1 + threshold_pct / 100)
+                within_threshold = invoice_f <= max_allowed
+            except (TypeError, ValueError):
+                within_threshold = None
+            if within_threshold is None:
+                severity = "error" if core.mandatory else "warning"
+                mandatory = core.mandatory
+                detail = f"Compares the invoice's {core.label} against the contract."
+            else:
+                max_allowed_formatted = _format_finding_invoice_value(core.invoice_field, max_allowed, currency)
+                if within_threshold:
+                    severity = "info"
+                    mandatory = False
+                    detail = (
+                        f"Within the configured {threshold_pct:g}% threshold — invoice must not exceed "
+                        f"{max_allowed_formatted} (contract amount + {threshold_pct:g}%)."
+                    )
+                else:
+                    severity = "error"
+                    mandatory = True
+                    detail = (
+                        f"Exceeds the configured {threshold_pct:g}% threshold — invoice must not exceed "
+                        f"{max_allowed_formatted} (contract amount + {threshold_pct:g}%)."
+                    )
+        elif (
             core.invoice_field in _INSTALLMENT_MATCH_FIELD_MAP
             and invoice_value is not None
             and _is_non_rent_invoice(extracted)
@@ -586,7 +632,9 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
             # back to any real contract figure the way Rent does — surface
             # the actual delta plus why, instead of a bare "compares against
             # the contract" line that leaves the reader to subtract the two
-            # numbers themselves and guess at the cause.
+            # numbers themselves and guess at the cause. Only reached for
+            # total_amount_before_vat when the threshold check above is
+            # disabled (see that branch's comment).
             try:
                 diff = float(invoice_value) - float(contract_value)
             except (TypeError, ValueError):
@@ -1494,6 +1542,10 @@ def _bill_posting_out(doc: dict, contract_doc: Optional[dict] = None) -> dict:
     defaults = (bundle.bill_posting if bundle else {}) or {}
     default_items = defaults.get("line_items") or []
     overrides = doc.get("bill_posting_overrides") or {}
+    # RATNA_INTAN only, per explicit instruction: this vendor genuinely
+    # charges no VAT at all (see _RATNA_INTAN_NO_VAT_FIELDS on the Matching
+    # page) — no VAT Tax Code column/value applies to its line items either.
+    is_ratna_intan = doc.get("fixture_key") == "RATNA_INTAN"
 
     line_items = []
     for idx, item in enumerate(extracted.get("line_items") or []):
@@ -1523,7 +1575,7 @@ def _bill_posting_out(doc: dict, contract_doc: Optional[dict] = None) -> dict:
             "quantity": item.get("quantity"),
             "amount": item.get("amount"),
             "gl_account_code": row_overrides.get("gl_account_code", item_defaults.get("gl_account_code", "")),
-            "vat_tax_code": row_overrides.get("vat_tax_code", item_defaults.get("vat_tax_code", "")),
+            "vat_tax_code": "" if is_ratna_intan else row_overrides.get("vat_tax_code", item_defaults.get("vat_tax_code", "")),
             "wht_tax_code": row_overrides.get("wht_tax_code", item_defaults.get("wht_tax_code", "")),
         })
 
@@ -1610,6 +1662,10 @@ def _bill_posting_out(doc: dict, contract_doc: Optional[dict] = None) -> dict:
         "grand_total": extracted.get("total_amount"),
         "payable_amount": payable_amount,
         "wht_applicable": defaults.get("wht_applicable", False),
+        # Drives hiding the VAT/GST Tax Code column on the Bill Posting page —
+        # RATNA_INTAN only, see is_ratna_intan above. True for every other
+        # vendor (no fixture currently opts a different vendor out of VAT).
+        "vat_applicable": not is_ratna_intan,
         "line_items": line_items,
         "stamp_duty_amount": stamp_duty_amount,
         "erp": doc.get("erp"),
@@ -1779,18 +1835,11 @@ async def simulate_bill_posting(db, oid: ObjectId) -> dict:
     # The invoice's own extracted tax rate (e.g. 0.11) — labels the Input VAT
     # row with a percentage, mirroring P2P's vat_codes.json percentage lookup.
     # DirectPay has the real rate on the invoice itself, so no lookup table
-    # is needed the way P2P's SAP-code system requires one.
+    # is needed the way P2P's SAP-code system requires one. Never looked up
+    # for RATNA_INTAN (no VAT applies — see is_ratna_intan below), since the
+    # Input VAT row this label feeds is never emitted for that vendor either.
     tax_rate = extracted.get("tax_rate")
     is_ratna_intan = doc.get("fixture_key") == "RATNA_INTAN"
-    if is_ratna_intan and tax_rate is None and bundle and bundle.payment_schedule:
-        # Raw invoice has no separate VAT line (tax_rate is null) — same
-        # schedule-derived-values decision as _bill_posting_out above,
-        # applied to the rate label too so the now-nonzero Input VAT row
-        # below isn't shown with no percentage at all.
-        rate_schedule = _effective_payment_schedule(bundle.payment_schedule, contract_doc)
-        installment_for_rate = _match_payment_installment(rate_schedule, extracted)
-        if installment_for_rate:
-            tax_rate = installment_for_rate.get("vat_rate")
 
     headers = [
         {"id": "position", "label": "#", "type": "text", "width": 56},
@@ -1850,9 +1899,12 @@ async def simulate_bill_posting(db, oid: ObjectId) -> dict:
 
     # Input tax debit — shown for ANY invoice with a VAT code set, including a
     # 0% rate (mirrors P2P exactly: gated on the code being present, not on
-    # tax_amount > 0).
+    # tax_amount > 0). Never emitted for a vendor with vat_applicable=False
+    # (RATNA_INTAN) — its line items never carry a vat_tax_code in the first
+    # place (see _bill_posting_out), but the explicit gate here is the
+    # authoritative one.
     input_vat_code = next((it.get("vat_tax_code") for it in line_items if it.get("vat_tax_code")), "—")
-    if any(it.get("vat_tax_code") for it in line_items):
+    if bp.get("vat_applicable", True) and any(it.get("vat_tax_code") for it in line_items):
         # tax_rate is a whole percentage number (11, not 0.11) — see
         # payment_schedule.json/invoice_extraction.json's own convention.
         vat_pct = f"{tax_rate:.0f}%" if tax_rate else ""
