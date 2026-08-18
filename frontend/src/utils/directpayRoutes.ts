@@ -24,9 +24,6 @@ export function invoiceRoute(inv: DpInvoiceRun): string {
   if (inv.status === "fp_extraction") {
     return `/directpay/invoice/${inv.id}/fp-extraction`;
   }
-  if (inv.status === "postprocessing") {
-    return `/directpay/invoice/${inv.id}/extraction-postprocessing`;
-  }
   if (inv.status === "bill_posting" || inv.status === "posted") {
     return `/directpay/invoice/${inv.id}/bill-posting`;
   }

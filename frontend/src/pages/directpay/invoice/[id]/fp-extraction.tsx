@@ -34,7 +34,7 @@ function sleep(ms: number) {
 }
 
 function formatFpValue(field: string, value: string | number | null): string {
-  if (value === null || value === undefined || value === "") return "—";
+  if (value === null || value === undefined || value === "") return "NA";
   if (field === "taxable_amount" || field === "vat_amount") {
     const n = typeof value === "number" ? value : parseFloat(String(value));
     return Number.isFinite(n) ? n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : String(value);
@@ -120,10 +120,12 @@ function FpExtractionPage() {
       setBusy(false);
       setTransitioning(true);
       await sleep(MATCHING_PHASE_MS);
-      // Extraction Postprocessing comes next now — it derives due_date/WHT/
-      // net-payment fields from the contract's own payment schedule before
-      // Matching runs its AI contract recommendation.
-      router.push(`/directpay/invoice/${id}/extraction-postprocessing`);
+      // Matching comes next now — Extraction Postprocessing was a separate
+      // review stage in an earlier round and was removed per explicit
+      // instruction. match.tsx's own load() already triggers the AI
+      // contract recommendation itself on arrival, so nothing needs to run
+      // here first.
+      router.push(`/directpay/invoice/${id}/match`);
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
         toast("Acknowledge each mismatch before proceeding.", "error");
@@ -146,7 +148,17 @@ function FpExtractionPage() {
   };
 
   const blockingFields = useMemo(
-    () => (fp?.fields ?? []).filter((f) => f.required && f.match_status === "mismatch" && !f.acknowledged),
+    () =>
+      (fp?.fields ?? []).filter(
+        (f) =>
+          f.required &&
+          f.match_status === "mismatch" &&
+          !f.acknowledged &&
+          !f.system_acknowledged &&
+          f.invoice_value !== undefined &&
+          f.invoice_value !== null &&
+          f.invoice_value !== ""
+      ),
     [fp]
   );
   const canApprove = blockingFields.length === 0;
@@ -162,8 +174,10 @@ function FpExtractionPage() {
           style: {
             background: "#F4F4F4",
             borderRight: "1px solid #E5E7EB",
-            boxShadow: record.match_status === "mismatch" && !record.acknowledged
-              ? record.required ? "inset 2px 0 0 #C10008" : "inset 2px 0 0 #D97706"
+            boxShadow: record.match_status === "mismatch" && !record.acknowledged && !record.system_acknowledged
+              ? record.required && record.invoice_value !== undefined && record.invoice_value !== null && record.invoice_value !== ""
+                ? "inset 2px 0 0 #C10008"
+                : "inset 2px 0 0 #D97706"
               : undefined,
           },
         }),
@@ -181,10 +195,34 @@ function FpExtractionPage() {
         render: (_, record) => {
           const value = formatFpValue(record.field_name, record.fp_value);
           const isAcked = record.acknowledged;
+          // Only offer Acknowledge where the invoice actually has a value to
+          // compare against — same rule as MatchingTable.tsx's own canAck:
+          // a blank invoice-side value has nothing to acknowledge, just an
+          // informational "NA" row.
+          const hasInvoiceValue = record.invoice_value !== undefined && record.invoice_value !== null && record.invoice_value !== "";
+          const canAck = record.required && hasInvoiceValue;
           return (
             <div className="flex items-center gap-2" style={{ width: "100%" }}>
-              <span style={{ flex: 1, fontSize: 14, color: value === "—" ? "#9CA3AF" : "#414651", wordBreak: "break-word" }}>{value}</span>
-              {isAcked ? (
+              <span style={{ flex: 1, fontSize: 14, color: value === "NA" ? "#9CA3AF" : "#414651", wordBreak: "break-word" }}>{value}</span>
+              {record.system_acknowledged ? (
+                // Same badge as MatchingTable.tsx's own system-acknowledged
+                // findings — pre-blessed by the DP Acknowledge Threshold's
+                // learned memory, distinct from a human's own green-check ack.
+                <span
+                  title="Auto-approved — the DirectPay Acknowledge Threshold has learned this exact mismatch from prior manual acknowledgements"
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0, whiteSpace: "nowrap",
+                    padding: "2px 10px", borderRadius: 9999,
+                    border: "1px solid #A5B4FC", background: "#EEF2FF", color: "#6366F1",
+                    fontSize: 13, fontWeight: 500, cursor: "default",
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="#6366F1" style={{ flexShrink: 0 }}>
+                    <path d="M9 2C9 2 9.5 6.5 11 8C12.5 9.5 17 10 17 10C17 10 12.5 10.5 11 12C9.5 13.5 9 18 9 18C9 18 8.5 13.5 7 12C5.5 10.5 1 10 1 10C1 10 5.5 9.5 7 8C8.5 6.5 9 2 9 2Z" />
+                  </svg>
+                  Auto-approved
+                </span>
+              ) : canAck && isAcked ? (
                 // Same circular check button as the Matching page's own
                 // Acknowledge icon — a handled mismatch never looks "still
                 // open", and stays clickable to revert while still editable.
@@ -203,7 +241,7 @@ function FpExtractionPage() {
                     <path d="M2.5 6.3 4.9 8.7 9.5 3.6" stroke="#2A9F47" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 </button>
-              ) : isActionable && record.required ? (
+              ) : canAck && isActionable ? (
                 <button
                   type="button"
                   onClick={() => handleAcknowledge(record.field_name, true)}
@@ -229,7 +267,7 @@ function FpExtractionPage() {
         width: 220,
         render: (_, record) => {
           const value = formatFpValue(record.field_name, record.invoice_value);
-          return <span style={{ fontSize: 14, color: value === "—" ? "#9CA3AF" : "#414651" }}>{value}</span>;
+          return <span style={{ fontSize: 14, color: value === "NA" ? "#9CA3AF" : "#414651" }}>{value}</span>;
         },
       },
     ],
@@ -239,7 +277,8 @@ function FpExtractionPage() {
   const getRowClassName = (record: DpFakturPajakField): string => {
     if (selectedField === record.field_name) return "dp-fp-row-selected";
     if (record.match_status === "mismatch" && !record.acknowledged) {
-      return record.required ? "dp-fp-row-mandatory-mismatch" : "dp-fp-row-optional-mismatch";
+      const hasInvoiceValue = record.invoice_value !== undefined && record.invoice_value !== null && record.invoice_value !== "";
+      return record.required && hasInvoiceValue ? "dp-fp-row-mandatory-mismatch" : "dp-fp-row-optional-mismatch";
     }
     return "dp-fp-row-match";
   };
@@ -256,11 +295,11 @@ function FpExtractionPage() {
   if (transitioning) {
     return (
       <StageTransitionOverlay
-        title="We're preparing the extraction postprocessing review."
+        title="We're preparing the contract match."
         subtitle="This may take a few minutes. Please keep this page open."
         steps={[
           { label: "Verifying Faktur Pajak", status: "done" },
-          { label: "Loading Extraction Postprocessing", status: "active" },
+          { label: "Loading Matching", status: "active" },
         ]}
       />
     );
@@ -297,7 +336,7 @@ function FpExtractionPage() {
       </AntButton>
     </Space>
   ) : (
-    <AntButton type="primary" onClick={() => router.push(`/directpay/invoice/${id}/extraction-postprocessing`)}>
+    <AntButton type="primary" onClick={() => router.push(`/directpay/invoice/${id}/match`)}>
       Next
     </AntButton>
   );
@@ -426,7 +465,7 @@ function FpExtractionPage() {
                     fontFamily: "monospace", fontSize: 13, color: "#374151",
                   }}
                 >
-                  {fp.fp_number || "—"}
+                  {fp.fp_number || "NA"}
                 </div>
               </div>
 
@@ -448,7 +487,7 @@ function FpExtractionPage() {
           )}
 
           <div style={{ marginTop: "auto", paddingTop: 12, borderTop: "1px solid #F3F4F6", fontSize: 12, color: "#9CA3AF" }}>
-            Audit trail: extraction → Faktur Pajak match → extraction postprocessing → contract matching → bill posting.
+            Audit trail: extraction → Faktur Pajak match → contract matching → bill posting.
           </div>
         </div>
       </div>

@@ -37,6 +37,7 @@ from .models import (
     DpBillPostingEditRequest,
     DpContractApproveRequest,
     DpContractEditRequest,
+    DpContractPostprocessingEditRequest,
     DpContractTriggerUploadRequest,
     DpFpAcknowledgeRequest,
     DpFpApproveRequest,
@@ -167,19 +168,19 @@ async def get_contract_pdf(run_id: str):
 
 
 @router.patch("/contracts/{run_id}/edit")
-async def edit_contract(run_id: str, body: DpContractEditRequest):
+async def edit_contract(run_id: str, body: DpContractEditRequest, current_user: CurrentUser):
     db = get_db()
     try:
-        return _envelope(data=await service.edit_contract(db, _oid(run_id, "contract ID"), body.fields))
+        return _envelope(data=await service.edit_contract(db, _oid(run_id, "contract ID"), body.fields, current_user.email))
     except service.NotFoundError as exc:
         _not_found(exc)
 
 
 @router.post("/contracts/{run_id}/approve")
-async def approve_contract(run_id: str, body: DpContractApproveRequest):
+async def approve_contract(run_id: str, body: DpContractApproveRequest, current_user: CurrentUser):
     db = get_db()
     try:
-        return _envelope(data=await service.approve_contract(db, _oid(run_id, "contract ID"), body.fields))
+        return _envelope(data=await service.approve_contract(db, _oid(run_id, "contract ID"), body.fields, current_user.email))
     except service.NotFoundError as exc:
         _not_found(exc)
 
@@ -189,6 +190,26 @@ async def get_contract_extraction_postprocessing(run_id: str):
     db = get_db()
     try:
         return _envelope(data=await service.get_contract_extraction_postprocessing(db, _oid(run_id, "contract ID")))
+    except service.NotFoundError as exc:
+        _not_found(exc)
+
+
+@router.patch("/contracts/{run_id}/extraction-postprocessing")
+async def edit_contract_extraction_postprocessing(run_id: str, body: DpContractPostprocessingEditRequest, current_user: CurrentUser):
+    db = get_db()
+    try:
+        return _envelope(data=await service.edit_contract_extraction_postprocessing(
+            db, _oid(run_id, "contract ID"), body.installments, body.one_time_payments, current_user.email
+        ))
+    except service.NotFoundError as exc:
+        _not_found(exc)
+
+
+@router.get("/contracts/{run_id}/edit-history")
+async def get_contract_edit_history(run_id: str):
+    db = get_db()
+    try:
+        return _envelope(data={"items": await service.get_contract_edit_history(db, _oid(run_id, "contract ID"))})
     except service.NotFoundError as exc:
         _not_found(exc)
 
@@ -365,26 +386,6 @@ async def get_edit_history(run_id: str):
         return _envelope(data={"items": await service.get_edit_history(db, _oid(run_id, "invoice ID"))})
     except service.NotFoundError as exc:
         _not_found(exc)
-
-
-@router.get("/invoices/{run_id}/extraction-postprocessing")
-async def get_extraction_postprocessing(run_id: str):
-    db = get_db()
-    try:
-        return _envelope(data=await service.get_extraction_postprocessing(db, _oid(run_id, "invoice ID")))
-    except service.NotFoundError as exc:
-        _not_found(exc)
-
-
-@router.post("/invoices/{run_id}/extraction-postprocessing/approve")
-async def approve_extraction_postprocessing(run_id: str):
-    db = get_db()
-    try:
-        return _envelope(data=await service.approve_extraction_postprocessing(db, _oid(run_id, "invoice ID")))
-    except service.NotFoundError as exc:
-        _not_found(exc)
-    except service.InvalidStateError as exc:
-        raise HTTPException(status_code=400, detail=exc.message)
 
 
 @router.get("/invoices/{run_id}/faktur-pajak")

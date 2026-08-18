@@ -56,6 +56,10 @@ export interface DpContractRun {
   // approving Contract Review lands on Extraction Postprocessing or goes
   // straight to "saved" (see dashboard.tsx's contractRoute).
   has_payment_schedule: boolean;
+  // Same "View Edit History" gate the invoice side uses — set once an edit
+  // has been made on either Contract Extraction or Extraction
+  // Postprocessing (both append to the same doc-level edit_history).
+  has_edit_history: boolean;
   pdf_url: string;
   created_at: string;
   updated_at: string;
@@ -161,7 +165,7 @@ export interface DpInvoiceRun {
   id: string;
   fixture_key: string;
   file_name: string;
-  status: "extraction" | "extracted" | "postprocessing" | "fp_extraction" | "matching" | "bill_posting" | "posted" | "rejected";
+  status: "extraction" | "extracted" | "fp_extraction" | "matching" | "bill_posting" | "posted" | "rejected";
   contract_id: string | null;
   extracted: DpInvoiceExtracted;
   expected?: Record<string, unknown> | null;
@@ -178,13 +182,12 @@ export interface DpInvoiceRun {
   // One-way flag: has a human clicked Confirm Extraction at least once?
   // Drives the Extraction page's own isActionable — status alone can't tell
   // (it reuses "extracted" for both "just extracted, not yet confirmed" and
-  // "post-Postprocessing, ready for Matching"), and contract_id isn't set
+  // "post-Faktur-Pajak, ready for Matching"), and contract_id isn't set
   // until several stages later, at Matching.
   extraction_confirmed: boolean;
-  // Whether this specific invoice actually has a Faktur Pajak document /
-  // payment-schedule-derived postprocessing stage — a vendor like
-  // RATNA_INTAN has no FP at all, so "back" navigation from later stages
-  // must check these rather than assuming every stage applied.
+  // Whether this specific invoice actually has a Faktur Pajak document — a
+  // vendor like RATNA_INTAN has none at all, so "back" navigation from later
+  // stages must check this rather than assuming the stage always applied.
   has_faktur_pajak: boolean;
   has_payment_schedule: boolean;
   // "manual" (real multipart /invoices/upload) vs "trigger"
@@ -275,37 +278,11 @@ export interface DpBillPostingData {
   updated_at: string;
 }
 
-// Extraction Postprocessing stage — DirectPay's own addition (no P2P analog).
-// Sits between Extraction and Faktur Pajak: derives invoice fields the
-// document itself never prints (due_date, wht_rate, wht,
-// net_amount_after_wht) from the underlying lease's own payment schedule
-// (see backend/src/directpay/service.py's _DERIVED_FIELD_DISPLAY).
-export interface DpDerivedField {
-  field_name: "due_date" | "wht_rate" | "wht" | "net_amount_after_wht";
-  display_name: string;
-  derived_value: string | number | null;
-  formatted_value: string;
-  already_applied: boolean;
-}
-
-export interface DpExtractionPostprocessing {
-  id: string;
-  status: DpInvoiceRun["status"];
-  invoice_number?: string | null;
-  invoice_date?: string | null;
-  vendor_name?: string | null;
-  currency?: string | null;
-  has_payment_schedule: boolean;
-  matched_installment?: string | null;
-  fields: DpDerivedField[];
-}
-
-// Contract-side counterpart — reviewed once per contract (not tied to any
+// Contract-side derived fields — reviewed once per contract (not tied to any
 // one invoice yet, so every installment is shown, not just a matched one).
-// See backend/src/directpay/service.py's _CONTRACT_DERIVED_COLUMNS — the
-// same Total Amount Before VAT / Tax Amount / WHT / Net Amount After WHT
-// figures Matching later pulls per-invoice from whichever installment its
-// amount matches.
+// See backend/src/directpay/service.py's _CONTRACT_DERIVED_COLUMNS — Total
+// Amount Before VAT is the one figure Matching later pulls per-invoice from
+// whichever installment its amount matches.
 export interface DpContractDerivedField {
   field_name: string;
   display_name: string;
@@ -337,6 +314,7 @@ export interface DpContractExtractionPostprocessing {
   status: DpContractRun["status"];
   vendor_name?: string | null;
   has_payment_schedule: boolean;
+  has_edit_history: boolean;
   installments: DpContractInstallment[];
   one_time_payments: DpContractOneTimePayment[];
 }
@@ -355,6 +333,11 @@ export interface DpFakturPajakField {
   match_status: "match" | "mismatch";
   required: boolean;
   acknowledged: boolean;
+  // Pre-blessed by the DP Acknowledge Threshold's learned memory — same
+  // (field, fp-value) -> invoice-value pair has been manually acknowledged
+  // enough times before. Rendered as the purple "Auto-approved" badge,
+  // mirroring MatchingTable.tsx's own system-acknowledged findings.
+  system_acknowledged: boolean;
 }
 
 export interface DpFakturPajak {
@@ -378,7 +361,9 @@ export interface DpFakturPajak {
 export interface DpEditHistoryItem {
   timestamp: string;
   user_email: string;
-  scope: "metadata" | "line_item";
+  // "installment"/"one_time_payment" are Contract Extraction Postprocessing's
+  // own row-scoped edits — same shape as "line_item", different source.
+  scope: "metadata" | "line_item" | "installment" | "one_time_payment";
   field: string;
   row_id: string | null;
   old_value: string | null;
@@ -414,8 +399,14 @@ export const directpayService = {
     api.post<DpContractRun>(`/dp-api/contracts/${id}/approve`, { fields }),
   getContractExtractionPostprocessing: (id: string) =>
     api.get<DpContractExtractionPostprocessing>(`/dp-api/contracts/${id}/extraction-postprocessing`),
+  editContractExtractionPostprocessing: (
+    id: string,
+    body: { installments?: Record<string, Record<string, unknown>>; one_time_payments?: Record<string, Record<string, unknown>> }
+  ) => api.patch<DpContractExtractionPostprocessing>(`/dp-api/contracts/${id}/extraction-postprocessing`, body),
   approveContractExtractionPostprocessing: (id: string) =>
     api.post<DpContractRun>(`/dp-api/contracts/${id}/extraction-postprocessing/approve`),
+  getContractEditHistory: (id: string) =>
+    api.get<{ items: DpEditHistoryItem[] }>(`/dp-api/contracts/${id}/edit-history`),
 
   // Invoices
   uploadInvoice: (file: File) => {
@@ -441,11 +432,6 @@ export const directpayService = {
     api.get<{ items: DpEditHistoryItem[] }>(`/dp-api/invoices/${id}/edit-history`),
 
   // Extraction Postprocessing
-  getExtractionPostprocessing: (id: string) =>
-    api.get<DpExtractionPostprocessing>(`/dp-api/invoices/${id}/extraction-postprocessing`),
-  approveExtractionPostprocessing: (id: string) =>
-    api.post<DpInvoiceRun>(`/dp-api/invoices/${id}/extraction-postprocessing/approve`),
-
   // Faktur Pajak
   getFakturPajak: (id: string) => api.get<DpFakturPajak>(`/dp-api/invoices/${id}/faktur-pajak`),
   acknowledgeFakturPajakField: (id: string, fieldName: string, acknowledged = true) =>

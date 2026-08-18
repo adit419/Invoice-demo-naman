@@ -56,7 +56,6 @@ const INVOICE_STAGE_TAG: Record<string, { label: string; tone: keyof typeof ANTD
   extraction: { label: "Extraction", tone: "cyan" },
   extracted: { label: "Extracted", tone: "cyan" },
   fp_extraction: { label: "Faktur Pajak", tone: "geekblue" },
-  postprocessing: { label: "Postprocessing", tone: "cyan" },
   matching: { label: "Matching", tone: "purple" },
   bill_posting: { label: "Bill Posting", tone: "geekblue" },
   posted: { label: "Posted", tone: "green" },
@@ -152,7 +151,7 @@ const INPUT_S: React.CSSProperties = {
 };
 
 function fmtMoney(n: number | null | undefined, currency?: string | null): string {
-  if (n == null) return "—";
+  if (n == null) return "NA";
   return `${currency ?? ""} ${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`.trim();
 }
 
@@ -1070,13 +1069,13 @@ function DirectPayDashboard() {
                               </td>
                               <td style={{ padding: "10px 16px", cursor: "pointer" }} onClick={() => router.push(invoiceRoute(inv))}>
                                 <span style={{ ...CELL_PRIMARY, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                  {inv.extracted?.vendor_name ?? "—"}
+                                  {inv.extracted?.vendor_name ?? "NA"}
                                 </span>
-                                <span style={{ ...CELL_MUTED, fontSize: 12.5, whiteSpace: "nowrap" }}>{inv.extracted?.invoice_number ?? "—"}</span>
+                                <span style={{ ...CELL_MUTED, fontSize: 12.5, whiteSpace: "nowrap" }}>{inv.extracted?.invoice_number ?? "NA"}</span>
                               </td>
                               <td style={{ padding: "10px 16px", cursor: "pointer" }} onClick={() => router.push(invoiceRoute(inv))}>
                                 <span style={CELL_PRIMARY}>
-                                  {contracts.find((c) => c.id === inv.contract_id)?.fields.vendor_name ?? "—"}
+                                  {contracts.find((c) => c.id === inv.contract_id)?.fields.vendor_name ?? "NA"}
                                 </span>
                               </td>
                               <td style={{ padding: "10px 16px", textAlign: "right", cursor: "pointer" }} onClick={() => router.push(invoiceRoute(inv))}>
@@ -1164,10 +1163,10 @@ function DirectPayDashboard() {
                                 </span>
                               </td>
                               <td style={{ padding: "10px 16px", cursor: "pointer" }} onClick={() => router.push(contractRoute(c))}>
-                                <span style={CELL_PRIMARY}>{c.fields.vendor_name ?? "—"}</span>
+                                <span style={CELL_PRIMARY}>{c.fields.vendor_name ?? "NA"}</span>
                               </td>
                               <td style={{ padding: "10px 16px", cursor: "pointer" }} onClick={() => router.push(contractRoute(c))}>
-                                <span style={CELL_PRIMARY}>{c.fields.customer_name ?? "—"}</span>
+                                <span style={CELL_PRIMARY}>{c.fields.customer_name ?? "NA"}</span>
                               </td>
                               <td style={{ padding: "10px 16px", cursor: "pointer" }} onClick={() => router.push(contractRoute(c))}>
                                 <StageTag tag={CONTRACT_STAGE_TAG[c.status]} />

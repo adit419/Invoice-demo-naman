@@ -1,34 +1,55 @@
 /**
  * DpEditHistory — DirectPay's Edit History panel, mirroring
  * components/ExtractionEditHistory.tsx's exact layout/columns (P2P's
- * Extraction-stage edit-history view) but pointed at the DirectPay
- * invoice's own /dp-api/invoices/{id}/edit-history endpoint, kept
- * self-contained here rather than generalizing the P2P component.
+ * Extraction-stage edit-history view). Generalized (not just invoice
+ * Extraction) so Contract Extraction and Contract Extraction Postprocessing
+ * render the identical panel against their own edit-history endpoint and
+ * scope vocabulary — the caller supplies which fetch call and which scopes
+ * exist (flat "metadata" only for Contract Extraction; "installment"/
+ * "one_time_payment" for Postprocessing; "metadata"/"line_item" for
+ * invoices), everything else (columns, time formatting, (Empty) styling)
+ * stays identical across all three.
  *
- * Data source: GET /dp-api/invoices/{id}/edit-history → { items: DpEditHistoryItem[] }
+ * Data source: caller-provided fetchHistory() → { items: DpEditHistoryItem[] }
  * Each item: { timestamp, user_email, scope, field, row_id, old_value, new_value }
  * Backend already returns newest-first — no client-side reversal needed.
  */
 import { Spin, Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useEffect, useMemo, useState } from "react";
-import { directpayService, DpEditHistoryItem } from "@/services/directpay";
+import { DpEditHistoryItem } from "@/services/directpay";
 
 interface HistoryRow {
   key: string;
   time: string;
-  scope: string;
-  tabCategory: string;
+  scopeLabel: string;
+  scopeKey: string;
   field: string;
   oldValue: string;
   newValue: string;
   editedBy: string;
 }
 
+export interface DpEditHistoryScopeTab {
+  /** Raw `scope` value the backend returns for this row type. */
+  key: string;
+  /** Displayed both as the tab label and the row's Section badge text. */
+  label: string;
+}
+
+const DEFAULT_SCOPE_TABS: DpEditHistoryScopeTab[] = [
+  { key: "metadata", label: "Metadata" },
+  { key: "line_item", label: "Line Items" },
+];
+
 interface DpEditHistoryProps {
-  invoiceId: string;
-  /** Called when user clicks "Back to Extraction" */
+  fetchHistory: () => Promise<{ items: DpEditHistoryItem[] }>;
+  /** Called when the user clicks the back button. */
   onBack: () => void;
+  /** Defaults to "Back to Extraction" (the invoice page's original copy). */
+  backLabel?: string;
+  /** Which scopes exist for this caller and what to label them — see module doc. */
+  scopeTabs?: DpEditHistoryScopeTab[];
 }
 
 function fieldLabel(f: string): string {
@@ -51,43 +72,52 @@ function formatTime(iso: string): string {
   }
 }
 
-type Tab = "all" | "metadata" | "line_items";
-
-export function DpEditHistory({ invoiceId, onBack }: DpEditHistoryProps) {
+export function DpEditHistory({ fetchHistory, onBack, backLabel = "Back to Extraction", scopeTabs = DEFAULT_SCOPE_TABS }: DpEditHistoryProps) {
   const [items, setItems] = useState<DpEditHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<Tab>("all");
+  const [activeTab, setActiveTab] = useState<string>("all");
 
   useEffect(() => {
-    if (!invoiceId) return;
-    directpayService
-      .getEditHistory(invoiceId)
+    setLoading(true);
+    fetchHistory()
       .then((res) => setItems(res.items ?? []))
       .catch(() => setItems([]))
       .finally(() => setLoading(false));
-  }, [invoiceId]);
+    // scopeTabs/backLabel are stable per call site — only the fetch itself
+    // should re-run.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchHistory]);
+
+  const scopeLabelFor = (scope: string) => scopeTabs.find((t) => t.key === scope)?.label ?? fieldLabel(scope);
+  // First configured scope is treated as the "primary" one (metadata, for
+  // every current caller) and gets the purple badge; anything else (a
+  // row-scoped edit — line item, installment, one-time payment) gets pink.
+  const primaryScopeKey = scopeTabs[0]?.key;
 
   const rows = useMemo(
     (): HistoryRow[] =>
       items.map((it, idx) => {
-        const isLineItem = it.scope === "line_item";
-        const linePrefix = isLineItem && it.row_id ? `Row ${Number(it.row_id) + 1} · ` : "";
+        const isRowScoped = it.scope !== primaryScopeKey;
+        const rowPrefix = isRowScoped && it.row_id != null ? `Row ${Number(it.row_id) + 1} · ` : "";
         return {
           key: String(idx),
           time: formatTime(it.timestamp),
-          scope: isLineItem ? "Line Items" : "Metadata",
-          tabCategory: isLineItem ? "line_items" : "metadata",
-          field: `${linePrefix}${fieldLabel(it.field)}`,
+          scopeLabel: scopeLabelFor(it.scope),
+          scopeKey: it.scope,
+          field: `${rowPrefix}${fieldLabel(it.field)}`,
           oldValue: it.old_value === null || it.old_value === "" ? "(Empty)" : it.old_value,
           newValue: it.new_value === null || it.new_value === "" ? "(Empty)" : it.new_value,
-          editedBy: it.user_email || "—",
+          editedBy: it.user_email || "NA",
         };
       }),
+    // scopeLabelFor/primaryScopeKey are derived from the scopeTabs prop —
+    // stable per call site, not worth re-deriving as a dep.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [items]
   );
 
   const filteredRows = useMemo(
-    () => (activeTab === "all" ? rows : rows.filter((r) => r.tabCategory === activeTab)),
+    () => (activeTab === "all" ? rows : rows.filter((r) => r.scopeKey === activeTab)),
     [rows, activeTab]
   );
 
@@ -110,18 +140,18 @@ export function DpEditHistory({ invoiceId, onBack }: DpEditHistoryProps) {
     },
     {
       title: "Section",
-      dataIndex: "scope",
-      key: "scope",
-      width: 110,
-      render: (scope: string) => (
+      dataIndex: "scopeLabel",
+      key: "scopeLabel",
+      width: 130,
+      render: (scopeLabel: string, record: HistoryRow) => (
         <span
           className={`inline-block px-3 py-1 rounded-full text-xs font-medium border ${
-            scope === "Metadata"
+            record.scopeKey === primaryScopeKey
               ? "bg-purple-50 text-purple-700 border-purple-200"
               : "bg-pink-50 text-pink-700 border-pink-200"
           }`}
         >
-          {scope}
+          {scopeLabel}
         </span>
       ),
     },
@@ -191,17 +221,13 @@ export function DpEditHistory({ invoiceId, onBack }: DpEditHistoryProps) {
           onClick={onBack}
           className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-700 font-medium hover:bg-gray-50 transition-colors"
         >
-          Back to Extraction
+          {backLabel}
         </button>
       </div>
 
       <div className="px-5 pt-3 pb-2 border-b border-gray-200 shrink-0">
         <div className="flex gap-6">
-          {([
-            { key: "all", label: "All" },
-            { key: "metadata", label: "Metadata" },
-            { key: "line_items", label: "Line Items" },
-          ] as const).map((tab) => (
+          {([{ key: "all", label: "All" }, ...scopeTabs] as const).map((tab) => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}

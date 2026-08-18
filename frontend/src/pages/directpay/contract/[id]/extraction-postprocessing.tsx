@@ -1,13 +1,20 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import dynamic from "next/dynamic";
-import { CalendarOutlined, TagOutlined, UserOutlined } from "@ant-design/icons";
+import { CalendarOutlined, CheckCircleOutlined, HistoryOutlined, TagOutlined, UserOutlined } from "@ant-design/icons";
 import { Button as AntButton, Space } from "antd";
 import { withAuthGuard } from "@/components/AuthGuard";
 import { ComponentHeaderAntd } from "@/components/matching";
 import { SourceViewerToolbar, ZOOM_MIN, ZOOM_MAX, ZOOM_STEP } from "@/components/SourceViewerToolbar";
 import { Loader, useToast } from "@/components/ui";
-import { ContractDerivedFieldsTable } from "@/components/directpay/ContractDerivedFieldsTable";
+import { DpEditHistory } from "@/components/directpay/DpEditHistory";
+import {
+  ContractDerivedFieldsTable,
+  CONTRACT_DERIVED_NUMBER_FIELDS,
+  CONTRACT_DERIVED_PERCENT_FIELDS,
+} from "@/components/directpay/ContractDerivedFieldsTable";
+
+const NUMERIC_INSTALLMENT_FIELDS = new Set([...CONTRACT_DERIVED_NUMBER_FIELDS, ...CONTRACT_DERIVED_PERCENT_FIELDS]);
 import { directpayService, DpContractExtractionPostprocessing, DpContractRun } from "@/services/directpay";
 
 const PdfViewer = dynamic(() => import("@/components/PdfViewer").then((m) => m.PdfViewer), {
@@ -37,6 +44,7 @@ function ContractExtractionPostprocessingPage() {
   const [numPages, setNumPages] = useState(1);
   const [scale, setScale] = useState(0.8);
   const [rotate, setRotate] = useState(0);
+  const [showEditHistory, setShowEditHistory] = useState(false);
 
   useEffect(() => {
     setToken(localStorage.getItem("access_token"));
@@ -70,13 +78,10 @@ function ContractExtractionPostprocessingPage() {
     load();
   }, [load]);
 
+  const fetchEditHistory = useCallback(() => directpayService.getContractEditHistory(id as string), [id]);
+
   const handleApprove = async () => {
     if (!id) return;
-    // Already saved — nothing left to approve, "Next" just continues on.
-    if (run?.status === "saved") {
-      router.push("/directpay/dashboard?tab=contracts");
-      return;
-    }
     setSaving(true);
     try {
       await Promise.all([
@@ -108,12 +113,55 @@ function ContractExtractionPostprocessingPage() {
   ].filter(Boolean) as { icon: React.ReactNode; text: string }[];
 
   const isActionable = run.status === "postprocessing";
-  const actionButtons = (
+  // This is the contract flow's own terminal stage — once "saved" there's no
+  // further stage to advance to (unlike every other DirectPay "isPastReview"
+  // page, which still has somewhere to go and so shows a plain "Next"
+  // button). Mirrors invoice bill-posting.tsx's own isCompleted pill exactly.
+  const isCompleted = run.status === "saved";
+
+  const saveInstallmentField = async (instIdx: number, fieldName: string, value: string) => {
+    if (!id) return;
+    const parsed: unknown = value === "" ? null : NUMERIC_INSTALLMENT_FIELDS.has(fieldName) ? Number(value) : value;
+    try {
+      const updated = await directpayService.editContractExtractionPostprocessing(id, {
+        installments: { [String(instIdx)]: { [fieldName]: parsed } },
+      });
+      setData(updated);
+    } catch {
+      toast("Could not save field", "error");
+    }
+  };
+
+  const saveOneTimePaymentField = async (otpIdx: number, fieldName: string, value: string) => {
+    if (!id) return;
+    const parsed: unknown = value === "" ? null : fieldName === "amount" ? Number(value) : value;
+    try {
+      const updated = await directpayService.editContractExtractionPostprocessing(id, {
+        one_time_payments: { [String(otpIdx)]: { [fieldName]: parsed } },
+      });
+      setData(updated);
+    } catch {
+      toast("Could not save field", "error");
+    }
+  };
+
+  const actionButtons = isCompleted ? (
     <Space>
-      <AntButton type="primary" onClick={handleApprove} loading={saving} disabled={saving}>
-        {isActionable ? "Approve & Save" : "Next"}
+      <span
+        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium"
+        style={{ background: "#ecfdf5", color: "#059669", border: "1px solid #a7f3d0" }}
+      >
+        <CheckCircleOutlined />
+        Approved
+      </span>
+      <AntButton type="primary" onClick={() => router.push("/directpay/dashboard?tab=contracts")}>
+        Back to Dashboard
       </AntButton>
     </Space>
+  ) : (
+    <AntButton type="primary" onClick={handleApprove} loading={saving} disabled={saving}>
+      Approve & Save
+    </AntButton>
   );
 
   return (
@@ -155,22 +203,58 @@ function ContractExtractionPostprocessingPage() {
 
         {/* Right: derived-fields panel */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden" style={{ background: "#ffffff" }}>
-          <div className="shrink-0 flex items-center justify-between px-5 pt-5 pb-2">
-            <h2 style={{ fontSize: 18, fontWeight: 600, color: "#101828", margin: 0 }}>Derived Fields — Payment Schedule</h2>
-          </div>
-
-          <div className="flex-1 overflow-y-auto px-5 py-4">
-            {!data.has_payment_schedule || data.installments.length === 0 ? (
-              <div
-                className="flex items-center gap-2"
-                style={{ padding: "12px 16px", borderRadius: 8, background: "#F4F4F4", color: "#585C65", fontSize: 13 }}
-              >
-                No payment schedule available for this vendor — nothing to derive.
+          {showEditHistory ? (
+            <DpEditHistory
+              fetchHistory={fetchEditHistory}
+              onBack={() => setShowEditHistory(false)}
+              backLabel="Back to Derived Fields"
+              scopeTabs={[
+                { key: "installment", label: "Installments" },
+                { key: "one_time_payment", label: "One-Time Payments" },
+              ]}
+            />
+          ) : (
+            <>
+              <div className="shrink-0 flex items-center justify-between px-5 pt-5 pb-2">
+                <h2 style={{ fontSize: 18, fontWeight: 600, color: "#101828", margin: 0 }}>Derived Fields — Payment Schedule</h2>
+                <button
+                  onClick={() => data.has_edit_history && setShowEditHistory(true)}
+                  disabled={!data.has_edit_history}
+                  title={data.has_edit_history ? "View a log of every field edited on this contract" : "No edits recorded yet"}
+                  className="inline-flex items-center gap-1.5"
+                  style={{
+                    fontSize: 13, fontWeight: 500, padding: "5px 10px", borderRadius: 6,
+                    border: "1px solid #D5D5D5", background: "#ffffff",
+                    color: data.has_edit_history ? "#414651" : "#B7BBC2",
+                    cursor: data.has_edit_history ? "pointer" : "not-allowed",
+                    opacity: data.has_edit_history ? 1 : 0.55,
+                  }}
+                >
+                  <HistoryOutlined />
+                  View Edit History
+                </button>
               </div>
-            ) : (
-              <ContractDerivedFieldsTable installments={data.installments} oneTimePayments={data.one_time_payments} />
-            )}
-          </div>
+
+              <div className="flex-1 overflow-y-auto px-5 py-4">
+                {!data.has_payment_schedule || data.installments.length === 0 ? (
+                  <div
+                    className="flex items-center gap-2"
+                    style={{ padding: "12px 16px", borderRadius: 8, background: "#F4F4F4", color: "#585C65", fontSize: 13 }}
+                  >
+                    No payment schedule available for this vendor — nothing to derive.
+                  </div>
+                ) : (
+                  <ContractDerivedFieldsTable
+                    installments={data.installments}
+                    oneTimePayments={data.one_time_payments}
+                    canEdit={isActionable}
+                    onSaveInstallmentField={saveInstallmentField}
+                    onSaveOneTimePaymentField={saveOneTimePaymentField}
+                  />
+                )}
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

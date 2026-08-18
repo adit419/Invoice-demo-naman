@@ -58,16 +58,12 @@ function InvoiceMatchPage() {
     if (!id) return;
     try {
       let [inv, con] = await Promise.all([directpayService.getInvoice(id), directpayService.listContracts()]);
-      // An IDR invoice must clear Faktur Pajak, then Extraction
-      // Postprocessing, before Matching — guards direct/stale navigation to
-      // this page (the normal path only ever arrives here via
-      // extraction-postprocessing.tsx's own Approve).
+      // An IDR invoice must clear Faktur Pajak before Matching — guards
+      // direct/stale navigation to this page (the normal path only ever
+      // arrives here via fp-extraction.tsx's own Approve, or straight from
+      // Extraction for a vendor with no FP document).
       if (inv.status === "fp_extraction") {
         router.replace(`/directpay/invoice/${id}/fp-extraction`);
-        return;
-      }
-      if (inv.status === "postprocessing") {
-        router.replace(`/directpay/invoice/${id}/extraction-postprocessing`);
         return;
       }
       setContracts(con.items.filter((c) => c.status === "saved"));
@@ -318,9 +314,7 @@ function InvoiceMatchPage() {
         title="Matching"
         onBack={() =>
           router.push(
-            run.has_payment_schedule
-              ? `/directpay/invoice/${id}/extraction-postprocessing`
-              : run.has_faktur_pajak
+            run.has_faktur_pajak
               ? `/directpay/invoice/${id}/fp-extraction`
               : `/directpay/invoice/${id}/review`
           )
