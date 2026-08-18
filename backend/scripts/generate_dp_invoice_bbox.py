@@ -526,7 +526,14 @@ def build_field_meta(pdf_path: Path, extraction: dict, restrict_pages: set[int] 
     out: dict = {}
     found_exact, found_fuzzy, found_ocr, missing = [], [], [], []
     for field, value in extraction.items():
-        if field in SKIP_FIELDS or value in (None, ""):
+        # "NA" is the fixture convention for "field genuinely absent" (see
+        # service.py's own _strip_na) — same as None/"", never search for it.
+        # Left un-guarded, "NA" is short enough to substring-match almost
+        # anywhere in a real document, at EXACT confidence, and every NA
+        # field in one document would silently collapse onto that single
+        # false hit (verified: PALLADIUM invoice_1 landed all 11 NA fields on
+        # one wrong box). Missing is always safe; a wrong box never is.
+        if field in SKIP_FIELDS or value in (None, "", "NA"):
             continue
 
         result = _locate_field(doc, native_words, ocr_pages, page_rects, field, value, restrict_pages)

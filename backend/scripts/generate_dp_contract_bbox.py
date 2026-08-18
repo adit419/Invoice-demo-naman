@@ -208,7 +208,13 @@ def build_contract_field_meta(pdf_path: Path, extraction: dict, existing_meta: d
         if field in CONTRACT_SKIP_FIELDS:
             skipped.append(field)
             continue
-        if value in (None, ""):
+        # "NA" is the fixture convention for "field genuinely absent" (see
+        # service.py's own _strip_na) — same as None/"", never search for it.
+        # It's short enough to substring-match almost anywhere in a 10-40
+        # page document at EXACT confidence — same false-positive risk
+        # _is_short_generic_value already guards against for bare numbers,
+        # just not numeric, so it slips past that check untouched.
+        if value in (None, "", "NA"):
             continue
 
         best = _locate_field_best(doc, native_words, ocr_pages, page_rects, field, value)

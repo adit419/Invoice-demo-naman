@@ -59,16 +59,6 @@
       "value_confidence": 0.8
     }
   },
-  "total_amount_before_vat": {
-    "bbox": {
-      "page": 1,
-      "bbox_left": 0.631765,
-      "bbox_top": 0.404747,
-      "bbox_width": 0.085229,
-      "bbox_height": 0.011616,
-      "value_confidence": 0.9
-    }
-  },
   "wht": {
     "bbox": {
       "page": 1,
@@ -86,16 +76,6 @@
       "bbox_top": 0.439394,
       "bbox_width": 0.082484,
       "bbox_height": 0.01404,
-      "value_confidence": 0.9
-    }
-  },
-  "total_amount": {
-    "bbox": {
-      "page": 1,
-      "bbox_left": 0.631765,
-      "bbox_top": 0.404747,
-      "bbox_width": 0.085229,
-      "bbox_height": 0.011616,
       "value_confidence": 0.9
     }
   },
