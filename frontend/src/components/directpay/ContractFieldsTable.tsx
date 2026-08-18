@@ -4,6 +4,7 @@
 // Extracted verbatim from the former contract/[id]/review.tsx so both call
 // sites stay in sync (mandatory asterisk, empty-value highlight, expandable
 // Audit Trail / AI Match Reasoning row) rather than drifting apart.
+import { useState } from "react";
 import { DpContractFieldMeta, DpContractFields } from "@/services/directpay";
 
 // Field list, labels, section grouping, and mandatory-ness all come from the
@@ -32,12 +33,23 @@ interface ContractFieldsTableProps {
   activeKey: string | null;
   onSelectField: (key: string | null) => void;
   canEdit: boolean;
+  /** Persists a single field immediately on Enter — same as invoice
+   * review.tsx's saveMetaField. Optional so ContractExtractionModal's
+   * read-only preview (canEdit=false, no save path) doesn't need it. */
+  onSaveField?: (key: string, value: string) => void;
 }
 
 export function ContractFieldsTable({
-  fields, fieldMeta, edits, setEdits, activeKey, onSelectField, canEdit,
+  fields, fieldMeta, edits, setEdits, activeKey, onSelectField, canEdit, onSaveField,
 }: ContractFieldsTableProps) {
   const fieldEntries = orderedFieldEntries(fields, fieldMeta);
+  // Comma-formats a numeric field's editable input while it isn't focused
+  // (e.g. Total Contract Value), same as the read-only span below already
+  // does — swaps to the plain digits on focus so typing isn't fighting a
+  // comma the cursor has to jump around. Only ever affects what's shown;
+  // the underlying `value`/edits state used for onSaveField stays the
+  // plain, unformatted string.
+  const [focusedKey, setFocusedKey] = useState<string | null>(null);
 
   return (
     <div style={{ border: "1px solid #E9EAEC", borderRadius: 8, overflow: "hidden", background: "#ffffff" }}>
@@ -92,7 +104,7 @@ export function ContractFieldsTable({
 
               const raw = fields[key];
               const value = edits[key] ?? (raw == null ? "" : String(raw));
-              const isEmpty = !value;
+              const isEmpty = !value || value === "NA";
               const isRequired = meta.mandatory;
               const cellBg = isEmpty ? "#FEF3C7" : "transparent";
               const leftBarColor = isEmpty ? "#F59E0B" : null;
@@ -132,15 +144,28 @@ export function ContractFieldsTable({
                         className="w-full focus:outline-none"
                         type="text"
                         style={{ fontSize: 13, lineHeight: "20px", padding: 0, background: "transparent", border: "none", color: "#414651", width: "100%" }}
-                        value={value}
+                        value={
+                          edits[key] === undefined && typeof raw === "number" && focusedKey !== key
+                            ? raw.toLocaleString("en-US")
+                            : value
+                        }
                         onChange={(e) => setEdits?.((prev) => ({ ...prev, [key]: e.target.value }))}
+                        onFocus={() => setFocusedKey(key)}
+                        onBlur={() => setFocusedKey((k) => (k === key ? null : k))}
                         onClick={(e) => {
                           e.stopPropagation();
                           onSelectField(key);
                         }}
+                        onKeyDown={(e) => { if (e.key === "Enter") onSaveField?.(key, edits[key] ?? value); }}
                       />
                     ) : (
-                      <span>{value || ""}</span>
+                      <span>
+                        {value
+                          ? edits[key] === undefined && typeof raw === "number"
+                            ? raw.toLocaleString("en-US")
+                            : value
+                          : "NA"}
+                      </span>
                     )}
                   </td>
                 </tr>

@@ -96,13 +96,13 @@ export function DpBillPostingMetadataGrid({
   const currencySymbol = getCurrencySymbol(data.currency);
 
   const fields: FieldConfig[] = [
-    { key: "invoice_received_date", label: "Invoice Received Date", input: "text", value: formatDate(data.invoice_received_date) },
+    { key: "invoice_received_date", label: "Invoice Received Date", input: "text", value: formatDate(data.invoice_received_date, "NA") },
     { key: "vendor_name", label: "Vendor Name", input: "text", value: data.vendor_name ?? "" },
     { key: "invoice_number", label: "Invoice Number", input: "text", value: data.invoice_number ?? "" },
     { key: "invoice_date", label: "Invoice Date", input: "text", value: data.invoice_date ?? "" },
     { key: "taxable_amount", label: "Taxable Amount", input: "amount", value: data.subtotal ?? 0 },
     { key: "payable_amount", label: "Payable Amount", input: "amount", value: data.payable_amount ?? 0 },
-    { key: "payment_due_date", label: "Payment Due Date", input: "text", value: formatDate(data.payment_due_date) },
+    { key: "payment_due_date", label: "Payment Due Date", input: "text", value: formatDate(data.payment_due_date, "NA") },
     { key: "bank_account_name", label: "Bank Account Name", input: "text", value: data.bank_account_name ?? "" },
     { key: "bank_account_number", label: "Bank Account Number", input: "text", value: data.bank_account_number ?? "" },
   ];
@@ -121,7 +121,7 @@ export function DpBillPostingMetadataGrid({
           precision={2}
         />
       ) : (
-        <Input value={String(f.value ?? "") || "—"} disabled className="w-full" size="large" />
+        <Input value={String(f.value ?? "") || "NA"} disabled className="w-full" size="large" />
       );
     return <div className="api-disabled-field">{node}</div>;
   };

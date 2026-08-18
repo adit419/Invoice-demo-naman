@@ -1,0 +1,345 @@
+{
+  "premises_address": {
+    "label": "Property / Premises Address",
+    "section": "PROPERTY & PARTIES",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": "This offer covers three adjoining outdoor Sitting Area units (No. 4, 5 & 7) as one 81.59 m² package"
+  },
+  "vendor_name": {
+    "label": "Vendor Name",
+    "section": "PROPERTY & PARTIES",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": "Invoice's own vendor_name (\"PT. KARYA NASTARI PRAPTA\") and the FPs' (\"KARYA NASTARI PRAPTA\") are exact/near-exact matches"
+  },
+  "lessor_phone": {
+    "label": "Vendor Phone",
+    "section": "PROPERTY & PARTIES",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "vendor_email": {
+    "label": "Vendor Email",
+    "section": "PROPERTY & PARTIES",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "lessor_npwp": {
+    "label": "Vendor NPWP",
+    "section": "PROPERTY & PARTIES",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": "Not stated in the source offer letter"
+  },
+  "customer_name": {
+    "label": "Customer Name",
+    "section": "PROPERTY & PARTIES",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "actual_start": {
+    "label": "Lease Commencement Date",
+    "section": "AGREEMENT DATES & TERM",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": "Not stated anywhere in the offer letter — only the total duration (1,825 days / 5 years) is given. Days to Expiry and Computed Status cannot be reliably calculated until this is confirmed with the Lessor."
+  },
+  "lease_expiry_date": {
+    "label": "Lease Expiry Date",
+    "section": "AGREEMENT DATES & TERM",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": "Not computable — depends on the unstated Lease Commencement Date"
+  },
+  "lock_in_period_months": {
+    "label": "Lock-in Period (Months)",
+    "section": "AGREEMENT DATES & TERM",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": "Not stated in the source offer letter"
+  },
+  "term_months": {
+    "label": "Tenure (Months)",
+    "section": "AGREEMENT DATES & TERM",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "rent_basis_type": {
+    "label": "Rent Basis Type",
+    "section": "RENT & DEPOSIT",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "currency": {
+    "label": "Currency",
+    "section": "RENT & DEPOSIT",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": "MATCH"
+  },
+  "vat_included": {
+    "label": "VAT Incl/Excl",
+    "section": "RENT & DEPOSIT",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "vat_rate": {
+    "label": "VAT Rate",
+    "section": "RENT & DEPOSIT",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "base_rent_monthly_excl_tax": {
+    "label": "Base Rent (Excl Tax) Monthly",
+    "section": "RENT & DEPOSIT",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": "No monthly-rent concept — this vendor is lumpsum-only, paid via Down Payment + 10 installments, same structure family as PT_BANGUN/RATNA_INTAN"
+  },
+  "monthly_rent_incl_tax": {
+    "label": "Monthly Rent incl. Tax (Cond.)",
+    "section": "RENT & DEPOSIT",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "total_contract_value": {
+    "label": "Total Contract Value, Lumpsum",
+    "section": "RENT & DEPOSIT",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": "Rp 1,709,336,026 excl. VAT (Rp 1,897,362,989 incl. 11% VAT) for the full 5-year term"
+  },
+  "no_of_installments": {
+    "label": "No. of Installments",
+    "section": "RENT & DEPOSIT",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": "1 Down Payment (20%) + 10 installments (remaining 80%)"
+  },
+  "base_fee": {
+    "label": "Monthly Rent",
+    "section": "RENT & DEPOSIT",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "revenue_share_pct": {
+    "label": "Revenue Share (%)",
+    "section": "RENT & DEPOSIT",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "revenue_threshold": {
+    "label": "Revenue Share Threshold Amount",
+    "section": "RENT & DEPOSIT",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "rent_billing_day": {
+    "label": "Rent Billing Day",
+    "section": "RENT & DEPOSIT",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": "Not stated"
+  },
+  "security_deposit": {
+    "label": "Security Deposit",
+    "section": "RENT & DEPOSIT",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": "Stated as \"Rp 6,000,000 / 3 units\" — ambiguous whether total for all 3 Sitting Area units or per-unit; confirm with Lessor"
+  },
+  "escalation_rate": {
+    "label": "Escalation Clause (%)",
+    "section": "ESCALATION",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": "Not specified — fixed 5-year lumpsum, no escalation stated"
+  },
+  "escalation_frequency": {
+    "label": "Escalation Frequency",
+    "section": "ESCALATION",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "escalation_starts_after_months": {
+    "label": "Escalation Starts After (months)",
+    "section": "ESCALATION",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "next_escalation_date": {
+    "label": "Next Escalation Date",
+    "section": "ESCALATION",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "first_escalation_date": {
+    "label": "First Escalation Date",
+    "section": "ESCALATION",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "utilities_billing": {
+    "label": "Utilities Billing",
+    "section": "UTILITIES & TAX",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": "Electricity Rp2,000/kWh (min. 40 hrs/month) and Water Rp21,500/m³ — both metered/consumption-based, no fixed recurring amount, so no installment schedule exists for them; billed together with an Admin Fee on a single combined utility invoice (see invoice_3)"
+  },
+  "wht_applicable": {
+    "label": "WHT Applicable",
+    "section": "UTILITIES & TAX",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": "Not stated — no WHT deducted anywhere in the payment schedule (rate left at 0%)"
+  },
+  "wht_rate_pct": {
+    "label": "WHT Rate (%)",
+    "section": "UTILITIES & TAX",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "stamp_duty_registered": {
+    "label": "Stamp Duty / Registered",
+    "section": "LEGAL & COMPLIANCE",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": "Not stated. This is an Offer Letter (Surat Penawaran Sewa Baru) — becomes a signed offer once the Tenant countersigns; no separate lease agreement or registration is referenced."
+  },
+  "registration_number": {
+    "label": "Registration Number",
+    "section": "LEGAL & COMPLIANCE",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": "Not applicable — offer letter stage only"
+  },
+  "notice_period_days": {
+    "label": "Notice Period (Days)",
+    "section": "LEGAL & COMPLIANCE",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": "This offer letter is itself valid for 7 days from receipt; no separate termination-notice period is stated for the lease term"
+  },
+  "renewal_option": {
+    "label": "Renewal Option",
+    "section": "LEGAL & COMPLIANCE",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": "Not stated — this is a New Lease offer, not a renewal"
+  },
+  "property_code": {
+    "label": "Property Code",
+    "section": "STATUS & TRACKING",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "days_to_expiry": {
+    "label": "Days to Expiry",
+    "section": "STATUS & TRACKING",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": "Not computable — depends on the unstated Lease Commencement Date"
+  },
+  "computed_status": {
+    "label": "Computed Status",
+    "section": "STATUS & TRACKING",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": "Offer stage — the Tenant's signature block shows Edward Tirtanata, President Director, as the confirming signatory, but no signature date is captured in this extraction; verify against the executed copy for the actual acceptance date"
+  },
+  "rent_commencement_date": {
+    "label": "Rent Commencement Date",
+    "section": "STATUS & TRACKING",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": "Not stated — same gap as Lease Commencement Date"
+  },
+  "rent_free_months": {
+    "label": "Rent Free Months",
+    "section": "PAYMENT STRUCTURE",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "co_landlord": {
+    "label": "Co-Landlord",
+    "section": "PAYMENT STRUCTURE",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "lessor_split_pct": {
+    "label": "Vendor Split (%)",
+    "section": "PAYMENT STRUCTURE",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "lessor_payment_share": {
+    "label": "Vendor Payment Share",
+    "section": "PAYMENT STRUCTURE",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "lessor_bank_account_name": {
+    "label": "Bank Account Name",
+    "section": "PAYMENT STRUCTURE",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": "No reliable source — the invoice's own vendor_bank_account_name field is also blank; only a Virtual Account number is given (BCA/Mandiri), a real Indonesian VA convention, not a literal lessor account name"
+  },
+  "lessor_bank_account_number": {
+    "label": "Bank Account Number",
+    "section": "PAYMENT STRUCTURE",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": "No reliable source — same Virtual Account convention described above"
+  },
+  "split_check": {
+    "label": "Split Check",
+    "section": "PAYMENT STRUCTURE",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "rent_scenario_notes": {
+    "label": "Rent Scenario Notes",
+    "section": "REVENUE & ADDITIONAL",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "contract_type": {
+    "label": "Contract Type",
+    "section": "OTHER",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "floor": {
+    "label": "Floor",
+    "section": "OTHER",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  }
+}

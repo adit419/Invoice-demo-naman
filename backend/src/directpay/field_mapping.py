@@ -186,23 +186,21 @@ CORE_CROSS_VALIDATION_FIELDS: list[CoreValidationField] = [
     # state the overall lease term, not a specific billing cycle, so there's
     # nothing genuine to compare against. contract_field=None because the
     # real source is the matched installment, not a flat contract field —
-    # same pattern as wht/net_amount_after_wht below. Mandatory would
-    # permanently block Approve with no way to resolve, since there's no
-    # invoice value an Acknowledge could ever apply to.
+    # same pattern as the amount fields below. Mandatory would permanently
+    # block Approve with no way to resolve, since there's no invoice value an
+    # Acknowledge could ever apply to.
     CoreValidationField("billing_period_start", None, "Billing Period Start", False),
     CoreValidationField("billing_period_end", None, "Billing Period End", False),
-    CoreValidationField("total_amount_before_vat", "base_fee", "Total Amount Before VAT", True),
     # Reinstated mandatory per explicit instruction, ACK also removed on the
-    # frontend for all 4 amount fields in this group (see MatchingTable.tsx's
-    # _NO_ACK_FIELDS) — a permanent block (e.g. RATNA_INTAN's invoice
-    # genuinely having no VAT line vs. the contract's real figure) is the
-    # intended outcome now: these 4 money fields must be exactly correct to
-    # proceed, with no acknowledge-to-bypass shortcut. This reverses the
-    # earlier non-mandatory decision made for exactly that RATNA_INTAN case —
-    # see conversation history if that tension resurfaces.
-    CoreValidationField("vat_gst", None, "Tax Amount", True),
-    CoreValidationField("wht", None, "WHT (Withholding Tax)", True),
-    CoreValidationField("net_amount_after_wht", None, "Net Amount After WHT (Total Amount Payable)", True),
+    # frontend (see MatchingTable.tsx's _NO_ACK_FIELDS) — a permanent block
+    # (e.g. RATNA_INTAN's invoice genuinely having no VAT line vs. the
+    # contract's real figure) is the intended outcome now: this money field
+    # must be exactly correct to proceed, with no acknowledge-to-bypass
+    # shortcut. Tax Amount (vat_gst) and Total Amount After VAT (total_amount)
+    # were both tried on this checklist in earlier rounds and then explicitly
+    # removed — Total Amount Before VAT alone is the checklist's amount check
+    # now.
+    CoreValidationField("total_amount_before_vat", "base_fee", "Total Amount Before VAT", True),
 ]
 
 _CORE_BY_INVOICE_FIELD = {c.invoice_field: c for c in CORE_CROSS_VALIDATION_FIELDS}

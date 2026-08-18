@@ -3,6 +3,7 @@ import { useRouter } from "next/router";
 import dynamic from "next/dynamic";
 import {
   CalendarOutlined,
+  HistoryOutlined,
   TagOutlined,
   UserOutlined,
 } from "@ant-design/icons";
@@ -12,6 +13,7 @@ import { ComponentHeaderAntd } from "@/components/matching";
 import { SourceViewerToolbar, ZOOM_MIN, ZOOM_MAX, ZOOM_STEP } from "@/components/SourceViewerToolbar";
 import { Loader, useToast } from "@/components/ui";
 import { StageTransitionOverlay } from "@/components/StageTransitionOverlay";
+import { DpEditHistory } from "@/components/directpay/DpEditHistory";
 import { directpayService, DpContractRun } from "@/services/directpay";
 import type { ActiveBbox } from "@/components/PdfViewer";
 import { ContractFieldsTable, orderedFieldEntries } from "@/components/directpay/ContractFieldsTable";
@@ -57,6 +59,7 @@ function ContractReviewPage() {
   const [scale, setScale] = useState(0.8);
   const [rotate, setRotate] = useState(0);
   const [transitioning, setTransitioning] = useState(false);
+  const [showEditHistory, setShowEditHistory] = useState(false);
 
   useEffect(() => {
     setToken(localStorage.getItem("access_token"));
@@ -77,6 +80,21 @@ function ContractReviewPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const fetchEditHistory = useCallback(() => directpayService.getContractEditHistory(id as string), [id]);
+
+  // Individual field saves persist immediately on Enter (same as invoice
+  // review.tsx's saveMetaField) — the bulk resend inside handleApprove is
+  // just a safety net for anything typed but not yet committed with Enter.
+  const saveMetaField = async (key: string, value: string) => {
+    if (!id) return;
+    try {
+      const updated = await directpayService.editContract(id, { [key]: value === "" ? null : value });
+      setRun(updated);
+    } catch {
+      // silent — the bulk auto-save on Approve & Save acts as a safety net
+    }
+  };
 
   const handleApprove = async () => {
     if (!id || !run) return;
@@ -240,21 +258,49 @@ function ContractReviewPage() {
 
         {/* Right: extracted fields panel */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden" style={{ background: "#ffffff" }}>
-          <div className="shrink-0 flex items-center justify-between px-5 pt-5 pb-3">
-            <h2 style={{ fontSize: 18, fontWeight: 600, color: "#101828", margin: 0 }}>Extracted Data</h2>
-          </div>
-
-          <div className="flex-1 overflow-y-auto px-5 py-4">
-            <ContractFieldsTable
-              fields={fields}
-              fieldMeta={run.field_meta}
-              edits={edits}
-              setEdits={setEdits}
-              activeKey={activeKey}
-              onSelectField={selectField}
-              canEdit={canEdit}
+          {showEditHistory ? (
+            <DpEditHistory
+              fetchHistory={fetchEditHistory}
+              onBack={() => setShowEditHistory(false)}
+              backLabel="Back to Extraction"
+              scopeTabs={[{ key: "metadata", label: "Metadata" }]}
             />
-          </div>
+          ) : (
+            <>
+              <div className="shrink-0 flex items-center justify-between px-5 pt-5 pb-3">
+                <h2 style={{ fontSize: 18, fontWeight: 600, color: "#101828", margin: 0 }}>Extracted Data</h2>
+                <button
+                  onClick={() => run.has_edit_history && setShowEditHistory(true)}
+                  disabled={!run.has_edit_history}
+                  title={run.has_edit_history ? "View a log of every field edited on this contract" : "No edits recorded yet"}
+                  className="inline-flex items-center gap-1.5"
+                  style={{
+                    fontSize: 13, fontWeight: 500, padding: "5px 10px", borderRadius: 6,
+                    border: "1px solid #D5D5D5", background: "#ffffff",
+                    color: run.has_edit_history ? "#414651" : "#B7BBC2",
+                    cursor: run.has_edit_history ? "pointer" : "not-allowed",
+                    opacity: run.has_edit_history ? 1 : 0.55,
+                  }}
+                >
+                  <HistoryOutlined />
+                  View Edit History
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-5 py-4">
+                <ContractFieldsTable
+                  fields={fields}
+                  fieldMeta={run.field_meta}
+                  edits={edits}
+                  setEdits={setEdits}
+                  activeKey={activeKey}
+                  onSelectField={selectField}
+                  canEdit={canEdit}
+                  onSaveField={saveMetaField}
+                />
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

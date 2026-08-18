@@ -37,6 +37,7 @@ from .models import (
     DpBillPostingEditRequest,
     DpContractApproveRequest,
     DpContractEditRequest,
+    DpContractPostprocessingEditRequest,
     DpContractTriggerUploadRequest,
     DpFpAcknowledgeRequest,
     DpFpApproveRequest,
@@ -167,19 +168,19 @@ async def get_contract_pdf(run_id: str):
 
 
 @router.patch("/contracts/{run_id}/edit")
-async def edit_contract(run_id: str, body: DpContractEditRequest):
+async def edit_contract(run_id: str, body: DpContractEditRequest, current_user: CurrentUser):
     db = get_db()
     try:
-        return _envelope(data=await service.edit_contract(db, _oid(run_id, "contract ID"), body.fields))
+        return _envelope(data=await service.edit_contract(db, _oid(run_id, "contract ID"), body.fields, current_user.email))
     except service.NotFoundError as exc:
         _not_found(exc)
 
 
 @router.post("/contracts/{run_id}/approve")
-async def approve_contract(run_id: str, body: DpContractApproveRequest):
+async def approve_contract(run_id: str, body: DpContractApproveRequest, current_user: CurrentUser):
     db = get_db()
     try:
-        return _envelope(data=await service.approve_contract(db, _oid(run_id, "contract ID"), body.fields))
+        return _envelope(data=await service.approve_contract(db, _oid(run_id, "contract ID"), body.fields, current_user.email))
     except service.NotFoundError as exc:
         _not_found(exc)
 
@@ -189,6 +190,26 @@ async def get_contract_extraction_postprocessing(run_id: str):
     db = get_db()
     try:
         return _envelope(data=await service.get_contract_extraction_postprocessing(db, _oid(run_id, "contract ID")))
+    except service.NotFoundError as exc:
+        _not_found(exc)
+
+
+@router.patch("/contracts/{run_id}/extraction-postprocessing")
+async def edit_contract_extraction_postprocessing(run_id: str, body: DpContractPostprocessingEditRequest, current_user: CurrentUser):
+    db = get_db()
+    try:
+        return _envelope(data=await service.edit_contract_extraction_postprocessing(
+            db, _oid(run_id, "contract ID"), body.installments, body.one_time_payments, current_user.email
+        ))
+    except service.NotFoundError as exc:
+        _not_found(exc)
+
+
+@router.get("/contracts/{run_id}/edit-history")
+async def get_contract_edit_history(run_id: str):
+    db = get_db()
+    try:
+        return _envelope(data={"items": await service.get_contract_edit_history(db, _oid(run_id, "contract ID"))})
     except service.NotFoundError as exc:
         _not_found(exc)
 
@@ -206,14 +227,17 @@ async def approve_contract_extraction_postprocessing(run_id: str):
 
 # ── Invoices ───────────────────────────────────────────────────────────────────
 
-async def _upload_invoice_by_filename(filename: str, email: str | None = None, tag: str | None = None) -> dict:
+async def _upload_invoice_by_filename(
+    filename: str, email: str | None = None, tag: str | None = None, source: str = "manual"
+) -> dict:
     """Shared by /invoices/upload and /ingestion/trigger-upload — both just
     resolve a fixture by name and kick off Auto-Process the same way; the
     only difference is where the name comes from (a real upload vs. a
-    trigger request body)."""
+    trigger request body) — recorded as `source` so the dashboard can show
+    the right icon (see service.invoice_out)."""
     db = get_db()
     try:
-        result = await service.upload_invoice(db, filename or "", email, tag)
+        result = await service.upload_invoice(db, filename or "", email, tag, source)
     except service.NotFoundError as exc:
         _not_found(exc)
         return {}
@@ -225,7 +249,7 @@ async def _upload_invoice_by_filename(filename: str, email: str | None = None, t
 
 @router.post("/invoices/upload")
 async def upload_invoice(file: UploadFile = File(...)):
-    return _envelope(data=await _upload_invoice_by_filename(file.filename or ""))
+    return _envelope(data=await _upload_invoice_by_filename(file.filename or "", source="manual"))
 
 
 # ── Ingestion (trigger by filename, no file bytes) ────────────────────────────
@@ -234,14 +258,41 @@ async def upload_invoice(file: UploadFile = File(...)):
 # name instead of actual bytes — DirectPay's fixture resolution already
 # works off the filename alone, so this is the exact same call the multipart
 # endpoint above makes.
+#
+# Extended (DP-only) to also accept a batch (file_names) in one call — a
+# vendor's real documents can be a separate invoice + Faktur Pajak pair, a
+# single file with the FP already embedded, or a mixed batch covering
+# several documents at once. Each name is resolved through the exact same
+# _upload_invoice_by_filename() a single-file call uses, so the existing
+# fixture_key+document_key dedup in service.upload_invoice (a separate
+# invoice + its own FP file collapse to one run) applies per file here too —
+# batching changes nothing about how a file resolves, only how many of them
+# a single request can carry. Note DpFixtureLoader.resolve() itself never 404s
+# on a name it can't prefix-match against any scenario key — it falls back to
+# an arbitrary configured bundle (pre-existing behavior, unchanged here) — so
+# in practice every name in a batch resolves to *some* run; the only 422s are
+# request-shape validation (empty file_names, missing email @).
 
 @router.post("/ingestion/trigger-upload")
 async def trigger_upload_invoice(body: DpTriggerUploadRequest):
-    if not body.file_name.strip():
-        raise HTTPException(status_code=422, detail="file_name is required")
     if body.email and "@" not in body.email:
         raise HTTPException(status_code=422, detail="Invalid notification email address")
-    return _envelope(data=await _upload_invoice_by_filename(body.file_name.strip(), body.email, body.tag))
+
+    if body.file_names is not None:
+        names = [n.strip() for n in body.file_names if n and n.strip()]
+        if not names:
+            raise HTTPException(status_code=422, detail="file_names must contain at least one non-empty file name")
+        seen: dict[str, dict] = {}
+        files: list[dict] = []
+        for name in names:
+            result = await _upload_invoice_by_filename(name, body.email, body.tag, source="trigger")
+            files.append({"file_name": name, "invoice_id": result.get("id")})
+            seen.setdefault(result["id"], result)
+        return _envelope(data={"items": list(seen.values()), "files": files})
+
+    if not (body.file_name or "").strip():
+        raise HTTPException(status_code=422, detail="file_name or file_names is required")
+    return _envelope(data=await _upload_invoice_by_filename(body.file_name.strip(), body.email, body.tag, source="trigger"))
 
 
 @router.get("/invoices")
@@ -335,26 +386,6 @@ async def get_edit_history(run_id: str):
         return _envelope(data={"items": await service.get_edit_history(db, _oid(run_id, "invoice ID"))})
     except service.NotFoundError as exc:
         _not_found(exc)
-
-
-@router.get("/invoices/{run_id}/extraction-postprocessing")
-async def get_extraction_postprocessing(run_id: str):
-    db = get_db()
-    try:
-        return _envelope(data=await service.get_extraction_postprocessing(db, _oid(run_id, "invoice ID")))
-    except service.NotFoundError as exc:
-        _not_found(exc)
-
-
-@router.post("/invoices/{run_id}/extraction-postprocessing/approve")
-async def approve_extraction_postprocessing(run_id: str):
-    db = get_db()
-    try:
-        return _envelope(data=await service.approve_extraction_postprocessing(db, _oid(run_id, "invoice ID")))
-    except service.NotFoundError as exc:
-        _not_found(exc)
-    except service.InvalidStateError as exc:
-        raise HTTPException(status_code=400, detail=exc.message)
 
 
 @router.get("/invoices/{run_id}/faktur-pajak")
