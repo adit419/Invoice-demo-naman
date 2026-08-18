@@ -9,12 +9,109 @@
 // the invoice — nothing back-populates the invoice's own extraction record.
 // A real mismatch (invoice HAS a value, it just disagrees) still gets
 // Acknowledge.
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { DpFinding, DpInvoiceExtracted } from "@/services/directpay";
+import { AiSparkleIcon, AI_VALUE_STYLE } from "@/components/directpay/AiContractBanner";
 
 const tableClassName = "dp-matching-table";
+
+/**
+ * Explains a Contract-column value that didn't actually come from the
+ * contract — a utility the contract only says is "billed as per actuals",
+ * whose real amount was taken from the invoice's supporting document.
+ *
+ * The same inline-AI-derived-value treatment P2P uses for an AI-filled
+ * metadata field (see NeoAiSuggestionBanner.tsx's AiAnalysisInfo and
+ * pages/invoice/[id]/review.tsx's use of it): sparkle + italic #1F5BD5 value
+ * + this hover ⓘ, same icon geometry and white card chrome, positioned
+ * fixed/viewport-clamped so it's never clipped by the table's overflow
+ * container.
+ */
+function SupportingDocumentInfo() {
+  const [pos, setPos] = useState<{ left: number; top?: number; bottom?: number } | null>(null);
+
+  const CARD_W = 300;
+  // Only used to DECIDE whether to flip, never to position — a flipped card
+  // is anchored by `bottom` (see below), so an imprecise estimate here can't
+  // misalign it. Comfortably above the card's real rendered height (~170px).
+  const CARD_H_ESTIMATE = 220;
+  const show = (e: React.MouseEvent<HTMLElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const left = Math.max(12, Math.min(r.right - CARD_W, window.innerWidth - CARD_W - 12));
+    // Opens below by default, but flips above when the row is near the bottom
+    // of the viewport — otherwise the card runs off the bottom edge and gets
+    // cut off. Anchoring the flipped case by `bottom` rather than a computed
+    // `top` keeps it exactly 8px above the icon whatever the card's height.
+    if (window.innerHeight - r.bottom < CARD_H_ESTIMATE) {
+      setPos({ left, bottom: window.innerHeight - r.top + 8 });
+    } else {
+      setPos({ left, top: r.bottom + 8 });
+    }
+  };
+
+  return (
+    <span
+      className="inline-flex items-center shrink-0"
+      style={{ position: "relative" }}
+      onMouseEnter={show}
+      onMouseLeave={() => setPos(null)}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <span
+        aria-label="Why this value came from the supporting document"
+        style={{
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+          width: 18, height: 18, borderRadius: "50%", cursor: "default",
+          color: pos ? "#1F5BD5" : "#8FADEA",
+        }}
+      >
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <circle cx="7" cy="7" r="6" stroke="currentColor" strokeWidth="1.3" />
+          <path d="M7 6.3v3.4M7 4.2h.01" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+        </svg>
+      </span>
+
+      {pos && (
+        <div
+          style={{
+            position: "fixed", top: pos.top, bottom: pos.bottom, left: pos.left,
+            width: CARD_W, zIndex: 1000,
+            background: "#ffffff", border: "1px solid #DFE5EE", borderRadius: 8,
+            boxShadow: "0 8px 24px rgba(16,24,40,0.12)", padding: "12px 14px",
+            textAlign: "left", cursor: "default", fontFamily: "Inter, sans-serif",
+          }}
+        >
+          <div className="flex items-center justify-between gap-2" style={{ marginBottom: 8 }}>
+            <span className="flex items-center gap-1.5" style={{ fontSize: 12.5, fontWeight: 600, color: "#0D388D" }}>
+              <AiSparkleIcon size={14} />
+              Neo AI analysis
+            </span>
+            <span style={{
+              fontSize: 11, fontWeight: 600, color: "#1F5BD5",
+              background: "#EDF3FF", border: "1px solid #CFE2FF",
+              borderRadius: 999, padding: "1px 8px", whiteSpace: "nowrap",
+            }}>
+              Supporting document
+            </span>
+          </div>
+
+          <div style={{ fontSize: 11.5, color: "#585C65", lineHeight: "15px", marginBottom: 4 }}>
+            Sourced from the invoice&apos;s <strong style={{ color: "#414651" }}>supporting document</strong>,
+            not the contract.
+          </div>
+
+          <div style={{ fontSize: 11, color: "#8D92A6", lineHeight: "15px" }}>
+            The contract sets the billing rule for this utility — charged on actual consumption
+            (&ldquo;as per actuals&rdquo;) — so it states no fixed amount. Neo AI took the actual amount from
+            the supporting document to compare the invoice against.
+          </div>
+        </div>
+      )}
+    </span>
+  );
+}
 
 // Short field-column labels — mirrors the plain "display_name" MetadataTab
 // shows for P2P (no long sentence, no description line). Keyed by the same
@@ -233,11 +330,35 @@ export function MatchingTable({
         title: "Contract",
         key: "contract",
         width: 220,
-        render: (_, f) => (
-          <span style={{ color: f.expected ? "#414651" : "#9CA3AF", fontSize: 14, wordBreak: "break-word" }}>
-            {f.expected ?? ""}
-          </span>
-        ),
+        render: (_, f) => {
+          // The contract only states the billing RULE for a utility billed
+          // on actuals ("as per actuals") — never a fixed amount — so this
+          // row's value comes from the invoice's supporting document instead.
+          // Surfaced explicitly rather than left implicit, since the column
+          // header still (correctly) reads "Contract".
+          const fromSupportingDoc = f.expected_source === "supporting_document";
+          // Same inline treatment P2P gives an AI-derived value (sparkle +
+          // italic blue value + hover ⓘ) — see review.tsx's isAiFilled rows.
+          // One deliberate deviation: P2P pushes its ⓘ to the cell's right
+          // edge with marginLeft:auto; here it sits directly after the value,
+          // because at the far right it collided with the floating Neo widget
+          // on the lower rows and couldn't be hovered at all.
+          return (
+            <div className="flex items-start gap-1.5" style={{ width: "100%" }}>
+              {fromSupportingDoc && <span style={{ marginTop: 3 }}><AiSparkleIcon size={14} /></span>}
+              <span
+                style={{
+                  minWidth: 0, fontSize: 14, wordBreak: "break-word",
+                  color: fromSupportingDoc ? AI_VALUE_STYLE.color : f.expected ? "#414651" : "#9CA3AF",
+                  fontStyle: fromSupportingDoc ? AI_VALUE_STYLE.fontStyle : undefined,
+                }}
+              >
+                {f.expected ?? ""}
+              </span>
+              {fromSupportingDoc && f.expected != null && <SupportingDocumentInfo />}
+            </div>
+          );
+        },
       },
     ],
     [acknowledgedFindings, systemAcknowledgedFindings, extracted, readonly, onToggleAcknowledge]

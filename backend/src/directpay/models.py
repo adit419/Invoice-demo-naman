@@ -102,3 +102,8 @@ class DpTriggerUploadRequest(BaseModel):
 
 class DpAckThresholdRequest(BaseModel):
     value: int
+
+
+class DpTotalBeforeVatThresholdRequest(BaseModel):
+    enabled: bool
+    threshold_pct: float

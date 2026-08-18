@@ -65,6 +65,17 @@ class DpDocumentEntry:
     # <key>_fp_field_meta.json, searched against faktur_pajak_pdf_path (its
     # own separate PDF) rather than pdf_path.
     fp_field_meta: dict = field(default_factory=dict)
+    # A separate real-world document (e.g. a utility company's own bill)
+    # providing the actual billing amount for a charge the contract itself
+    # only describes as "billed on actuals" (Palladium's Electricity/Water —
+    # see service.py's _NO_SCHEDULE_CHARGE_TYPES). Extraction happens purely
+    # internally — no upload flow, no review UI, unlike Invoice/FP/Contract —
+    # so this is just {"total_amount_before_vat": <number>}, read straight
+    # into the invoice run at extract time (see extract_invoice) and from
+    # there into Matching's contract-side comparison. None for every
+    # document that doesn't need one (the vast majority).
+    supporting_document: Optional[dict] = None
+    supporting_document_pdf_path: Optional[Path] = None
 
 
 @dataclass
@@ -200,6 +211,8 @@ class DpFixtureLoader:
                     # just to wire this in.
                     field_meta_path = entry / f"{doc['key']}_field_meta.json"
                     fp_field_meta_path = entry / f"{doc['key']}_fp_field_meta.json"
+                    supporting_doc_path = entry / doc["supporting_document"] if doc.get("supporting_document") else None
+                    supporting_doc_pdf_path = entry / doc["supporting_document_pdf"] if doc.get("supporting_document_pdf") else None
                     bundle.documents.append(DpDocumentEntry(
                         key=doc["key"],
                         match=doc.get("match", [doc["key"]]),
@@ -209,6 +222,8 @@ class DpFixtureLoader:
                         faktur_pajak_pdf_path=fp_pdf_path if fp_pdf_path and fp_pdf_path.exists() else None,
                         field_meta=json.loads(field_meta_path.read_text()) if field_meta_path.exists() else {},
                         fp_field_meta=json.loads(fp_field_meta_path.read_text()) if fp_field_meta_path.exists() else {},
+                        supporting_document=json.loads(supporting_doc_path.read_text()) if supporting_doc_path and supporting_doc_path.exists() else None,
+                        supporting_document_pdf_path=supporting_doc_pdf_path if supporting_doc_pdf_path and supporting_doc_pdf_path.exists() else None,
                     ))
 
             bundles[entry.name] = bundle

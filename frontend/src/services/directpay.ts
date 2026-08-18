@@ -131,6 +131,11 @@ export interface DpInvoiceExtracted {
   line_items?: DpLineItem[];
 }
 
+export interface DpTotalBeforeVatThreshold {
+  enabled: boolean;
+  threshold_pct: number;
+}
+
 export interface DpFinding {
   finding_id: string;
   severity: "error" | "warning" | "info";
@@ -151,6 +156,12 @@ export interface DpFinding {
   // Whether this finding can block approval — a subset of `core` (e.g. Bank
   // Details is core but not mandatory). Drives the banner/button gating.
   mandatory?: boolean;
+  // Where the Contract-column value came from. "supporting_document" means
+  // the contract only states the billing rule for this charge (utility
+  // "billed on actuals") and the amount came from the invoice's supporting
+  // document — drives the ⓘ explainer next to the value. Absent/"contract"
+  // for every ordinary row.
+  expected_source?: "contract" | "supporting_document";
   [key: string]: unknown;
 }
 
@@ -286,6 +297,9 @@ export interface DpBillPostingData {
   // else the same as grand_total.
   payable_amount?: number | null;
   wht_applicable: boolean;
+  // False only for a vendor with no VAT at all (RATNA_INTAN) — drives
+  // hiding the VAT/GST Tax Code column on the Bill Posting page.
+  vat_applicable: boolean;
   line_items: DpBillPostingLineItem[];
   erp: DpBillPostingErp | null;
   updated_at: string;
@@ -502,4 +516,15 @@ export const directpayService = {
   getAckThreshold: () => api.get<{ ack_threshold: number }>("/dp-api/settings/ack-threshold"),
   setAckThreshold: (value: number) =>
     api.patch<{ ack_threshold: number }>("/dp-api/settings/ack-threshold", { value }),
+
+  // Matching-stage Total Amount Before VAT tolerance — disabled by default;
+  // lives on the Matching page itself (see MatchingTable/match.tsx), not the
+  // admin Workflow Settings page, since it's a per-review-session control.
+  getTotalBeforeVatThreshold: () =>
+    api.get<DpTotalBeforeVatThreshold>("/dp-api/settings/total-before-vat-threshold"),
+  setTotalBeforeVatThreshold: (enabled: boolean, thresholdPct: number) =>
+    api.patch<DpTotalBeforeVatThreshold>("/dp-api/settings/total-before-vat-threshold", {
+      enabled,
+      threshold_pct: thresholdPct,
+    }),
 };

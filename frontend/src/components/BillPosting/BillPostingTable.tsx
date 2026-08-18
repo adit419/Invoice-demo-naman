@@ -87,6 +87,13 @@ interface BillPostingTableProps {
   /** When true the WHT Tax Code column is rendered; hidden otherwise. */
   isVendorSubjectToWht: boolean;
   /**
+   * When false the VAT/GST Tax Code column is hidden entirely — for a
+   * vendor with no VAT at all (e.g. DirectPay's RATNA_INTAN). Defaults to
+   * true so every existing caller (P2P's own bill posting, which has no
+   * no-VAT vendor concept) is unaffected.
+   */
+  isVendorSubjectToVat?: boolean;
+  /**
    * Set of erp_fields keys where mask=true (from workflow settings).
    * null/undefined = no filtering (show all).
    * vat_tax_code absent → hide VAT column.
@@ -129,6 +136,7 @@ export function BillPostingTable({
   lineEdits,
   isEditMode,
   isVendorSubjectToWht,
+  isVendorSubjectToVat = true,
   allowedErpFields,
   currency,
   vatOptions,
@@ -142,7 +150,7 @@ export function BillPostingTable({
 
   // Column visibility: workflow settings mask=false → hide column.
   // null allowedErpFields = no filtering (show all).
-  const showVatColumn = !allowedErpFields || allowedErpFields.has("vat_tax_code");
+  const showVatColumn = isVendorSubjectToVat && (!allowedErpFields || allowedErpFields.has("vat_tax_code"));
   const showWhtColumn = isVendorSubjectToWht && (!allowedErpFields || allowedErpFields.has("wht_tax_code"));
 
   const rows: Row[] = useMemo(

@@ -29,6 +29,17 @@ export function AiSparkleIcon({ size = 16 }: { size?: number }) {
   );
 }
 
+/**
+ * Text treatment for an AI-derived value rendered inline in a table, per the
+ * same Figma design P2P's NeoAiSuggestionBanner.AI_VALUE_STYLE implements —
+ * duplicated here rather than imported so the DirectPay module stays
+ * self-contained (see this file's own header comment).
+ */
+export const AI_VALUE_STYLE = {
+  color: "#1F5BD5",
+  fontStyle: "italic" as const,
+};
+
 export function AiAnalysisInfo({ rec }: { rec: DpContractRecommendation }) {
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const c: DpContractCandidate | null | undefined = rec.recommended;

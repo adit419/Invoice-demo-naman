@@ -46,10 +46,19 @@ from .models import (
     DpInvoiceMatchRequest,
     DpReviewActionRequest,
     DpStpRequest,
+    DpTotalBeforeVatThresholdRequest,
     DpTriggerUploadRequest,
 )
 from .store import dp_contract_runs, dp_invoice_runs
-from .stp import get_dp_ack_threshold, get_global_dp_stp, run_dp_stp_for_invoice, set_dp_ack_threshold, set_global_dp_stp
+from .stp import (
+    get_dp_ack_threshold,
+    get_dp_total_before_vat_threshold,
+    get_global_dp_stp,
+    run_dp_stp_for_invoice,
+    set_dp_ack_threshold,
+    set_dp_total_before_vat_threshold,
+    set_global_dp_stp,
+)
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 
@@ -111,6 +120,24 @@ async def update_ack_threshold_setting(body: DpAckThresholdRequest, current_user
     db = get_db()
     await set_dp_ack_threshold(db, body.value)
     return _envelope(data={"ack_threshold": body.value})
+
+
+# Matching-stage control (not admin-gated like the two settings above — this
+# one lives directly on the Matching page itself, for whoever's working the
+# invoice, rather than in the admin Workflow Settings page).
+@router.get("/settings/total-before-vat-threshold")
+async def get_total_before_vat_threshold_setting():
+    db = get_db()
+    return _envelope(data=await get_dp_total_before_vat_threshold(db))
+
+
+@router.patch("/settings/total-before-vat-threshold")
+async def update_total_before_vat_threshold_setting(body: DpTotalBeforeVatThresholdRequest):
+    if body.threshold_pct < 0:
+        raise HTTPException(status_code=400, detail="Threshold must be a percentage >= 0")
+    db = get_db()
+    await set_dp_total_before_vat_threshold(db, body.enabled, body.threshold_pct)
+    return _envelope(data={"enabled": body.enabled, "threshold_pct": body.threshold_pct})
 
 
 # ── Contracts ──────────────────────────────────────────────────────────────────
