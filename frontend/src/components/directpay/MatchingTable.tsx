@@ -6,9 +6,9 @@
 // instead of invoice-vs-PO/GRN. A field the invoice has NO value for at all
 // gets neither Acknowledge nor any action — there's nothing to acknowledge
 // about a blank field, and no value is ever copied in from the contract onto
-// the invoice (see service.py's approve_extraction_postprocessing comment —
-// nothing back-populates the invoice's own extraction record). A real
-// mismatch (invoice HAS a value, it just disagrees) still gets Acknowledge.
+// the invoice — nothing back-populates the invoice's own extraction record.
+// A real mismatch (invoice HAS a value, it just disagrees) still gets
+// Acknowledge.
 import { useMemo } from "react";
 import { Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
@@ -46,12 +46,14 @@ const FIELD_LABELS: Record<string, string> = {
   currency: "Currency",
 };
 
-// These 4 money fields have no Acknowledge shortcut at all, by explicit
+// This money field has no Acknowledge shortcut at all, by explicit
 // instruction — a mismatch (or a null invoice value, e.g. RATNA_INTAN's
 // missing VAT line) permanently blocks Approve until the underlying value
 // is actually correct. Distinct from mandatory (field_mapping.py) — this
-// controls the ACK button specifically, not blocking on its own.
-const NO_ACK_FIELDS = new Set(["total_amount_before_vat", "vat_gst", "total_amount"]);
+// controls the ACK button specifically, not blocking on its own. (Tax
+// Amount and Total Amount After VAT were also here in earlier rounds; both
+// were removed from the Matching checklist entirely.)
+const NO_ACK_FIELDS = new Set(["total_amount_before_vat"]);
 
 function fieldLabel(f: DpFinding): string {
   if (f.field && FIELD_LABELS[f.field]) return FIELD_LABELS[f.field];
@@ -72,13 +74,12 @@ export function isFindingResolved(f: DpFinding, extracted: DpInvoiceExtracted): 
   if (f.expected_value === undefined || f.expected_value === null) return false;
   const current = (extracted as Record<string, unknown>)[f.field];
   if (current !== undefined && current !== null && String(current) === String(f.expected_value)) return true;
-  // WHT / Net Amount After WHT are never written back onto the invoice's own
-  // extraction record even once derived (see service.py's
-  // approve_extraction_postprocessing) — their Invoice-column value instead
-  // falls back, display-only, to the same matched-installment figure the
-  // Contract column shows. When that fallback numerically equals the
-  // contract's own figure, the two formatted display strings come out
-  // identical too — treat that the same as a real extracted-data match.
+  // Some core amount fields fall back, display-only, to the matched
+  // installment's own figure when the raw invoice leaves them blank (see
+  // service.py's _apply_mandatory_field_coverage) — never written back onto
+  // the invoice's own extraction record. When that fallback numerically
+  // equals the contract's own figure, the two formatted display strings come
+  // out identical too — treat that the same as a real extracted-data match.
   return f.found != null && f.found === f.expected;
 }
 

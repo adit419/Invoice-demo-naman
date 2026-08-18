@@ -27,36 +27,33 @@ from .store import (
 # trigger a fresh AI contract match on an already-decided invoice.
 #
 # Status vocabulary mirrors Invoice Processing's real pipeline exactly:
-# extraction -> extracted -> fp_extraction -> postprocessing -> extracted ->
-# matching -> bill_posting -> posted, with "rejected" a possible exit at any
-# point. There is no separate "accepted"/"validated" terminal status —
-# Matching's approval moves the invoice on to Bill Posting, same as P2P's
+# extraction -> extracted -> fp_extraction -> extracted -> matching ->
+# bill_posting -> posted, with "rejected" a possible exit at any point. There
+# is no separate "accepted"/"validated" terminal status — Matching's approval
+# moves the invoice on to Bill Posting, same as P2P's own
 # metadata_validation/line_item_matching approval moves it to bill_posting
 # rather than ending the pipeline there.
 #
-# postprocessing is DirectPay's own addition (no P2P analog) — it derives
-# invoice fields the document itself never prints (due_date, wht_rate, wht,
-# net_amount_after_wht) from the underlying lease's own payment schedule (see
-# approve_extraction_postprocessing) and runs for ANY IDR vendor with a real
-# payment_schedule.json, independently of whether Faktur Pajak also runs —
-# a vendor with no FP document still needs its due_date/WHT/net-amount
-# derived, that has nothing to do with FP.
-#
 # fp_extraction mirrors P2P's own STAGE_SEQUENCE placement exactly (see
-# backend/src/api/v1/stages.py): it sits between extraction and
-# postprocessing, gated on IDR currency AND on a real FP document actually
-# existing for this vendor/document (see confirm_extraction) — a vendor with
-# no Faktur Pajak ever captured (e.g. RATNA_INTAN) skips this stage entirely
-# rather than showing an empty review screen for a document that was never
-# there. A non-IDR invoice (never happens in today's DP fixtures, but kept
-# for parity) also skips straight through, same as P2P auto-skipping to
-# metadata_validation. Confirming extraction moves "extracted" straight to
-# whichever of fp_extraction/postprocessing/extracted actually applies (see
-# confirm_extraction); approving the FP stage moves it to "postprocessing"
-# next (see approve_faktur_pajak); approving Postprocessing moves it back to
-# "extracted" — the same status a vendor that skipped both stages would
-# already be sitting at post-confirm — so match.tsx's existing "extracted is
-# ready to match" logic needs no changes at all.
+# backend/src/api/v1/stages.py): it sits right after extraction, gated on IDR
+# currency AND on a real FP document actually existing for this vendor/
+# document (see confirm_extraction) — a vendor with no Faktur Pajak ever
+# captured (e.g. RATNA_INTAN) skips this stage entirely rather than showing
+# an empty review screen for a document that was never there. A non-IDR
+# invoice (never happens in today's DP fixtures, but kept for parity) also
+# skips straight through, same as P2P auto-skipping to metadata_validation.
+# Confirming extraction moves "extracted" straight to "fp_extraction" if it
+# applies, else it stays "extracted"; approving the FP stage moves it back to
+# "extracted" — the same status a vendor with no FP would already be sitting
+# at post-confirm — so match.tsx's existing "extracted is ready to match"
+# logic needs no changes at all.
+#
+# An earlier round of this module had a separate "postprocessing" stage
+# between fp_extraction and extracted (deriving due_date/WHT/net-amount from
+# the underlying lease's payment schedule for review before Matching) — it
+# was removed per explicit instruction as unnecessary; _apply_mandatory_
+# field_coverage below already re-derives whatever Matching needs from the
+# schedule directly, so nothing depended on that stage actually running.
 TERMINAL_STATUSES = ("posted", "rejected")
 
 
@@ -91,6 +88,16 @@ def _merge(base: dict, overlay: Optional[dict]) -> dict:
     if overlay:
         merged.update(overlay)
     return merged
+
+
+def _strip_na(values: dict) -> dict:
+    """The Extraction/Review pages show the literal string "NA" for an
+    absent fixture field (see the fixture JSON files themselves). Any code
+    that computes off real invoice/contract data — Matching, Bill Posting,
+    Simulate, the notification-email lookup — must keep treating that as
+    "nothing there", not as a literal value to compare or do arithmetic
+    against."""
+    return {k: (None if v == "NA" else v) for k, v in values.items()}
 
 
 def _normalize_for_memory(v) -> str:
@@ -191,10 +198,71 @@ def contract_out(doc: dict) -> dict:
         # approve_contract) — surfaced here too so the frontend can decide
         # navigation without guessing at a bundle it can't see directly.
         "has_payment_schedule": bool(bundle and bundle.payment_schedule),
+        # Same "View Edit History" gate the invoice side uses (see
+        # invoice_out's own has_edit_history) — covers edits made on both
+        # Contract Extraction (edit_contract/approve_contract) and Extraction
+        # Postprocessing (edit_contract_extraction_postprocessing), since both
+        # append to this same doc-level edit_history array.
+        "has_edit_history": bool(doc.get("edit_history")),
         "pdf_url": f"/dp-api/contracts/{doc['_id']}/pdf",
         "created_at": doc.get("created_at"),
         "updated_at": doc.get("updated_at"),
     }
+
+
+def _diff_contract_fields_patch(current: dict, patch: dict, user_email: str) -> list[dict]:
+    """Same "old value is whatever was actually in effect before this edit"
+    semantics as _diff_extracted_patch on the invoice side — Contract
+    Extraction's fields are all flat (no line-items equivalent), so this is
+    just the metadata half of that function, scope="metadata"."""
+    now = _now()
+    entries: list[dict] = []
+    for key, new_value in (patch or {}).items():
+        old_v = current.get(key)
+        if _values_equal(old_v, new_value):
+            continue
+        entries.append({
+            "timestamp": now, "user_email": user_email, "scope": "metadata",
+            "field": key, "row_id": None,
+            "old_value": None if old_v is None else str(old_v),
+            "new_value": None if new_value is None else str(new_value),
+        })
+    return entries
+
+
+def _diff_contract_postprocessing_patch(
+    current_installments: list[dict], current_one_time_payments: list[dict],
+    installments_patch: Optional[dict], one_time_payments_patch: Optional[dict],
+    user_email: str,
+) -> list[dict]:
+    """Row-based diff for Extraction Postprocessing's per-installment/
+    one-time-payment overrides — same row-index-keyed shape as
+    _diff_extracted_patch's line_items half, scope="installment"/
+    "one_time_payment" instead of "line_item"."""
+    now = _now()
+    entries: list[dict] = []
+
+    def _diff_rows(current_rows: list[dict], patch: Optional[dict], scope: str):
+        for idx_str, row_patch in (patch or {}).items():
+            try:
+                idx = int(idx_str)
+            except ValueError:
+                continue
+            current_row = current_rows[idx] if 0 <= idx < len(current_rows) else {}
+            for field, new_value in (row_patch or {}).items():
+                old_v = current_row.get(field)
+                if _values_equal(old_v, new_value):
+                    continue
+                entries.append({
+                    "timestamp": now, "user_email": user_email, "scope": scope,
+                    "field": field, "row_id": idx_str,
+                    "old_value": None if old_v is None else str(old_v),
+                    "new_value": None if new_value is None else str(new_value),
+                })
+
+    _diff_rows(current_installments, installments_patch, "installment")
+    _diff_rows(current_one_time_payments, one_time_payments_patch, "one_time_payment")
+    return entries
 
 
 # Rent invoices consistently tie back to their matched installment (see
@@ -223,27 +291,48 @@ def _is_non_rent_invoice(extracted: dict) -> bool:
 # comparison — per explicit instruction, it's shown empty instead of a
 # misleadingly specific number from an unrelated schedule category.
 _NO_SCHEDULE_CHARGE_TYPES = {"utility_electricity", "utility_water"}
-_NO_SCHEDULE_BLANK_FIELDS = {"total_amount_before_vat", "vat_gst", "total_amount"}
-# These 3 money fields are mandatory-and-blocking even when there's no real
+_NO_SCHEDULE_BLANK_FIELDS = {"total_amount_before_vat"}
+# This money field is mandatory-and-blocking even when there's no real
 # contract figure to compare against at all (e.g. Electricity/Water's
 # no-schedule-counterpart case above) — per explicit instruction, "no backup
 # document to verify" is a reason to block until someone resolves it, not a
 # reason to let the invoice through. Every other core field keeps the
 # default leniency (a blank contract side is informational, never blocks).
-_ALWAYS_BLOCKING_FIELDS = {"total_amount_before_vat", "vat_gst", "total_amount"}
+# (Tax Amount / Total Amount After VAT were also in this set in earlier
+# rounds — both were removed from the Matching checklist entirely, see
+# field_mapping.CORE_CROSS_VALIDATION_FIELDS.)
+_ALWAYS_BLOCKING_FIELDS = {"total_amount_before_vat"}
 # RATNA_INTAN only, per explicit instruction: this vendor (an individual,
-# non-PKP landlord) genuinely charges no VAT at all — the real invoice's own
-# total_amount_before_vat equals its total_amount, and vat_gst/tax_rate are
-# both null. The payment schedule's own Amount (Excl. Tax)/VAT Amount figures
-# for this vendor's installments (e.g. Rp770,770,771 / Rp84,784,785) assume
-# an 11% VAT split that doesn't apply here — a schedule-side ASSUMPTION, not
-# a fact about this specific vendor relationship. Excluded from every
-# schedule-derived fallback/override below so neither the Matching page nor
-# Extraction Postprocessing ever fabricates a VAT breakdown this vendor
-# doesn't have. tax_rate ("VAT Rate") is included for Extraction
-# Postprocessing's own derived-fields list — it isn't a Matching-page
-# checklist field, so it's simply never looked up there.
-_RATNA_INTAN_NO_VAT_FIELDS = {"total_amount_before_vat", "vat_gst", "tax_rate"}
+# non-PKP landlord) genuinely charges no VAT at all — vat_gst/tax_rate are
+# both null on the real invoice. Excluded from every schedule-derived
+# fallback/override below so neither the Matching page nor Extraction
+# Postprocessing ever fabricates a VAT breakdown this vendor doesn't have.
+# tax_rate ("VAT Rate") is included for Extraction Postprocessing's own
+# derived-fields list — it isn't a Matching-page checklist field, so it's
+# simply never looked up there.
+#
+# total_amount_before_vat is deliberately NOT in this set (removed per
+# explicit correction): the payment schedule's own Amount (Excl. Tax) figure
+# used to assume an 11% VAT split that didn't apply to this vendor, but the
+# schedule has since been corrected (VAT Amount = 0 on every installment,
+# Amount (Excl. Tax) now genuinely equals the real gross rent) — it's a real,
+# meaningful contract-side figure to compare Total Amount Before VAT against
+# now, not a fabricated one.
+_RATNA_INTAN_NO_VAT_FIELDS = {"vat_gst", "tax_rate"}
+
+# RATNA_INTAN and PT_BANGUN, per explicit instruction: both vendors' real
+# invoices state the VENDOR's own registered/personal address (an individual
+# landlord's residence for RATNA_INTAN; a company's own business address, in
+# a different building entirely, for PT_BANGUN) rather than the specific
+# leased premises — both vendor_address and the contract's own
+# premises_address are correct, real data individually, they just don't
+# answer the same question. Comparing them as "Store Location" is a
+# meaningless match for these two, so the invoice side is blanked and never
+# mandatory, same treatment as billing period. Distinct from a mall-operator
+# vendor (Palladium/Pakuwon/Karya Nastari), whose own registered address
+# genuinely IS the mall the leased unit sits in — that comparison stays as-is
+# for those.
+_NO_STORE_LOCATION_MATCH_VENDORS = {"RATNA_INTAN", "PT_BANGUN"}
 
 
 def _has_no_schedule_charge(extracted: dict) -> bool:
@@ -253,8 +342,10 @@ def _has_no_schedule_charge(extracted: dict) -> bool:
 
 def _format_finding_invoice_value(field: str, value, currency: Optional[str]) -> str:
     if field in ("tax_rate", "wht_rate"):
+        # Stored as a whole percentage number (11, not 0.11) — see
+        # payment_schedule.json/invoice_extraction.json's own convention.
         try:
-            return f"{float(value) * 100:.1f}%"
+            return f"{float(value):.1f}%"
         except (TypeError, ValueError):
             return str(value)
     if field in ("total_amount_before_vat", "vat_gst", "wht", "total_amount", "net_amount_after_wht"):
@@ -273,6 +364,7 @@ def _refresh_findings_from_extracted(findings: list[dict], extracted: dict) -> l
     extracted data, not whatever was in effect when the match first ran."""
     if not findings:
         return findings
+    extracted = _strip_na(extracted)
     currency = extracted.get("currency")
     refreshed = []
     for f in findings:
@@ -303,11 +395,10 @@ def _is_finding_resolved(f: dict, extracted: dict) -> bool:
     current = extracted.get(field)
     if current is not None and str(current) == str(f["expected_value"]):
         return True
-    # WHT / Net Amount After WHT are never written back onto the invoice's
-    # own extraction record even once derived (see
-    # approve_extraction_postprocessing) — their "found" value instead falls
-    # back, display-only, to the same matched-installment figure the
-    # "expected" (contract) value shows (see _apply_mandatory_field_coverage).
+    # Some core amount fields are never written back onto the invoice's own
+    # extraction record — their "found" value instead falls back,
+    # display-only, to the same matched-installment figure the "expected"
+    # (contract) value shows (see _apply_mandatory_field_coverage).
     # When that fallback numerically equals the contract's own figure, the
     # two formatted display strings come out identical too — treat that the
     # same as a real extracted-data match, so this can never disagree with
@@ -315,17 +406,15 @@ def _is_finding_resolved(f: dict, extracted: dict) -> bool:
     return f.get("found") is not None and f["found"] == f.get("expected")
 
 
-# Total Amount Before VAT / Tax Amount / Total Amount After VAT have no
-# single flat contract field to compare against for a lumpsum-installment
-# lease (that's what base_fee/"Monthly Rent" would be for a plain monthly
-# rent contract) — the real per-installment figures live in the payment
-# schedule instead (see fixtures/dp/<KEY>/payment_schedule.json and the
-# Contract Extraction Postprocessing stage, which reviews these same fields
-# before a contract is saved).
+# Total Amount Before VAT has no single flat contract field to compare
+# against for a lumpsum-installment lease (that's what base_fee/"Monthly
+# Rent" would be for a plain monthly rent contract) — the real per-installment
+# figure lives in the payment schedule instead (see
+# fixtures/dp/<KEY>/payment_schedule.json and the Contract Extraction
+# Postprocessing stage, which reviews the same field before a contract is
+# saved).
 _INSTALLMENT_MATCH_FIELD_MAP = {
     "total_amount_before_vat": "amount_excl_tax",
-    "vat_gst": "vat_amount",
-    "total_amount": "total_amount_incl_tax",
     # Billing Period Start/End: Contract column only, by explicit instruction
     # — deliberately NOT added to _SCHEDULE_FIELD_MAP below, so the Invoice
     # column never falls back to this installment figure the way WHT/Net
@@ -369,18 +458,18 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
        row — just with nothing to reconcile against (never a mismatch, see
        _is_finding_resolved).
     """
+    extracted = _strip_na(extracted)
     contract_fields: dict = {}
+    contract_doc: Optional[dict] = None
     contract_id = doc.get("contract_id")
     if contract_id:
         contract_doc = await dp_contract_runs(db).find_one({"_id": contract_id})
         if contract_doc:
-            contract_fields = _merge(contract_doc.get("base_fields") or {}, contract_doc.get("edited_fields"))
+            contract_fields = _strip_na(_merge(contract_doc.get("base_fields") or {}, contract_doc.get("edited_fields")))
 
     bundle = get_dp_loader().discover().get(doc.get("fixture_key"))
-    installment = (
-        _match_payment_installment(bundle.payment_schedule, extracted)
-        if bundle and bundle.payment_schedule else None
-    )
+    schedule = _effective_payment_schedule(bundle.payment_schedule if bundle else None, contract_doc)
+    installment = _match_payment_installment(schedule, extracted) if schedule else None
 
     core_by_field = {c.invoice_field: c for c in field_mapping.CORE_CROSS_VALIDATION_FIELDS}
 
@@ -401,6 +490,10 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
         if core.invoice_field in covered_invoice_fields:
             continue
         ratna_no_vat = doc.get("fixture_key") == "RATNA_INTAN" and core.invoice_field in _RATNA_INTAN_NO_VAT_FIELDS
+        # See _NO_STORE_LOCATION_MATCH_VENDORS above.
+        no_store_match = (
+            doc.get("fixture_key") in _NO_STORE_LOCATION_MATCH_VENDORS and core.invoice_field == "vendor_address"
+        )
         contract_value = _resolve_contract_value(core, contract_fields, installment)
         # Electricity/Water only, per explicit instruction: _resolve_contract_value
         # would otherwise return the "closest" installment's figure (always
@@ -444,6 +537,8 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
         # here means "no VAT applies", not "missing data to backfill".
         if invoice_value is None and installment and core.invoice_field in _SCHEDULE_FIELD_MAP and not ratna_no_vat:
             invoice_value = installment.get(_SCHEDULE_FIELD_MAP[core.invoice_field])
+        if no_store_match:
+            invoice_value = None
         # Always shown, even with nothing on either side — a blank row is
         # itself the answer, not something to hide.
         if contract_value is None and core.invoice_field in _ALWAYS_BLOCKING_FIELDS:
@@ -474,6 +569,13 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
             # like something's missing.
             severity = "warning"
             detail = f"Not stated on the invoice — shown for reference against the matched installment's own {core.label.lower()}."
+            mandatory = False
+        elif no_store_match:
+            severity = "warning"
+            detail = (
+                "The invoice states the vendor's own registered/business address, not a specific store "
+                "location — not a meaningful comparison against the contract's premises address."
+            )
             mandatory = False
         elif (
             core.invoice_field in _INSTALLMENT_MATCH_FIELD_MAP
@@ -547,10 +649,10 @@ async def invoice_out(db, doc: dict) -> dict:
         "contract_id": str(doc["contract_id"]) if doc.get("contract_id") else None,
         "extracted": extracted,
         "faktur_pajak": faktur_pajak,
-        # Whether THIS invoice actually has an fp_extraction/postprocessing
-        # stage to go back to — a vendor like RATNA_INTAN has no Faktur Pajak
-        # document at all, so the stage pages' own "back" buttons need this
-        # to avoid routing to a Faktur Pajak screen that never applied.
+        # Whether THIS invoice actually has an fp_extraction stage to go back
+        # to — a vendor like RATNA_INTAN has no Faktur Pajak document at all,
+        # so the Matching page's own "back" button needs this to avoid
+        # routing to a Faktur Pajak screen that never applied.
         "has_faktur_pajak": bool(faktur_pajak),
         "has_payment_schedule": bool(bundle and bundle.payment_schedule),
         "expected": (match_result or {}).get("expected"),
@@ -614,6 +716,15 @@ async def upload_contract(db, filename: str) -> dict:
         "status": "review",
         "base_fields": bundle.contract_extraction,
         "edited_fields": None,
+        # Per-row edits to the Extraction Postprocessing stage's derived
+        # fields (see edit_contract_extraction_postprocessing) — the payment
+        # schedule itself is shared fixture data, never mutated; edits live
+        # here, keyed by stringified row index, and are merged on top at read
+        # time (same base+edits-overlay pattern as edited_fields above).
+        "postprocessing_overrides": {"installments": {}, "one_time_payments": {}},
+        # Same audit trail shape/purpose as invoice docs' own edit_history —
+        # see _diff_contract_fields_patch / _diff_contract_postprocessing_patch.
+        "edit_history": [],
         "created_at": now,
         "updated_at": now,
     }
@@ -642,18 +753,27 @@ async def get_contract_doc(db, oid: ObjectId) -> dict:
     return doc
 
 
-async def edit_contract(db, oid: ObjectId, fields: dict) -> dict:
+async def edit_contract(db, oid: ObjectId, fields: dict, user_email: str = "unknown") -> dict:
     doc = await get_contract_doc(db, oid)
+    current = _merge(doc.get("base_fields") or {}, doc.get("edited_fields"))
+    entries = _diff_contract_fields_patch(current, fields, user_email)
     edited = _merge(doc.get("edited_fields") or {}, fields)
-    await dp_contract_runs(db).update_one(
-        {"_id": oid}, {"$set": {"edited_fields": edited, "updated_at": _now()}}
-    )
-    doc["edited_fields"] = edited
-    return contract_out(doc)
+    mongo_update: dict = {"$set": {"edited_fields": edited, "updated_at": _now()}}
+    if entries:
+        mongo_update["$push"] = {"edit_history": {"$each": entries}}
+    await dp_contract_runs(db).update_one({"_id": oid}, mongo_update)
+    # Re-fetch rather than hand-mutate the passed-in `doc`: the in-memory DB
+    # returns live references, so `doc` may already reflect this update by
+    # the time update_one returns (same gotcha _apply_extracted_patch's own
+    # comment documents on the invoice side) — re-fetching is correct either
+    # way and doesn't depend on that implementation detail.
+    return contract_out(await get_contract_doc(db, oid))
 
 
-async def approve_contract(db, oid: ObjectId, fields: Optional[dict]) -> dict:
+async def approve_contract(db, oid: ObjectId, fields: Optional[dict], user_email: str = "unknown") -> dict:
     doc = await get_contract_doc(db, oid)
+    current = _merge(doc.get("base_fields") or {}, doc.get("edited_fields"))
+    entries = _diff_contract_fields_patch(current, fields or {}, user_email)
     edited = doc.get("edited_fields") or {}
     if fields:
         edited = _merge(edited, fields)
@@ -663,13 +783,13 @@ async def approve_contract(db, oid: ObjectId, fields: Optional[dict]) -> dict:
     # "saved", same as before this stage existed.
     bundle = get_dp_loader().discover().get(doc.get("fixture_key"))
     next_status = "postprocessing" if bundle and bundle.payment_schedule else "saved"
-    await dp_contract_runs(db).update_one(
-        {"_id": oid},
-        {"$set": {"edited_fields": edited, "status": next_status, "updated_at": _now()}},
-    )
-    doc["edited_fields"] = edited
-    doc["status"] = next_status
-    return contract_out(doc)
+    mongo_update: dict = {"$set": {"edited_fields": edited, "status": next_status, "updated_at": _now()}}
+    if entries:
+        mongo_update["$push"] = {"edit_history": {"$each": entries}}
+    await dp_contract_runs(db).update_one({"_id": oid}, mongo_update)
+    # Re-fetch — see edit_contract's comment on why hand-mutating `doc` here
+    # would double the pushed entries.
+    return contract_out(await get_contract_doc(db, oid))
 
 
 # ── Contract Extraction Postprocessing ─────────────────────────────────────────
@@ -705,13 +825,16 @@ _CONTRACT_DERIVED_COLUMNS = [
 
 def _format_contract_derived_value(key: str, value) -> str:
     if value is None:
-        # Blank, not an em-dash — the frontend marks an empty field with the
-        # same yellow highlight the Extraction page's own Metadata table
-        # uses, rather than a placeholder character.
-        return ""
+        # "NA", not blank — the frontend still marks the cell with the same
+        # yellow highlight the Extraction page's own Metadata table uses
+        # (driven by the raw `value` field being null, not by this string),
+        # so the highlight survives showing visible text here.
+        return "NA"
     if key in ("vat_rate", "wht_rate"):
+        # Stored as a whole percentage number (11, not 0.11) — same
+        # convention as the contract's own flat vat_rate field.
         try:
-            return f"{float(value) * 100:.0f}%"
+            return f"{float(value):.0f}%"
         except (TypeError, ValueError):
             return str(value)
     if key in ("amount_excl_tax", "vat_amount", "total_amount_incl_tax", "wht_amount", "net_payment_to_lessor"):
@@ -727,22 +850,26 @@ async def get_contract_extraction_postprocessing(db, oid: ObjectId) -> dict:
     bundle = get_dp_loader().discover().get(doc.get("fixture_key"))
     schedule = bundle.payment_schedule if bundle else None
     installments = (schedule or {}).get("installments") or []
+    one_time_raw = (schedule or {}).get("one_time_payments") or []
     fields = _merge(doc.get("base_fields") or {}, doc.get("edited_fields"))
+    overrides = doc.get("postprocessing_overrides") or {}
+    inst_overrides = overrides.get("installments") or {}
+    otp_overrides = overrides.get("one_time_payments") or {}
 
     rows = [
         {
-            "description": inst.get("description"),
+            "description": (merged := {**inst, **(inst_overrides.get(str(idx)) or {})}).get("description"),
             "fields": [
                 {
                     "field_name": key,
                     "display_name": label,
-                    "value": inst.get(key),
-                    "formatted_value": _format_contract_derived_value(key, inst.get(key)),
+                    "value": merged.get(key),
+                    "formatted_value": _format_contract_derived_value(key, merged.get(key)),
                 }
                 for key, label in _CONTRACT_DERIVED_COLUMNS
             ],
         }
-        for inst in installments
+        for idx, inst in enumerate(installments)
     ]
 
     # Optional and schema-driven, not vendor-specific: a vendor's own
@@ -753,14 +880,14 @@ async def get_contract_extraction_postprocessing(db, oid: ObjectId) -> dict:
     # amount_excl_tax/VAT/WHT breakdown above.
     one_time_payments = [
         {
-            "description": p.get("description"),
-            "amount": p.get("amount"),
-            "formatted_amount": _format_contract_derived_value("amount_excl_tax", p.get("amount")),
-            "due_date_trigger": p.get("due_date_trigger"),
-            "status": p.get("status"),
-            "remarks": p.get("remarks"),
+            "description": (merged_p := {**p, **(otp_overrides.get(str(idx)) or {})}).get("description"),
+            "amount": merged_p.get("amount"),
+            "formatted_amount": _format_contract_derived_value("amount_excl_tax", merged_p.get("amount")),
+            "due_date_trigger": merged_p.get("due_date_trigger"),
+            "status": merged_p.get("status"),
+            "remarks": merged_p.get("remarks"),
         }
-        for p in (schedule or {}).get("one_time_payments") or []
+        for idx, p in enumerate(one_time_raw)
     ]
 
     return {
@@ -768,9 +895,56 @@ async def get_contract_extraction_postprocessing(db, oid: ObjectId) -> dict:
         "status": doc.get("status"),
         "vendor_name": fields.get("vendor_name"),
         "has_payment_schedule": bool(schedule),
+        # Same doc-level edit_history Contract Extraction's own
+        # has_edit_history reads (see contract_out) — an edit made on either
+        # stage shows up in the same "View Edit History" panel from both.
+        "has_edit_history": bool(doc.get("edit_history")),
         "installments": rows,
         "one_time_payments": one_time_payments,
     }
+
+
+async def edit_contract_extraction_postprocessing(
+    db, oid: ObjectId, installments_patch: Optional[dict], one_time_payments_patch: Optional[dict],
+    user_email: str = "unknown",
+) -> dict:
+    """Persists a reviewer's correction to a derived field (e.g. the
+    schedule's own Amount Excl Tax was mistyped) — merged on top of the
+    fixture's own payment schedule at read time (see
+    get_contract_extraction_postprocessing), never mutating the shared
+    fixture file itself, same base+edits-overlay pattern edit_contract uses
+    for the flat contract fields. Diffed against the currently-effective
+    (fixture + prior overrides) row so edit_history stays accurate across
+    repeated edits to the same field, same semantics as
+    _apply_extracted_patch on the invoice side."""
+    doc = await get_contract_doc(db, oid)
+    bundle = get_dp_loader().discover().get(doc.get("fixture_key"))
+    schedule = bundle.payment_schedule if bundle else None
+    raw_installments = (schedule or {}).get("installments") or []
+    raw_one_time = (schedule or {}).get("one_time_payments") or []
+
+    overrides = doc.get("postprocessing_overrides") or {"installments": {}, "one_time_payments": {}}
+    inst_overrides = dict(overrides.get("installments") or {})
+    otp_overrides = dict(overrides.get("one_time_payments") or {})
+
+    current_installments = [{**inst, **(inst_overrides.get(str(idx)) or {})} for idx, inst in enumerate(raw_installments)]
+    current_one_time = [{**p, **(otp_overrides.get(str(idx)) or {})} for idx, p in enumerate(raw_one_time)]
+    entries = _diff_contract_postprocessing_patch(
+        current_installments, current_one_time, installments_patch, one_time_payments_patch, user_email
+    )
+
+    for idx, patch in (installments_patch or {}).items():
+        inst_overrides[idx] = {**(inst_overrides.get(idx) or {}), **patch}
+    for idx, patch in (one_time_payments_patch or {}).items():
+        otp_overrides[idx] = {**(otp_overrides.get(idx) or {}), **patch}
+    overrides = {"installments": inst_overrides, "one_time_payments": otp_overrides}
+
+    mongo_update: dict = {"$set": {"postprocessing_overrides": overrides, "updated_at": _now()}}
+    if entries:
+        mongo_update["$push"] = {"edit_history": {"$each": entries}}
+    await dp_contract_runs(db).update_one({"_id": oid}, mongo_update)
+    doc["postprocessing_overrides"] = overrides
+    return await get_contract_extraction_postprocessing(db, oid)
 
 
 async def approve_contract_extraction_postprocessing(db, oid: ObjectId) -> dict:
@@ -782,6 +956,21 @@ async def approve_contract_extraction_postprocessing(db, oid: ObjectId) -> dict:
     )
     doc["status"] = "saved"
     return contract_out(doc)
+
+
+async def get_contract_edit_history(db, oid: ObjectId) -> list[dict]:
+    """Mirrors get_edit_history on the invoice side exactly — same doc-level
+    edit_history array, same newest-first ordering, just against
+    dp_contract_runs instead of dp_invoice_runs."""
+    doc = await get_contract_doc(db, oid)
+    entries = list(doc.get("edit_history") or [])
+
+    def _iso(v):
+        return v.isoformat() if hasattr(v, "isoformat") else v
+
+    out = [{**e, "timestamp": _iso(e.get("timestamp"))} for e in entries]
+    out.sort(key=lambda e: e["timestamp"], reverse=True)
+    return out
 
 
 # ── Invoices ───────────────────────────────────────────────────────────────────
@@ -809,7 +998,7 @@ async def upload_invoice(
     # document (the FP's own data is already fully resolvable off the first
     # upload's document_key — a second upload teaches the system nothing new,
     # it would just be a duplicate dashboard row that also never resolves
-    # a Faktur Pajak/postprocessing stage of its own).
+    # a Faktur Pajak stage of its own).
     if document:
         existing = await dp_invoice_runs(db).find_one({
             "fixture_key": bundle.key,
@@ -905,24 +1094,23 @@ async def confirm_extraction(db, oid: ObjectId, extracted_patch: Optional[dict],
     # least once" — the Extraction page's own isActionable needs this
     # directly rather than inferring it from `status`, because "extracted"
     # is reused for two different moments (fresh extraction, not yet
-    # confirmed; and post-Postprocessing, ready for Matching) and
+    # confirmed; and post-Faktur-Pajak, ready for Matching) and
     # `contract_id` isn't set until Matching, several stages later. Without
     # this flag the Extraction page would keep showing itself as still
     # actionable ("Confirm Extraction") after a human has already confirmed,
-    # moved through Faktur Pajak and Postprocessing, and come back here.
+    # moved through Faktur Pajak, and come back here.
     await dp_invoice_runs(db).update_one({"_id": oid}, {"$set": {"extraction_confirmed": True}})
     doc["extraction_confirmed"] = True
 
     # Mirrors P2P's approve_stage: confirming extraction auto-advances an IDR
-    # invoice past Extraction. WHERE it lands next depends on what this
-    # vendor actually has:
-    #   - a real Faktur Pajak document (bundle.fp_extraction /
-    #     document.faktur_pajak) -> "fp_extraction", same as before.
-    #   - no FP document, but a real payment_schedule.json -> straight to
-    #     "postprocessing" (an invoice with no FP to review still needs its
-    #     due_date/WHT/net-amount derived — that has nothing to do with FP).
-    #   - neither -> stays "extracted", ready for Matching, same as a
-    #     non-IDR invoice already would be.
+    # invoice past Extraction to "fp_extraction" if this vendor has a real
+    # Faktur Pajak document (bundle.fp_extraction / document.faktur_pajak),
+    # else it stays "extracted", ready for Matching directly — Extraction
+    # Postprocessing (deriving due_date/WHT/net-amount from the payment
+    # schedule) was a separate stage in an earlier round and was removed per
+    # explicit instruction; Matching's own _apply_mandatory_field_coverage
+    # already re-derives whatever it needs from the schedule at render time,
+    # so nothing downstream depended on that stage actually running.
     # An invoice confirmed a second time after already moving past this
     # point is left alone, matching P2P's one-way, idempotent stage advance.
     extracted = _merge(doc.get("base_extracted") or {}, doc.get("edited_extracted"))
@@ -932,38 +1120,19 @@ async def confirm_extraction(db, oid: ObjectId, extracted_patch: Optional[dict],
         document = _document_entry(bundle, doc.get("document_key"))
         has_fp = bool(_resolve_faktur_pajak(bundle, document))
         if has_fp:
-            next_status = "fp_extraction"
-        elif bundle and bundle.payment_schedule:
-            next_status = "postprocessing"
-        else:
-            next_status = None
-        if next_status:
-            await dp_invoice_runs(db).update_one({"_id": oid}, {"$set": {"status": next_status, "updated_at": _now()}})
-            doc["status"] = next_status
+            await dp_invoice_runs(db).update_one({"_id": oid}, {"$set": {"status": "fp_extraction", "updated_at": _now()}})
+            doc["status"] = "fp_extraction"
 
     return await invoice_out(db, doc)
 
 
-# ── Extraction Postprocessing ─────────────────────────────────────────────────
-# Sits between Extraction and Faktur Pajak. Some invoice fields are never
-# printed on the invoice document itself (due_date, wht_rate, wht,
-# net_amount_after_wht for a WHT-bearing lease) — this stage derives them from
-# the underlying lease's own payment schedule (fixtures/dp/<KEY>/
-# payment_schedule.json) instead, matching the schedule's installment row to
-# THIS invoice by amount (the schedule has no invoice-identifying key of its
-# own — matching on amount is the only signal available, same spirit as
-# contract_recommendation.py's amount-scoring).
-
-_DERIVED_FIELD_DISPLAY = {
-    "due_date": "Due Date",
-    "total_amount_before_vat": "Amount (Excl. Tax)",
-    "tax_rate": "VAT Rate",
-    "vat_gst": "VAT Amount",
-    "total_amount": "Total Amount Due (Incl. Tax)",
-    "wht_rate": "WHT Rate",
-    "wht": "WHT Amount",
-    "net_amount_after_wht": "Net Amount After WHT",
-}
+# Total Amount Before VAT has no single flat contract field to compare
+# against for a lumpsum-installment lease — the real per-installment figure
+# lives in the payment schedule instead (fixtures/dp/<KEY>/
+# payment_schedule.json), matched to an invoice by amount (the schedule has
+# no invoice-identifying key of its own — matching on amount is the only
+# signal available, same spirit as contract_recommendation.py's
+# amount-scoring). Also used by Bill Posting for its own WHT-rate lookup.
 _SCHEDULE_FIELD_MAP = {
     "due_date": "due_date",
     "total_amount_before_vat": "amount_excl_tax",
@@ -996,104 +1165,31 @@ def _match_payment_installment(schedule: Optional[dict], extracted: dict) -> Opt
     return best or installments[0]
 
 
-def _format_derived_value(field_name: str, value) -> str:
-    if value is None:
-        # Blank, not an em-dash — same reasoning as _format_contract_derived_value.
-        return ""
-    if field_name in ("wht_rate", "tax_rate"):
-        try:
-            return f"{float(value) * 100:.0f}%"
-        except (TypeError, ValueError):
-            return str(value)
-    if field_name in ("wht", "net_amount_after_wht", "total_amount_before_vat", "vat_gst", "total_amount"):
-        try:
-            return f"{float(value):,.2f}"
-        except (TypeError, ValueError):
-            return str(value)
-    return str(value)
-
-
-async def get_extraction_postprocessing(db, oid: ObjectId) -> dict:
-    doc = await get_invoice_doc(db, oid)
-    extracted = _merge(doc.get("base_extracted") or {}, doc.get("edited_extracted"))
-    bundle = get_dp_loader().discover().get(doc.get("fixture_key"))
-    schedule = bundle.payment_schedule if bundle else None
-    installment = _match_payment_installment(schedule, extracted)
-
-    # Electricity/Water only, per explicit instruction: the matched
-    # installment is always the numerically-closest Service Charge row (an
-    # unrelated category — no real schedule counterpart exists for these
-    # charge types at all), so its date/amount figures are real numbers but
-    # not a real answer for THIS invoice. Rates (VAT Rate, WHT Rate/Amount)
-    # are excluded from this blanking — they're uniform across this vendor's
-    # entire schedule regardless of category (11% VAT, 0% WHT everywhere),
-    # so borrowing them isn't a false comparison the way a borrowed rupiah
-    # amount or due date would be.
-    _no_schedule_fields = (
-        {"due_date", "total_amount_before_vat", "vat_gst", "total_amount", "net_amount_after_wht"}
-        if _has_no_schedule_charge(extracted) else set()
-    )
-
-    fields = []
-    if installment:
-        for field_name, label in _DERIVED_FIELD_DISPLAY.items():
-            # RATNA_INTAN only, per explicit instruction: Amount (Excl. Tax) /
-            # VAT Rate / VAT Amount are dropped entirely for this vendor — see
-            # _RATNA_INTAN_NO_VAT_FIELDS — rather than shown with a fictional
-            # schedule-assumed VAT split this vendor doesn't actually have.
-            if doc.get("fixture_key") == "RATNA_INTAN" and field_name in _RATNA_INTAN_NO_VAT_FIELDS:
-                continue
-            raw_value = None if field_name in _no_schedule_fields else installment.get(_SCHEDULE_FIELD_MAP[field_name])
-            fields.append({
-                "field_name": field_name,
-                "display_name": label,
-                "derived_value": raw_value,
-                "formatted_value": _format_derived_value(field_name, raw_value),
-                "already_applied": extracted.get(field_name) is not None,
-            })
-
-    return {
-        "id": str(doc["_id"]),
-        "status": doc.get("status"),
-        "invoice_number": extracted.get("invoice_number"),
-        "invoice_date": extracted.get("invoice_date"),
-        "vendor_name": extracted.get("vendor_name"),
-        "currency": extracted.get("currency"),
-        "has_payment_schedule": bool(schedule),
-        # Blank for Electricity/Water too — installment is still the
-        # closest-by-amount row internally (used for the rate fields above),
-        # but there's no real schedule entry for these charge types, so the
-        # page shouldn't claim one was "matched".
-        "matched_installment": (
-            installment.get("description")
-            if installment and not _has_no_schedule_charge(extracted)
-            else None
-        ),
-        "fields": fields,
-    }
-
-
-async def approve_extraction_postprocessing(db, oid: ObjectId) -> dict:
-    doc = await get_invoice_doc(db, oid)
-    if doc.get("status") != "postprocessing":
-        raise InvalidStateError("This invoice is not at the Extraction Postprocessing stage")
-
-    # Derived fields (see get_extraction_postprocessing) are shown for
-    # reference only — approving this stage never writes them onto the
-    # invoice's own extraction record. The payment schedule is a different
-    # document (the contract's), matched to this invoice only by amount
-    # proximity, not a verified fact this specific invoice states about
-    # itself — back-populating extracted_* with it would silently fabricate
-    # data the invoice never actually contained.
-
-    # Sits after Faktur Pajak now, so approving here lands back at
-    # "extracted" — the same status a non-IDR invoice (no FP, no
-    # postprocessing) would already be sitting at, ready for Matching.
-    await dp_invoice_runs(db).update_one(
-        {"_id": oid}, {"$set": {"status": "extracted", "updated_at": _now()}}
-    )
-    doc["status"] = "extracted"
-    return await invoice_out(db, doc)
+def _effective_payment_schedule(schedule: Optional[dict], contract_doc: Optional[dict]) -> Optional[dict]:
+    """Applies the matched contract's own Extraction Postprocessing edits
+    (see edit_contract_extraction_postprocessing's postprocessing_overrides)
+    on top of the fixture's raw payment schedule — same merge this stage's
+    own get_contract_extraction_postprocessing does for display, applied
+    here so Matching/Bill Posting compare against the reviewer-corrected
+    figures too, not stale fixture data, once a contract is actually
+    matched. Returns the schedule unchanged when there's no contract or no
+    overrides on it."""
+    if not schedule:
+        return schedule
+    overrides = (contract_doc or {}).get("postprocessing_overrides") or {}
+    inst_overrides = overrides.get("installments") or {}
+    otp_overrides = overrides.get("one_time_payments") or {}
+    if not inst_overrides and not otp_overrides:
+        return schedule
+    installments = [
+        {**inst, **(inst_overrides.get(str(idx)) or {})}
+        for idx, inst in enumerate(schedule.get("installments") or [])
+    ]
+    one_time_payments = [
+        {**p, **(otp_overrides.get(str(idx)) or {})}
+        for idx, p in enumerate(schedule.get("one_time_payments") or [])
+    ]
+    return {**schedule, "installments": installments, "one_time_payments": one_time_payments}
 
 
 # ── Faktur Pajak ─────────────────────────────────────────────────────────────
@@ -1145,18 +1241,31 @@ def _fp_values_match(fp_value, invoice_value) -> bool:
 
 async def get_faktur_pajak(db, oid: ObjectId) -> dict:
     doc = await get_invoice_doc(db, oid)
-    extracted = _merge(doc.get("base_extracted") or {}, doc.get("edited_extracted"))
+    extracted = _strip_na(_merge(doc.get("base_extracted") or {}, doc.get("edited_extracted")))
     bundle = get_dp_loader().discover().get(doc.get("fixture_key"))
     document = _document_entry(bundle, doc.get("document_key"))
     fp = _resolve_faktur_pajak(bundle, document)
     acknowledged = list(doc.get("fp_acknowledged_fields") or [])
     acked_set = set(acknowledged)
 
+    from .stp import get_dp_ack_threshold  # local import — stp.py never imports service.py's endpoints back
+    threshold = await get_dp_ack_threshold(db)
+
     fields = []
     if fp:
         for field_name, label in _FP_FIELD_DISPLAY.items():
             fp_value = fp.get(field_name)
             invoice_value = extracted.get(_FP_INVOICE_FIELD_MAP[field_name])
+            is_acked = field_name in acked_set
+            # Same DP Acknowledge Threshold learned memory Matching findings
+            # use (see record_dp_acknowledgement/_apply_dp_ack_memory) —
+            # namespaced "fp_<field>" so an FP field never shares memory with
+            # a same-named Matching checklist field (e.g. both have their own
+            # unrelated "vendor_name").
+            system_acked = (
+                not is_acked
+                and await _dp_ack_memory_count(db, f"fp_{field_name}", fp_value, invoice_value) >= threshold
+            )
             fields.append({
                 "field_name": field_name,
                 "display_name": label,
@@ -1164,7 +1273,8 @@ async def get_faktur_pajak(db, oid: ObjectId) -> dict:
                 "invoice_value": invoice_value,
                 "match_status": "match" if _fp_values_match(fp_value, invoice_value) else "mismatch",
                 "required": field_name in _FP_REQUIRED_FIELDS,
-                "acknowledged": field_name in acked_set,
+                "acknowledged": is_acked,
+                "system_acknowledged": system_acked,
             })
 
     return {
@@ -1189,6 +1299,7 @@ async def get_faktur_pajak(db, oid: ObjectId) -> dict:
 async def acknowledge_fp_field(db, oid: ObjectId, field_name: str, acknowledged: bool) -> list[str]:
     doc = await get_invoice_doc(db, oid)
     acked = list(doc.get("fp_acknowledged_fields") or [])
+    is_fresh_ack = acknowledged and field_name not in acked
     if acknowledged and field_name not in acked:
         acked.append(field_name)
     elif not acknowledged and field_name in acked:
@@ -1196,6 +1307,23 @@ async def acknowledge_fp_field(db, oid: ObjectId, field_name: str, acknowledged:
     await dp_invoice_runs(db).update_one(
         {"_id": oid}, {"$set": {"fp_acknowledged_fields": acked, "updated_at": _now()}}
     )
+
+    # Learn this (FP field, fp-value) -> invoice-value pair, same DP
+    # Acknowledge Threshold learned memory Matching's acknowledge_finding
+    # feeds — this was previously missing entirely, so an FP mismatch never
+    # got auto-blessed no matter how many times it was manually acknowledged.
+    # Only on a fresh manual ACK (not a revert), matching acknowledge_finding's
+    # own rule.
+    if is_fresh_ack and field_name in _FP_INVOICE_FIELD_MAP:
+        extracted = _strip_na(_merge(doc.get("base_extracted") or {}, doc.get("edited_extracted")))
+        bundle = get_dp_loader().discover().get(doc.get("fixture_key"))
+        document = _document_entry(bundle, doc.get("document_key"))
+        fp = _resolve_faktur_pajak(bundle, document)
+        if fp is not None:
+            fp_value = fp.get(field_name)
+            invoice_value = extracted.get(_FP_INVOICE_FIELD_MAP[field_name])
+            await record_dp_acknowledgement(db, f"fp_{field_name}", fp_value, invoice_value)
+
     return acked
 
 
@@ -1218,15 +1346,13 @@ async def approve_faktur_pajak(db, oid: ObjectId, force: bool = False) -> dict:
     if blocking and not force:
         raise NeedsConfirmationError()
 
-    # Advances into Extraction Postprocessing next, not straight to
-    # "extracted" — a vendor with no payment schedule at all would have
-    # nothing to derive there, but that stage still runs to (harmlessly)
-    # confirm there's nothing to do, same as get_extraction_postprocessing's
-    # own has_payment_schedule=false branch already handles.
+    # Advances straight to "extracted", ready for Matching — Extraction
+    # Postprocessing used to sit here as a separate review stage but was
+    # removed per explicit instruction (see confirm_extraction).
     await dp_invoice_runs(db).update_one(
-        {"_id": oid}, {"$set": {"status": "postprocessing", "updated_at": _now()}}
+        {"_id": oid}, {"$set": {"status": "extracted", "updated_at": _now()}}
     )
-    doc["status"] = "postprocessing"
+    doc["status"] = "extracted"
     return await invoice_out(db, doc)
 
 
@@ -1362,8 +1488,8 @@ async def review_action(db, oid: ObjectId, action: str, reason: Optional[str]) -
 # pattern) but the "Post to ERP" side effect is entirely mocked — DirectPay
 # never calls a real Zoho/QuickBooks Desktop API.
 
-def _bill_posting_out(doc: dict) -> dict:
-    extracted = _merge(doc.get("base_extracted") or {}, doc.get("edited_extracted"))
+def _bill_posting_out(doc: dict, contract_doc: Optional[dict] = None) -> dict:
+    extracted = _strip_na(_merge(doc.get("base_extracted") or {}, doc.get("edited_extracted")))
     bundle = get_dp_loader().discover().get(doc["fixture_key"])
     defaults = (bundle.bill_posting if bundle else {}) or {}
     default_items = defaults.get("line_items") or []
@@ -1425,10 +1551,8 @@ def _bill_posting_out(doc: dict) -> dict:
     # _apply_mandatory_field_coverage) so WHT isn't silently dropped from the
     # simulated posting and "Payable Amount" isn't silently left as the gross
     # total instead of the true net-of-WHT figure.
-    installment = (
-        _match_payment_installment(bundle.payment_schedule, extracted)
-        if bundle and bundle.payment_schedule else None
-    )
+    schedule = _effective_payment_schedule(bundle.payment_schedule if bundle else None, contract_doc)
+    installment = _match_payment_installment(schedule, extracted) if schedule else None
     wht_value = extracted.get("wht")
     if wht_value is None and installment:
         wht_value = installment.get("wht_amount")
@@ -1493,11 +1617,23 @@ def _bill_posting_out(doc: dict) -> dict:
     }
 
 
+async def _fetch_matched_contract_doc(db, doc: dict) -> Optional[dict]:
+    """The contract this invoice was matched against, if any — fetched fresh
+    each call so Bill Posting always sees the contract's current Extraction
+    Postprocessing overrides (see _effective_payment_schedule), not whatever
+    they were at match time."""
+    contract_id = doc.get("contract_id")
+    if not contract_id:
+        return None
+    return await dp_contract_runs(db).find_one({"_id": contract_id})
+
+
 async def get_bill_posting(db, oid: ObjectId) -> dict:
     doc = await get_invoice_doc(db, oid)
     if doc.get("status") not in ("bill_posting", "posted"):
         raise InvalidStateError("This invoice has not reached the Bill Posting stage")
-    return _bill_posting_out(doc)
+    contract_doc = await _fetch_matched_contract_doc(db, doc)
+    return _bill_posting_out(doc, contract_doc)
 
 
 async def edit_bill_posting(db, oid: ObjectId, line_item_overrides: dict) -> dict:
@@ -1547,13 +1683,14 @@ async def _resolve_dp_notification_email(db, doc: dict, extracted: dict) -> Opti
     explicit = (doc.get("source_meta") or {}).get("sender")
     if explicit:
         return explicit
+    extracted = _strip_na(extracted)
     if extracted.get("vendor_email"):
         return extracted["vendor_email"]
     contract_id = doc.get("contract_id")
     if contract_id:
         contract_doc = await dp_contract_runs(db).find_one({"_id": contract_id})
         if contract_doc:
-            contract_fields = _merge(contract_doc.get("base_fields") or {}, contract_doc.get("edited_fields"))
+            contract_fields = _strip_na(_merge(contract_doc.get("base_fields") or {}, contract_doc.get("edited_fields")))
             if contract_fields.get("vendor_email"):
                 return contract_fields["vendor_email"]
     return None
@@ -1577,7 +1714,7 @@ async def _notify_dp_bill_posted(db, doc: dict, erp: dict) -> None:
 
         currency = extracted.get("currency") or ""
         total = extracted.get("total_amount")
-        total_fmt = f"{float(total):,.2f}" if total is not None else "—"
+        total_fmt = f"{float(total):,.2f}" if total is not None else "NA"
         html = directpay_posted_html(
             invoice_number=erp["bill_number"],
             vendor_name=extracted.get("vendor_name") or "",
@@ -1624,10 +1761,11 @@ async def simulate_bill_posting(db, oid: ObjectId) -> dict:
     if doc.get("status") not in ("bill_posting", "posted"):
         raise InvalidStateError("This invoice has not reached the Bill Posting stage")
 
-    extracted = _merge(doc.get("base_extracted") or {}, doc.get("edited_extracted"))
+    extracted = _strip_na(_merge(doc.get("base_extracted") or {}, doc.get("edited_extracted")))
     bundle = get_dp_loader().discover().get(doc["fixture_key"])
     defaults = (bundle.bill_posting if bundle else {}) or {}
-    bp = _bill_posting_out(doc)
+    contract_doc = await _fetch_matched_contract_doc(db, doc)
+    bp = _bill_posting_out(doc, contract_doc)
 
     currency = bp.get("currency") or "IDR"
     vendor_name = bp.get("vendor_name") or "Vendor"
@@ -1649,7 +1787,8 @@ async def simulate_bill_posting(db, oid: ObjectId) -> dict:
         # schedule-derived-values decision as _bill_posting_out above,
         # applied to the rate label too so the now-nonzero Input VAT row
         # below isn't shown with no percentage at all.
-        installment_for_rate = _match_payment_installment(bundle.payment_schedule, extracted)
+        rate_schedule = _effective_payment_schedule(bundle.payment_schedule, contract_doc)
+        installment_for_rate = _match_payment_installment(rate_schedule, extracted)
         if installment_for_rate:
             tax_rate = installment_for_rate.get("vat_rate")
 
@@ -1714,7 +1853,9 @@ async def simulate_bill_posting(db, oid: ObjectId) -> dict:
     # tax_amount > 0).
     input_vat_code = next((it.get("vat_tax_code") for it in line_items if it.get("vat_tax_code")), "—")
     if any(it.get("vat_tax_code") for it in line_items):
-        vat_pct = f"{tax_rate * 100:.0f}%" if tax_rate else ""
+        # tax_rate is a whole percentage number (11, not 0.11) — see
+        # payment_schedule.json/invoice_extraction.json's own convention.
+        vat_pct = f"{tax_rate:.0f}%" if tax_rate else ""
         input_vat_desc = f"Input tax · {vat_pct}" if vat_pct else "Input tax"
         rows.append({
             "position": pos,
@@ -1837,6 +1978,25 @@ async def record_dp_acknowledgement(db, field_name: str, source_value, found_val
         })
 
 
+async def _dp_ack_memory_count(db, memory_field_name: str, source_value, found_value) -> int:
+    """How many times this exact (memory_field_name, source_value) pair has
+    been manually acknowledged with this exact found_value — the raw count
+    _apply_dp_ack_memory and the Faktur Pajak equivalent below both compare
+    against the DP Acknowledge Threshold."""
+    source_norm = _normalize_for_memory(source_value)
+    if not source_norm:
+        return 0
+    found_norm = _normalize_for_memory(found_value)
+    coll = dp_field_acknowledgement_memory(db)
+    memory_doc = await coll.find_one({"field_name": memory_field_name, "source_value": source_norm})
+    if not memory_doc:
+        return 0
+    return next(
+        (e.get("c", 0) for e in (memory_doc.get("acknowledgement_counts") or []) if e.get("v") == found_norm),
+        0,
+    )
+
+
 async def _apply_dp_ack_memory(db, findings: list[dict], extracted: dict) -> list[str]:
     """Return finding_ids that are pre-blessed by learned memory (field,
     contract-value, current-invoice-value) — uses the LIVE extracted value so
@@ -1846,7 +2006,6 @@ async def _apply_dp_ack_memory(db, findings: list[dict], extracted: dict) -> lis
         return []
     from .stp import get_dp_ack_threshold  # local import — stp.py never imports service.py's endpoints back
     threshold = await get_dp_ack_threshold(db)
-    coll = dp_field_acknowledgement_memory(db)
     system_ids: list[str] = []
     for f in findings:
         if f.get("severity") == "error":
@@ -1854,17 +2013,7 @@ async def _apply_dp_ack_memory(db, findings: list[dict], extracted: dict) -> lis
         field = f.get("field")
         if not field or f.get("expected_value") is None:
             continue
-        source_norm = _normalize_for_memory(f.get("expected_value"))
-        if not source_norm:
-            continue
-        found_norm = _normalize_for_memory(extracted.get(field))
-        memory_doc = await coll.find_one({"field_name": field, "source_value": source_norm})
-        if not memory_doc:
-            continue
-        count = next(
-            (e.get("c", 0) for e in (memory_doc.get("acknowledgement_counts") or []) if e.get("v") == found_norm),
-            0,
-        )
+        count = await _dp_ack_memory_count(db, field, f.get("expected_value"), extracted.get(field))
         if count >= threshold:
             system_ids.append(f["finding_id"])
     return system_ids

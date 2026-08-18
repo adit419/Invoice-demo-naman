@@ -31,6 +31,17 @@ class DpContractApproveRequest(BaseModel):
     fields: Optional[dict[str, Any]] = None
 
 
+class DpContractPostprocessingEditRequest(BaseModel):
+    """Edits to the Contract Extraction Postprocessing stage's per-installment
+    and one-time-payment derived fields — keyed by stringified index into the
+    payment schedule's own `installments`/`one_time_payments` arrays (the
+    schedule has no other stable per-row identifier), value is a
+    {field_name: new_value} patch merged onto that row. Both are optional so
+    a single field edit only needs to send the one row it touched."""
+    installments: Optional[dict[str, dict[str, Any]]] = None
+    one_time_payments: Optional[dict[str, dict[str, Any]]] = None
+
+
 class DpInvoiceEditRequest(BaseModel):
     extracted: dict[str, Any]
 

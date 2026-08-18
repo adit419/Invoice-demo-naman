@@ -46,11 +46,7 @@ function sleep(ms: number) {
 // human-readable strings (e.g. "9 Jul 2026"), not ISO — typed "text" rather
 // than "date" so a native <input type="date"> (which only renders strict
 // YYYY-MM-DD) doesn't just show blank for them.
-// "percent" fields (tax_rate, wht_rate) are stored as a fraction (0.11) —
-// used directly in arithmetic elsewhere (Simulate, WHT derivation) — but
-// shown/edited here as a whole percentage number (11, displayed "11%") so
-// the Metadata table doesn't read "0.11" where "11%" is meant.
-const FIELD_DEFS: { key: keyof DpInvoiceExtracted; label: string; type: "text" | "number" | "date" | "percent" }[] = [
+const FIELD_DEFS: { key: keyof DpInvoiceExtracted; label: string; type: "text" | "number" | "date" }[] = [
   { key: "invoice_number", label: "Invoice Number", type: "text" },
   { key: "invoice_date", label: "Invoice Date", type: "text" },
   { key: "vendor_name", label: "Vendor Name", type: "text" },
@@ -65,6 +61,7 @@ const FIELD_DEFS: { key: keyof DpInvoiceExtracted; label: string; type: "text" |
   { key: "total_amount_before_vat", label: "Total Amount Before VAT", type: "number" },
   { key: "vat_gst", label: "VAT / GST", type: "number" },
   { key: "total_amount", label: "Total Amount After VAT", type: "number" },
+  { key: "wht_rate", label: "WHT Rate", type: "number" },
   { key: "wht", label: "WHT", type: "number" },
   { key: "net_amount_after_wht", label: "Net Amount After WHT", type: "number" },
   { key: "vendor_bank_name", label: "Vendor Bank Name", type: "text" },
@@ -87,6 +84,10 @@ function InvoiceReviewPage() {
   const [showEditHistory, setShowEditHistory] = useState(false);
   const [activeTab, setActiveTab] = useState<"metadata" | "line_items">("metadata");
   const [activeKey, setActiveKey] = useState<string | null>(null);
+  // Comma-formats a numeric field's editable input while it isn't focused,
+  // same as ContractFieldsTable.tsx's own focusedKey — see that component
+  // for why this is focus-based rather than always-on.
+  const [focusedFieldKey, setFocusedFieldKey] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [pdfPage, setPdfPage] = useState(1);
   const [numPages, setNumPages] = useState(1);
@@ -121,6 +122,8 @@ function InvoiceReviewPage() {
     load();
   }, [load]);
 
+  const fetchEditHistory = useCallback(() => directpayService.getEditHistory(id as string), [id]);
+
   const isTerminal = run ? ["posted", "rejected"].includes(run.status) : false;
   const isRejected = run?.status === "rejected";
   // Mirrors Invoice Processing's Extraction page exactly: the Reject/Confirm
@@ -148,9 +151,7 @@ function InvoiceReviewPage() {
     if (!id) return;
     const def = FIELD_DEFS.find((f) => f.key === key);
     const payload: Record<string, unknown> = {
-      [key]: def?.type === "percent"
-        ? (value === "" ? null : Number(value) / 100)
-        : def?.type === "number" ? (value === "" ? null : Number(value)) : value,
+      [key]: def?.type === "number" ? (value === "" ? null : Number(value)) : value,
     };
     try {
       const updated = await directpayService.editInvoice(id, payload as Partial<DpInvoiceExtracted>);
@@ -177,28 +178,20 @@ function InvoiceReviewPage() {
       const payload: Partial<DpInvoiceExtracted> = { line_items: lineItems };
       for (const [k, v] of Object.entries(edits)) {
         const def = FIELD_DEFS.find((f) => f.key === k);
-        (payload as Record<string, unknown>)[k] = def?.type === "percent"
-          ? (v === "" ? null : Number(v) / 100)
-          : def?.type === "number" ? (v === "" ? null : Number(v)) : v;
+        (payload as Record<string, unknown>)[k] = def?.type === "number" ? (v === "" ? null : Number(v)) : v;
       }
       await directpayService.editInvoice(id, payload);
       const updated = await directpayService.confirmExtraction(id, payload);
       setSaving(false);
 
       // Mirrors P2P's own IDR-only Faktur Pajak gate: confirming extraction
-      // moves the invoice on to whichever of fp_extraction/postprocessing
-      // actually applies for this vendor (see service.py's
-      // confirm_extraction — a vendor with no real Faktur Pajak document
-      // skips straight to postprocessing, e.g. RATNA_INTAN). Either stage
+      // moves the invoice on to fp_extraction if this vendor has a real
+      // Faktur Pajak document (see service.py's confirm_extraction), which
       // owns the AI contract-recommendation-then-Matching hand-off that
-      // used to happen right here. A vendor with neither stays "extracted"
-      // and skips straight to Matching, exactly as before.
+      // used to happen right here. A vendor with none (e.g. RATNA_INTAN)
+      // stays "extracted" and skips straight to Matching, exactly as before.
       if (updated.status === "fp_extraction") {
         router.push(`/directpay/invoice/${updated.id}/fp-extraction`);
-        return;
-      }
-      if (updated.status === "postprocessing") {
-        router.push(`/directpay/invoice/${updated.id}/extraction-postprocessing`);
         return;
       }
 
@@ -367,7 +360,7 @@ function InvoiceReviewPage() {
         {/* Right: extracted data panel */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden" style={{ background: "#ffffff" }}>
           {showEditHistory ? (
-            <DpEditHistory invoiceId={run.id} onBack={() => setShowEditHistory(false)} />
+            <DpEditHistory fetchHistory={fetchEditHistory} onBack={() => setShowEditHistory(false)} />
           ) : (
             <>
               <div className="shrink-0 flex items-center justify-between px-5 pt-5 pb-2">
@@ -443,11 +436,8 @@ function InvoiceReviewPage() {
                       <tbody>
                         {FIELD_DEFS.map((f) => {
                           const raw = extracted[f.key];
-                          // Percent fields: raw is stored as a fraction (0.11) — shown/edited as
-                          // a whole percentage number (11) once here, converted back on save.
-                          const displayRaw = f.type === "percent" && typeof raw === "number" ? raw * 100 : raw;
-                          const value = edits[f.key] ?? (displayRaw == null ? "" : String(displayRaw));
-                          const isEmpty = !value;
+                          const value = edits[f.key] ?? (raw == null ? "" : String(raw));
+                          const isEmpty = !value || value === "NA";
                           const isRequired = REQUIRED_FIELDS.has(f.key);
                           const cellBg = isEmpty ? "#FEF3C7" : "transparent";
                           const leftBarColor = isEmpty ? "#F59E0B" : null;
@@ -465,18 +455,35 @@ function InvoiceReviewPage() {
                                 {isRequired && <span style={{ color: "#E02D3C", fontWeight: 600, marginLeft: 3 }}>*</span>}
                               </td>
                               <td style={{ textAlign: "left", fontSize: 13, color: "#414651", padding: "10px 14px", lineHeight: "20px", background: cellBg }}>
-                                {isEditable ? (
-                                  <input
-                                    className="w-full focus:outline-none"
-                                    type={f.type === "number" || f.type === "percent" ? "number" : f.type === "date" ? "date" : "text"}
-                                    style={{ fontSize: 13, lineHeight: "20px", padding: 0, background: "transparent", border: "none", color: "#414651", width: "100%" }}
-                                    value={value}
-                                    onChange={(e) => setEdits((prev) => ({ ...prev, [f.key]: e.target.value }))}
-                                    onClick={(e) => { e.stopPropagation(); setActiveKey(f.key); }}
-                                    onKeyDown={(e) => { if (e.key === "Enter") void saveMetaField(f.key, edits[f.key] ?? value); }}
-                                  />
-                                ) : (
-                                  <span>{value ? (f.type === "percent" ? `${value}%` : value) : "—"}</span>
+                                {isEditable ? (() => {
+                                  const showFormatted =
+                                    f.type === "number" && edits[f.key] === undefined && typeof raw === "number" && focusedFieldKey !== f.key;
+                                  // A native type="number" input can't display a non-numeric
+                                  // string like "NA" — it silently renders blank instead. Fall
+                                  // back to plain text whenever the value isn't a real number.
+                                  const inputValue = showFormatted ? (raw as number).toLocaleString("en-US") : value;
+                                  const isNumeric = inputValue !== "" && !Number.isNaN(Number(inputValue));
+                                  return (
+                                    <input
+                                      className="w-full focus:outline-none"
+                                      type={showFormatted ? "text" : f.type === "number" && isNumeric ? "number" : f.type === "date" ? "date" : "text"}
+                                      style={{ fontSize: 13, lineHeight: "20px", padding: 0, background: "transparent", border: "none", color: "#414651", width: "100%" }}
+                                      value={inputValue}
+                                      onChange={(e) => setEdits((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                                      onFocus={() => setFocusedFieldKey(f.key)}
+                                      onBlur={() => setFocusedFieldKey((k) => (k === f.key ? null : k))}
+                                      onClick={(e) => { e.stopPropagation(); setActiveKey(f.key); }}
+                                      onKeyDown={(e) => { if (e.key === "Enter") void saveMetaField(f.key, edits[f.key] ?? value); }}
+                                    />
+                                  );
+                                })() : (
+                                  <span>
+                                    {value
+                                      ? f.type === "number" && edits[f.key] === undefined && typeof raw === "number"
+                                        ? raw.toLocaleString("en-US")
+                                        : value
+                                      : "NA"}
+                                  </span>
                                 )}
                               </td>
                             </tr>
@@ -523,14 +530,14 @@ function InvoiceReviewPage() {
                                   onKeyDown={(e) => { if (e.key === "Enter") void saveLineItems(lineItems); }}
                                 />
                               ) : (
-                                <span style={{ fontSize: 13, color: "#414651" }}>{item.label || "—"}</span>
+                                <span style={{ fontSize: 13, color: "#414651" }}>{item.label || "NA"}</span>
                               )}
                             </td>
                             <td style={{ padding: "8px 12px", border: "1px solid #EBEDF0", fontSize: 13, color: "#414651" }}>
-                              {item.charge_type ?? "—"}
+                              {item.charge_type ?? "NA"}
                             </td>
                             <td style={{ padding: "8px 12px", border: "1px solid #EBEDF0", textAlign: "right", fontSize: 13, color: "#414651", fontVariantNumeric: "tabular-nums" }}>
-                              {item.quantity ?? 1}
+                              {(item.quantity ?? 1).toLocaleString("en-US")}
                             </td>
                             <td style={{ padding: "8px 12px", border: "1px solid #EBEDF0", textAlign: "right" }}>
                               {isEditable ? (
@@ -543,7 +550,7 @@ function InvoiceReviewPage() {
                                   onKeyDown={(e) => { if (e.key === "Enter") void saveLineItems(lineItems); }}
                                 />
                               ) : (
-                                <span style={{ fontSize: 13, color: "#414651", fontVariantNumeric: "tabular-nums" }}>{item.unit_price ?? 0}</span>
+                                <span style={{ fontSize: 13, color: "#414651", fontVariantNumeric: "tabular-nums" }}>{(item.unit_price ?? 0).toLocaleString("en-US")}</span>
                               )}
                             </td>
                             <td style={{ padding: "8px 12px", border: "1px solid #EBEDF0", textAlign: "right" }}>
@@ -557,7 +564,7 @@ function InvoiceReviewPage() {
                                   onKeyDown={(e) => { if (e.key === "Enter") void saveLineItems(lineItems); }}
                                 />
                               ) : (
-                                <span style={{ fontSize: 13, color: "#414651", fontVariantNumeric: "tabular-nums" }}>{item.amount ?? 0}</span>
+                                <span style={{ fontSize: 13, color: "#414651", fontVariantNumeric: "tabular-nums" }}>{(item.amount ?? 0).toLocaleString("en-US")}</span>
                               )}
                             </td>
                             <td style={{ padding: "8px 12px", border: "1px solid #EBEDF0", textAlign: "center" }}>
