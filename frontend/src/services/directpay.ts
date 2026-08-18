@@ -157,6 +157,15 @@ export interface DpReview {
   updated_at: string;
 }
 
+// Per-field bbox metadata for DpInvoiceExtracted's own flat keys — NOT part
+// of that type's own schema, a separate lookup keyed identically to it
+// (mirrors DpContractFieldMeta's own optional `bbox`, just without the
+// label/section/mandatory/audit-trail fields the Invoice Extraction screen
+// already gets from its own hardcoded FIELD_DEFS instead of field_meta).
+export interface DpInvoiceFieldMeta {
+  bbox?: DpFieldBbox | null;
+}
+
 export interface DpInvoiceRun {
   id: string;
   fixture_key: string;
@@ -164,6 +173,10 @@ export interface DpInvoiceRun {
   status: "extraction" | "extracted" | "postprocessing" | "fp_extraction" | "matching" | "bill_posting" | "posted" | "rejected";
   contract_id: string | null;
   extracted: DpInvoiceExtracted;
+  // Keyed identically to `extracted`; a key with no bbox (or absent
+  // entirely) just renders with no PDF highlight — same fallback
+  // contract_field_meta's own currently-all-empty `bbox` already relies on.
+  field_meta: Record<string, DpInvoiceFieldMeta>;
   expected?: Record<string, unknown> | null;
   summary?: { errors: number; warnings: number; info: number; total: number } | null;
   findings?: DpFinding[] | null;
@@ -339,10 +352,11 @@ export interface DpContractExtractionPostprocessing {
 
 // Faktur Pajak stage — mirrors P2P's own fp-extraction.tsx/fp_extraction.py
 // field-for-field (see backend/src/directpay/service.py's
-// _FP_FIELD_DISPLAY/_FP_INVOICE_FIELD_MAP). No bbox coordinates — unlike
-// P2P's real OCR-extracted fixture, DP's FP fixtures have no PDF-position
-// data, so the FP page shows the invoice PDF without a click-to-highlight
-// overlay.
+// _FP_FIELD_DISPLAY/_FP_INVOICE_FIELD_MAP). `bbox` locates this field's value
+// on whichever PDF the FP stage is showing — has_own_pdf below decides
+// whether that's a dedicated faktur_pajak_pdf or (PT_BANGUN's case) the
+// invoice's own PDF — generated the same way as invoice_field_meta (see its
+// own docstring in generate_dp_invoice_bbox.py).
 export interface DpFakturPajakField {
   field_name: "vendor_name" | "customer_name" | "taxable_amount" | "vat_amount";
   display_name: string;
@@ -351,6 +365,7 @@ export interface DpFakturPajakField {
   match_status: "match" | "mismatch";
   required: boolean;
   acknowledged: boolean;
+  bbox?: DpFieldBbox | null;
 }
 
 export interface DpFakturPajak {
@@ -361,6 +376,7 @@ export interface DpFakturPajak {
   vendor_name?: string | null;
   currency?: string | null;
   fp_number?: string | null;
+  fp_number_bbox?: DpFieldBbox | null;
   has_fp_document: boolean;
   // True for a vendor whose FP was uploaded as its own separate PDF (e.g.
   // Palladium's invoice_fp_4/5/6.pdf) rather than being page 2 of the same

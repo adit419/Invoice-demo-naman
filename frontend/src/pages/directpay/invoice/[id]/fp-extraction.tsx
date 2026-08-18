@@ -12,6 +12,16 @@ import { RejectModal } from "@/components/RejectModal";
 import { ApiError } from "@/services/api";
 import { directpayService, DpFakturPajak, DpFakturPajakField, DpInvoiceRun } from "@/services/directpay";
 import { StageTransitionOverlay } from "@/components/StageTransitionOverlay";
+import type { ActiveBbox } from "@/components/PdfViewer";
+
+// Below this → red overlay, at/above → green. Mirrors P2P's own
+// review.tsx/PdfViewer convention, and DirectPay's own invoice/contract
+// review pages.
+const LOW_CONF = 0.85;
+
+// Sentinel selectedField value for the standalone "FP No." box (not a row in
+// the fields table — see fp.fp_number/fp_number_bbox).
+const FP_NUMBER_KEY = "fp_number";
 
 const PdfViewer = dynamic(() => import("@/components/PdfViewer").then((m) => m.PdfViewer), {
   ssr: false,
@@ -267,6 +277,40 @@ function FpExtractionPage() {
   }
 
   const extracted = run.extracted;
+
+  // Selecting a field also jumps the PDF to the page its bbox lives on —
+  // mirrors DirectPay's own invoice/contract review pages exactly.
+  const selectField = (key: string | null) => {
+    setSelectedField((prev) => (prev === key ? null : key));
+    if (selectedField === key) return; // deselecting — leave the page as-is
+    const bbox = key === FP_NUMBER_KEY ? fp.fp_number_bbox : fp.fields.find((f) => f.field_name === key)?.bbox;
+    if (bbox) setPdfPage(bbox.page);
+  };
+
+  const activeFpField = selectedField && selectedField !== FP_NUMBER_KEY
+    ? fp.fields.find((f) => f.field_name === selectedField)
+    : null;
+  const activeBboxSource =
+    selectedField === FP_NUMBER_KEY
+      ? (fp.fp_number_bbox ? { bbox: fp.fp_number_bbox, label: "FP No.", value: fp.fp_number ?? undefined } : null)
+      : activeFpField?.bbox
+        ? { bbox: activeFpField.bbox, label: activeFpField.display_name, value: activeFpField.fp_value ?? undefined }
+        : null;
+  const activeBbox: ActiveBbox | null = activeBboxSource
+    ? {
+        bbox_left: activeBboxSource.bbox.bbox_left,
+        bbox_top: activeBboxSource.bbox.bbox_top,
+        bbox_width: activeBboxSource.bbox.bbox_width,
+        bbox_height: activeBboxSource.bbox.bbox_height,
+        page: activeBboxSource.bbox.page,
+        confidence: activeBboxSource.bbox.value_confidence,
+        confidenceThreshold: LOW_CONF,
+        id: `fp-${selectedField}`,
+        label: activeBboxSource.label,
+        value: activeBboxSource.value === undefined ? undefined : String(activeBboxSource.value),
+      }
+    : null;
+
   const metaItems = [
     { icon: <TagOutlined />, text: "Manual Upload" },
     extracted.vendor_name ? { icon: <UserOutlined />, text: extracted.vendor_name } : null,
@@ -346,9 +390,10 @@ function FpExtractionPage() {
             (PT_BANGUN's FP is literally the 2nd page of the same document);
             a vendor with its own separate FP document (has_own_pdf, e.g.
             Palladium's invoice_fp_4/5/6.pdf) shows that PDF from page 1
-            instead. No bbox overlay either way: unlike P2P's real OCR
-            extraction, DP's FP fixtures carry no PDF coordinates to
-            highlight. */}
+            instead. Clicking a field (or the FP No. box) highlights it via
+            fp_field_meta's own bbox — searched against whichever PDF this
+            stage is showing, so the two always agree (see
+            generate_dp_invoice_bbox.py). */}
         <div className="flex flex-col border-r" style={{ width: "50%", flexShrink: 0, borderColor: "#E5E7EB" }}>
           <div className="flex-1 overflow-auto py-4 px-3" style={{ background: "#F7F9FD" }}>
             <PdfViewer
@@ -358,7 +403,7 @@ function FpExtractionPage() {
               scale={scale}
               rotate={rotate}
               onNumPages={setNumPages}
-              activeBbox={null}
+              activeBbox={activeBbox}
               isLineItemMode={false}
             />
           </div>
@@ -420,10 +465,13 @@ function FpExtractionPage() {
                   FP No. <span style={{ color: "#ef4444" }}>*</span>
                 </div>
                 <div
+                  onClick={(e) => { e.stopPropagation(); if (fp.fp_number_bbox) selectField(FP_NUMBER_KEY); }}
                   style={{
                     height: 36, display: "flex", alignItems: "center", padding: "0 12px",
-                    borderRadius: 6, border: "1px solid #E5E7EB", background: "#F9FAFB",
+                    borderRadius: 6, border: `1px solid ${selectedField === FP_NUMBER_KEY ? "#93C5FD" : "#E5E7EB"}`,
+                    background: selectedField === FP_NUMBER_KEY ? "#EFF6FF" : "#F9FAFB",
                     fontFamily: "monospace", fontSize: 13, color: "#374151",
+                    cursor: fp.fp_number_bbox ? "pointer" : "default",
                   }}
                 >
                   {fp.fp_number || "—"}
@@ -440,7 +488,7 @@ function FpExtractionPage() {
                 bordered
                 tableLayout="fixed"
                 onRow={(record) => ({
-                  onClick: () => setSelectedField((prev) => (prev === record.field_name ? null : record.field_name)),
+                  onClick: () => selectField(record.field_name),
                 })}
                 rowClassName={getRowClassName}
               />

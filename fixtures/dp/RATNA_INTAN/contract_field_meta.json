@@ -11,7 +11,15 @@
     "section": "PROPERTY & PARTIES",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "Invoice's own vendor_name (\"Ny. Ratna Intan Mulyati G\") is a shortened/honorific variant of this — fuzzy match, not exact"
+    "ai_match_reasoning": "Invoice's own vendor_name (\"Ny. Ratna Intan Mulyati G\") is a shortened/honorific variant of this \u2014 fuzzy match, not exact",
+    "bbox": {
+      "page": 2,
+      "bbox_left": 0.433936,
+      "bbox_top": 0.374879,
+      "bbox_width": 0.223866,
+      "bbox_height": 0.010432,
+      "value_confidence": 0.9
+    }
   },
   "lessor_phone": {
     "label": "Vendor Phone",
@@ -32,28 +40,52 @@
     "section": "PROPERTY & PARTIES",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "Not stated in the source tracker — an individual lessor, not a company, may not hold an NPWP at all"
+    "ai_match_reasoning": "Not stated in the source tracker \u2014 an individual lessor, not a company, may not hold an NPWP at all"
   },
   "customer_name": {
     "label": "Customer Name",
     "section": "PROPERTY & PARTIES",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 3,
+      "bbox_left": 0.638924,
+      "bbox_top": 0.634147,
+      "bbox_width": 0.312686,
+      "bbox_height": 0.013511,
+      "value_confidence": 0.9
+    }
   },
   "actual_start": {
     "label": "Lease Commencement Date",
     "section": "AGREEMENT DATES & TERM",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 6,
+      "bbox_left": 0.508235,
+      "bbox_top": 0.772846,
+      "bbox_width": 0.101647,
+      "bbox_height": 0.009064,
+      "value_confidence": 0.9
+    }
   },
   "lease_expiry_date": {
     "label": "Lease Expiry Date",
     "section": "AGREEMENT DATES & TERM",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 6,
+      "bbox_left": 0.591489,
+      "bbox_top": 0.852029,
+      "bbox_width": 0.102131,
+      "bbox_height": 0.009064,
+      "value_confidence": 0.9
+    }
   },
   "lock_in_period_months": {
     "label": "Lock-in Period (Months)",
@@ -102,7 +134,7 @@
     "section": "RENT & DEPOSIT",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": "Literal 0 in the tracker — this is a lumpsum-installment lease, not a monthly-rent one"
+    "ai_match_reasoning": "Literal 0 in the tracker \u2014 this is a lumpsum-installment lease, not a monthly-rent one"
   },
   "monthly_rent_incl_tax": {
     "label": "Monthly Rent incl. Tax (Cond.)",
@@ -116,7 +148,15 @@
     "section": "RENT & DEPOSIT",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "Tracker states 1,494,444,444.00; the payment schedule's own 3 installments sum to 1,494,444,445 (Incl. Tax) — a 1-rupiah rounding artifact of the source's own installment split, not corrected here"
+    "ai_match_reasoning": "Tracker states 1,494,444,444.00; the payment schedule's own 3 installments sum to 1,494,444,445 (Incl. Tax) \u2014 a 1-rupiah rounding artifact of the source's own installment split, not corrected here",
+    "bbox": {
+      "page": 8,
+      "bbox_left": 0.522514,
+      "bbox_top": 0.700504,
+      "bbox_width": 0.165297,
+      "bbox_height": 0.011287,
+      "value_confidence": 0.9
+    }
   },
   "no_of_installments": {
     "label": "No. of Installments",
@@ -130,7 +170,7 @@
     "section": "RENT & DEPOSIT",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": "Literal source value ('Base Rent (Excl Tax) Monthly') is 0 in the tracker — this is a lumpsum-installment lease with no true monthly-rent concept, not derived/assumed here."
+    "ai_match_reasoning": "Literal source value ('Base Rent (Excl Tax) Monthly') is 0 in the tracker \u2014 this is a lumpsum-installment lease with no true monthly-rent concept, not derived/assumed here."
   },
   "revenue_share_pct": {
     "label": "Revenue Share (%)",
@@ -207,7 +247,15 @@
     "section": "UTILITIES & TAX",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 10,
+      "bbox_left": 0.698703,
+      "bbox_top": 0.424817,
+      "bbox_width": 0.035576,
+      "bbox_height": 0.002223,
+      "value_confidence": 0.8
+    }
   },
   "wht_rate_pct": {
     "label": "WHT Rate (%)",
@@ -228,14 +276,22 @@
     "section": "LEGAL & COMPLIANCE",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.385143,
+      "bbox_top": 0.301969,
+      "bbox_width": 0.523739,
+      "bbox_height": 0.069024,
+      "value_confidence": 0.648
+    }
   },
   "notice_period_days": {
     "label": "Notice Period (Days)",
     "section": "LEGAL & COMPLIANCE",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "Source states 3 different notice periods (renewal / tenant early termination / lessor early termination) rather than one single day-count, unlike other vendors' single-value field — preserved verbatim rather than picking one"
+    "ai_match_reasoning": "Source states 3 different notice periods (renewal / tenant early termination / lessor early termination) rather than one single day-count, unlike other vendors' single-value field \u2014 preserved verbatim rather than picking one"
   },
   "renewal_option": {
     "label": "Renewal Option",
@@ -249,14 +305,14 @@
     "section": "STATUS & TRACKING",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": "Literal 0 in the tracker — no property code was assigned to this contract in the source"
+    "ai_match_reasoning": "Literal 0 in the tracker \u2014 no property code was assigned to this contract in the source"
   },
   "days_to_expiry": {
     "label": "Days to Expiry",
     "section": "STATUS & TRACKING",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": "Literal 0 in the tracker (a formula-driven cell not recalculated in the source snapshot) — not the true day count to 9-Oct-2031"
+    "ai_match_reasoning": "Literal 0 in the tracker (a formula-driven cell not recalculated in the source snapshot) \u2014 not the true day count to 9-Oct-2031"
   },
   "computed_status": {
     "label": "Computed Status",
@@ -270,7 +326,15 @@
     "section": "STATUS & TRACKING",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 6,
+      "bbox_left": 0.508235,
+      "bbox_top": 0.772846,
+      "bbox_width": 0.101647,
+      "bbox_height": 0.009064,
+      "value_confidence": 0.9
+    }
   },
   "rent_free_months": {
     "label": "Rent Free Months",
@@ -291,7 +355,7 @@
     "section": "PAYMENT STRUCTURE",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": "Literal 0 in the tracker — unlike Palladium/Graha/Pakuwon/Debora's 100%, not corrected here"
+    "ai_match_reasoning": "Literal 0 in the tracker \u2014 unlike Palladium/Graha/Pakuwon/Debora's 100%, not corrected here"
   },
   "lessor_payment_share": {
     "label": "Vendor Payment Share",
@@ -305,14 +369,22 @@
     "section": "PAYMENT STRUCTURE",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "Parsed from the tracker's own \"Lessor Payment Share\" field (\"BCA 8810251850, Name: RATNA INTAN MULYATI G\") — unlike PT_BANGUN, this vendor's source cell does contain a literal account name/number"
+    "ai_match_reasoning": "Parsed from the tracker's own \"Lessor Payment Share\" field (\"BCA 8810251850, Name: RATNA INTAN MULYATI G\") \u2014 unlike PT_BANGUN, this vendor's source cell does contain a literal account name/number",
+    "bbox": {
+      "page": 2,
+      "bbox_left": 0.433936,
+      "bbox_top": 0.374879,
+      "bbox_width": 0.223866,
+      "bbox_height": 0.010432,
+      "value_confidence": 0.9
+    }
   },
   "lessor_bank_account_number": {
     "label": "Bank Account Number",
     "section": "PAYMENT STRUCTURE",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "Parsed from the tracker's own \"Lessor Payment Share\" field — same source cell as Bank Account Name"
+    "ai_match_reasoning": "Parsed from the tracker's own \"Lessor Payment Share\" field \u2014 same source cell as Bank Account Name"
   },
   "split_check": {
     "label": "Split Check",
@@ -333,7 +405,15 @@
     "section": "OTHER",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.5487,
+      "bbox_top": 0.723908,
+      "bbox_width": 0.215721,
+      "bbox_height": 0.008202,
+      "value_confidence": 1.0
+    }
   },
   "floor": {
     "label": "Floor",

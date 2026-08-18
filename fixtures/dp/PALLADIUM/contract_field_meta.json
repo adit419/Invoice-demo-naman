@@ -4,14 +4,22 @@
     "section": "PROPERTY & PARTIES",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "Source has a floor-number inconsistency (letterhead says \"Floor GF-39\", body text/Annexes say \"GF-05\") — GF-05 treated as authoritative per majority usage, not resolved by assumption"
+    "ai_match_reasoning": "Source has a floor-number inconsistency (letterhead says \"Floor GF-39\", body text/Annexes say \"GF-05\") \u2014 GF-05 treated as authoritative per majority usage, not resolved by assumption"
   },
   "vendor_name": {
     "label": "Vendor Name",
     "section": "PROPERTY & PARTIES",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "Invoice's own vendor_name (\"PT. Palladium Megah Lestari\") and FP's (\"PALLADIUM MEGAH LESTARI\") are both shortened variants of this — fuzzy match"
+    "ai_match_reasoning": "Invoice's own vendor_name (\"PT. Palladium Megah Lestari\") and FP's (\"PALLADIUM MEGAH LESTARI\") are both shortened variants of this \u2014 fuzzy match",
+    "bbox": {
+      "page": 3,
+      "bbox_left": 0.577016,
+      "bbox_top": 0.202224,
+      "bbox_width": 0.173226,
+      "bbox_height": 0.00941,
+      "value_confidence": 0.9
+    }
   },
   "lessor_phone": {
     "label": "Vendor Phone",
@@ -39,21 +47,45 @@
     "section": "PROPERTY & PARTIES",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 12,
+      "bbox_left": 0.268548,
+      "bbox_top": 0.158768,
+      "bbox_width": 0.264194,
+      "bbox_height": 0.009923,
+      "value_confidence": 0.9
+    }
   },
   "actual_start": {
     "label": "Lease Commencement Date",
     "section": "AGREEMENT DATES & TERM",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.40379,
+      "bbox_top": 0.497861,
+      "bbox_width": 0.077419,
+      "bbox_height": 0.007528,
+      "value_confidence": 0.9
+    }
   },
   "lease_expiry_date": {
     "label": "Lease Expiry Date",
     "section": "AGREEMENT DATES & TERM",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.426048,
+      "bbox_top": 0.683661,
+      "bbox_width": 0.080323,
+      "bbox_height": 0.008725,
+      "value_confidence": 0.9
+    }
   },
   "lock_in_period_months": {
     "label": "Lock-in Period (Months)",
@@ -102,7 +134,7 @@
     "section": "RENT & DEPOSIT",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": "Literal 0 in the tracker — this is a lumpsum-installment lease, not a monthly-rent one"
+    "ai_match_reasoning": "Literal 0 in the tracker \u2014 this is a lumpsum-installment lease, not a monthly-rent one"
   },
   "monthly_rent_incl_tax": {
     "label": "Monthly Rent incl. Tax (Cond.)",
@@ -116,21 +148,21 @@
     "section": "RENT & DEPOSIT",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "Rent-only figure — deliberately EXCLUDES Service Charge, Promotion Fee and Deposits per the source's own annotation, unlike PT_BANGUN/RATNA_INTAN's all-in totals. Kept as the full annotated string rather than a bare number to preserve that scope caveat."
+    "ai_match_reasoning": "Rent-only figure \u2014 deliberately EXCLUDES Service Charge, Promotion Fee and Deposits per the source's own annotation, unlike PT_BANGUN/RATNA_INTAN's all-in totals. Kept as the full annotated string rather than a bare number to preserve that scope caveat."
   },
   "no_of_installments": {
     "label": "No. of Installments",
     "section": "RENT & DEPOSIT",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": "Counts only the Rent schedule (Down Payment + 12 monthly) — the separate 24-installment Service Charge schedule is tracked independently (see payment_schedule.json)"
+    "ai_match_reasoning": "Counts only the Rent schedule (Down Payment + 12 monthly) \u2014 the separate 24-installment Service Charge schedule is tracked independently (see payment_schedule.json)"
   },
   "base_fee": {
     "label": "Monthly Rent",
     "section": "RENT & DEPOSIT",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": "Literal source value ('Base Rent (Excl Tax) Monthly') is 0 in the tracker — this is a lumpsum-installment lease with no true monthly-rent concept, not derived/assumed here."
+    "ai_match_reasoning": "Literal source value ('Base Rent (Excl Tax) Monthly') is 0 in the tracker \u2014 this is a lumpsum-installment lease with no true monthly-rent concept, not derived/assumed here."
   },
   "revenue_share_pct": {
     "label": "Revenue Share (%)",
@@ -165,7 +197,7 @@
     "section": "ESCALATION",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "Unlike PT_BANGUN/RATNA_INTAN (flat, no escalation), Palladium's lease has a real single-step Year 2 escalation — kept as the source's own descriptive comparison (Rp198,450/m² vs Rp189,000/m²) rather than reducing to a bare percentage"
+    "ai_match_reasoning": "Unlike PT_BANGUN/RATNA_INTAN (flat, no escalation), Palladium's lease has a real single-step Year 2 escalation \u2014 kept as the source's own descriptive comparison (Rp198,450/m\u00b2 vs Rp189,000/m\u00b2) rather than reducing to a bare percentage"
   },
   "escalation_frequency": {
     "label": "Escalation Frequency",
@@ -186,28 +218,44 @@
     "section": "ESCALATION",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.330242,
+      "bbox_top": 0.684003,
+      "bbox_width": 0.077177,
+      "bbox_height": 0.008725,
+      "value_confidence": 0.9
+    }
   },
   "first_escalation_date": {
     "label": "First Escalation Date",
     "section": "ESCALATION",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.330242,
+      "bbox_top": 0.684003,
+      "bbox_width": 0.077177,
+      "bbox_height": 0.008725,
+      "value_confidence": 0.9
+    }
   },
   "utilities_billing": {
     "label": "Utilities Billing",
     "section": "UTILITIES & TAX",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "Electricity and water are metered/consumption-based per this text — no fixed recurring amount, so no installment schedule exists for them (see payment_schedule.json, which only covers Rent + Service Charge)"
+    "ai_match_reasoning": "Electricity and water are metered/consumption-based per this text \u2014 no fixed recurring amount, so no installment schedule exists for them (see payment_schedule.json, which only covers Rent + Service Charge)"
   },
   "wht_applicable": {
     "label": "WHT Applicable",
     "section": "UTILITIES & TAX",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": "Not stated in the source — no WHT is deducted anywhere in the payment schedule (rate left at 0%)"
+    "ai_match_reasoning": "Not stated in the source \u2014 no WHT is deducted anywhere in the payment schedule (rate left at 0%)"
   },
   "wht_rate_pct": {
     "label": "WHT Rate (%)",
@@ -270,7 +318,15 @@
     "section": "STATUS & TRACKING",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.40379,
+      "bbox_top": 0.497861,
+      "bbox_width": 0.077419,
+      "bbox_height": 0.007528,
+      "value_confidence": 0.9
+    }
   },
   "rent_free_months": {
     "label": "Rent Free Months",
@@ -284,7 +340,7 @@
     "section": "PAYMENT STRUCTURE",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": "Blank in the tracker for Palladium specifically — not stated either way"
+    "ai_match_reasoning": "Blank in the tracker for Palladium specifically \u2014 not stated either way"
   },
   "lessor_split_pct": {
     "label": "Vendor Split (%)",
@@ -298,21 +354,21 @@
     "section": "PAYMENT STRUCTURE",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": "Left null: the tracker's own cell for this field literally reads \"BCA 8810251850, Name: RATNA INTAN MULYATI G, Branch: Jakarta Timur\" — Ratna Intan's own bank details, evidently copy-pasted from her column, not Palladium's. The invoice's own real bank details (Bank MANDIRI, 8639708278300041, PT. Palladium Megah Lestari) directly contradict it. Treated as a source error, not transcribed."
+    "ai_match_reasoning": "Left null: the tracker's own cell for this field literally reads \"BCA 8810251850, Name: RATNA INTAN MULYATI G, Branch: Jakarta Timur\" \u2014 Ratna Intan's own bank details, evidently copy-pasted from her column, not Palladium's. The invoice's own real bank details (Bank MANDIRI, 8639708278300041, PT. Palladium Megah Lestari) directly contradict it. Treated as a source error, not transcribed."
   },
   "lessor_bank_account_name": {
     "label": "Bank Account Name",
     "section": "PAYMENT STRUCTURE",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "No reliable source — the tracker's only candidate cell (Lessor Payment Share) is the Ratna Intan data-leak described above"
+    "ai_match_reasoning": "No reliable source \u2014 the tracker's only candidate cell (Lessor Payment Share) is the Ratna Intan data-leak described above"
   },
   "lessor_bank_account_number": {
     "label": "Bank Account Number",
     "section": "PAYMENT STRUCTURE",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "No reliable source — same Lessor Payment Share data-leak"
+    "ai_match_reasoning": "No reliable source \u2014 same Lessor Payment Share data-leak"
   },
   "split_check": {
     "label": "Split Check",
@@ -340,6 +396,14 @@
     "section": "OTHER",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.330484,
+      "bbox_top": 0.335672,
+      "bbox_width": 0.225,
+      "bbox_height": 0.009239,
+      "value_confidence": 0.9
+    }
   }
 }
