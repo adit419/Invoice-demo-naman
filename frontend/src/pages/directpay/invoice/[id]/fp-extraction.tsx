@@ -12,6 +12,8 @@ import { RejectModal } from "@/components/RejectModal";
 import { ApiError } from "@/services/api";
 import { directpayService, DpFakturPajak, DpFakturPajakField, DpInvoiceRun } from "@/services/directpay";
 import { StageTransitionOverlay } from "@/components/StageTransitionOverlay";
+import { AiSparkleIcon, AI_VALUE_STYLE } from "@/components/directpay/AiContractBanner";
+import { AiValueNote } from "@/components/directpay/AiValueNote";
 
 const PdfViewer = dynamic(() => import("@/components/PdfViewer").then((m) => m.PdfViewer), {
   ssr: false,
@@ -195,6 +197,11 @@ function FpExtractionPage() {
         render: (_, record) => {
           const value = formatFpValue(record.field_name, record.fp_value);
           const isAcked = record.acknowledged;
+          // A derived value (e.g. an exempted VAT waived to 0.00) gets the same
+          // sparkle + italic-blue + hover-ⓘ treatment P2P gives an AI-filled
+          // field, so it's clear the figure was reasoned rather than read off
+          // the document.
+          const aiDerived = Boolean(record.ai_reasoning);
           // Only offer Acknowledge where the invoice actually has a value to
           // compare against — same rule as MatchingTable.tsx's own canAck:
           // a blank invoice-side value has nothing to acknowledge, just an
@@ -203,7 +210,17 @@ function FpExtractionPage() {
           const canAck = record.required && hasInvoiceValue;
           return (
             <div className="flex items-center gap-2" style={{ width: "100%" }}>
-              <span style={{ flex: 1, fontSize: 14, color: value === "NA" ? "#9CA3AF" : "#414651", wordBreak: "break-word" }}>{value}</span>
+              {aiDerived && <AiSparkleIcon size={14} />}
+              <span
+                style={{
+                  flex: 1, fontSize: 14, wordBreak: "break-word",
+                  color: aiDerived ? AI_VALUE_STYLE.color : value === "NA" ? "#9CA3AF" : "#414651",
+                  fontStyle: aiDerived ? AI_VALUE_STYLE.fontStyle : undefined,
+                }}
+              >
+                {value}
+              </span>
+              {aiDerived && <AiValueNote text={record.ai_reasoning!} pill="VAT exempt" />}
               {record.system_acknowledged ? (
                 // Same badge as MatchingTable.tsx's own system-acknowledged
                 // findings — pre-blessed by the DP Acknowledge Threshold's

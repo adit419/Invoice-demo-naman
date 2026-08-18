@@ -35,8 +35,13 @@ export interface TotalBeforeVatVarianceBarProps {
    *  match every other surface exactly (currency symbol, 2dp, grouping). */
   invoiceFormatted?: string | null;
   referenceFormatted?: string | null;
-  /** Where referenceValue came from — drives the "Supporting Doc" callout. */
+  /** Where referenceValue came from — drives the AI-derived value treatment. */
   expectedSource?: "contract" | "supporting_document";
+  /** Overrides the reference column's heading. A billed-on-actuals utility is
+   *  compared against a supporting document by definition, so it stays labelled
+   *  that way even before one is attached — at which point expectedSource is
+   *  still "contract", because no value came from a document yet. */
+  referenceLabel?: string;
   /** Threshold config as saved (see TotalBeforeVatThresholdControl). */
   thresholdEnabled: boolean;
   thresholdPct: number;
@@ -83,6 +88,7 @@ export function TotalBeforeVatVarianceBar({
   invoiceFormatted,
   referenceFormatted,
   expectedSource,
+  referenceLabel,
   thresholdEnabled,
   thresholdPct,
   currency,
@@ -214,7 +220,7 @@ export function TotalBeforeVatVarianceBar({
             </span>
           </div>
 
-          <Stat label={fromSupportingDoc ? "Supporting Document" : "Contract"}>
+          <Stat label={referenceLabel ?? (fromSupportingDoc ? "Supporting Document" : "Contract")}>
             <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
               {fromSupportingDoc && <AiSparkleIcon size={13} />}
               <span style={fromSupportingDoc ? { ...amountStyle, color: "#1F5BD5", fontStyle: "italic" } : amountStyle}>

@@ -361,6 +361,10 @@ export interface DpFakturPajakField {
   // enough times before. Rendered as the purple "Auto-approved" badge,
   // mirroring MatchingTable.tsx's own system-acknowledged findings.
   system_acknowledged: boolean;
+  // Set when this FP value was DERIVED rather than transcribed off the document
+  // (see the fixture's ai_reasoning map) — e.g. an exempted VAT waived to 0.00.
+  // Renders the AI-derived-value treatment plus a hover explanation.
+  ai_reasoning?: string | null;
 }
 
 export interface DpFakturPajak {

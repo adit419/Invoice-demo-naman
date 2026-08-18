@@ -17,6 +17,7 @@ import { isFindingResolved, MatchingTable } from "@/components/directpay/Matchin
 import AiContractBanner from "@/components/directpay/AiContractBanner";
 import { TotalBeforeVatThresholdControl } from "@/components/directpay/TotalBeforeVatThresholdControl";
 import { TotalBeforeVatVarianceBar } from "@/components/directpay/TotalBeforeVatVarianceBar";
+import { EscalateModal } from "@/components/directpay/EscalateModal";
 import { DocumentPreviewModal } from "@/components/directpay/DocumentPreviewModal";
 import { ContractExtractionModal } from "@/components/directpay/ContractExtractionModal";
 import { StageTransitionOverlay } from "@/components/StageTransitionOverlay";
@@ -49,6 +50,7 @@ function InvoiceMatchPage() {
   const [contractPdfOpen, setContractPdfOpen] = useState(false);
   const [contractExtractionOpen, setContractExtractionOpen] = useState(false);
   const [supportingDocOpen, setSupportingDocOpen] = useState(false);
+  const [escalateOpen, setEscalateOpen] = useState(false);
   // Mirrors the saved threshold so the variance bar can show the tolerance and
   // its resulting cap. Refreshed whenever the control saves.
   const [threshold, setThreshold] = useState<{ enabled: boolean; threshold_pct: number }>({ enabled: true, threshold_pct: 5 });
@@ -272,6 +274,14 @@ function InvoiceMatchPage() {
   // satisfied — i.e. the invoice is outside tolerance (or there's no reference
   // amount to compare against at all). Until then the button stays inactive.
   const totalBeforeVatUnsatisfied = Boolean(totalBeforeVatFinding && !totalBeforeVatFinding.satisfied);
+  // A metered/billed-on-actuals charge (Electricity/Water) is compared against a
+  // supporting document, never a contract figure. Derived from the charge type
+  // rather than from expected_source, so the label is still correct when no
+  // supporting document has been attached yet (PAKUWON's utility invoices).
+  const isBilledOnActuals = (run.extracted.line_items ?? []).some(
+    (li) => li.charge_type === "utility_electricity" || li.charge_type === "utility_water"
+  );
+  const referenceLabel = isBilledOnActuals ? "Supporting Doc" : "Contract";
   const displayFindings = findings.filter((f) => f.core && f.field !== "total_amount_before_vat");
   const hasContract = !!run.contract_id;
   // Traces the current contract selection back to the AI's pick — reverting
@@ -305,7 +315,7 @@ function InvoiceMatchPage() {
           satisfied, since emailing an escalation is only meaningful once this
           invoice genuinely can't clear Matching on its own. */}
       <AntButton
-        onClick={() => toast("Escalation by email isn't wired up yet.", "info")}
+        onClick={() => setEscalateOpen(true)}
         disabled={busy || !totalBeforeVatUnsatisfied}
         title={
           totalBeforeVatUnsatisfied
@@ -468,6 +478,7 @@ function InvoiceMatchPage() {
           invoiceFormatted={totalBeforeVatFinding.found}
           referenceFormatted={totalBeforeVatFinding.expected}
           expectedSource={totalBeforeVatFinding.expected_source}
+          referenceLabel={isBilledOnActuals ? "Supporting Document" : undefined}
           thresholdEnabled={threshold.enabled}
           thresholdPct={threshold.threshold_pct}
           currency={run.extracted.currency}
@@ -488,6 +499,22 @@ function InvoiceMatchPage() {
           title="Supporting Document"
           pdfUrl={directpayService.supportingDocumentPdfUrl(run.id)}
           authToken={pdfToken}
+        />
+      )}
+
+      {totalBeforeVatFinding && (
+        <EscalateModal
+          open={escalateOpen}
+          onClose={() => setEscalateOpen(false)}
+          onSend={() => setEscalateOpen(false)}
+          invoiceNumber={run.extracted.invoice_number}
+          vendorName={run.extracted.vendor_name}
+          invoiceAmount={totalBeforeVatFinding.found}
+          referenceAmount={totalBeforeVatFinding.expected}
+          referenceLabel={referenceLabel}
+          reason={totalBeforeVatFinding.detail}
+          thresholdEnabled={threshold.enabled}
+          thresholdPct={threshold.threshold_pct}
         />
       )}
 

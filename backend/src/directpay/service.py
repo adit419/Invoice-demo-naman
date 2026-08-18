@@ -572,7 +572,17 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
             # resolve once the underlying data actually provides a real
             # contract figure.
             severity = "error"
-            detail = f"No contract figure to compare {core.label} against — this must be resolved before proceeding."
+            if core.invoice_field in _NO_SCHEDULE_BLANK_FIELDS and _has_no_schedule_charge(extracted):
+                # A metered/billed-on-actuals charge is never compared against a
+                # contract figure — the contract only states the billing RULE —
+                # so naming the contract here would point the reviewer at the
+                # wrong document. What's missing is the supporting document.
+                detail = (
+                    f"This utility is billed on actuals, so {core.label} is compared against a supporting "
+                    "document — none is attached, so this must be resolved before proceeding."
+                )
+            else:
+                detail = f"No contract figure to compare {core.label} against — this must be resolved before proceeding."
             mandatory = True
         elif contract_value is None:
             # Nothing to auto-verify against — not "wrong" (that's what
@@ -1404,6 +1414,13 @@ async def get_faktur_pajak(db, oid: ObjectId) -> dict:
                 "required": field_name in _FP_REQUIRED_FIELDS,
                 "acknowledged": is_acked,
                 "system_acknowledged": system_acked,
+                # Optional per-field note from the fixture's own `ai_reasoning`
+                # map, for a value that is DERIVED from the document rather than
+                # transcribed off it (e.g. PAKUWON FP5's VAT, exempt under PP
+                # 49/2022, so the printed figure is waived and 0.00 is charged).
+                # Rendered as the AI-derived-value treatment so the derivation
+                # is visible instead of silently replacing the printed number.
+                "ai_reasoning": (fp.get("ai_reasoning") or {}).get(field_name),
             })
 
     return {
