@@ -57,6 +57,17 @@ class DpDocumentEntry:
     # 2nd page of the same PDF as the invoice (PT_BANGUN's case, the
     # default the FP Extraction page falls back to when this is None).
     faktur_pajak_pdf_path: Optional[Path] = None
+    # A separate real-world document (e.g. a utility company's own bill)
+    # providing the actual billing amount for a charge the contract itself
+    # only describes as "billed on actuals" (Palladium's Electricity/Water —
+    # see service.py's _NO_SCHEDULE_CHARGE_TYPES). Extraction happens purely
+    # internally — no upload flow, no review UI, unlike Invoice/FP/Contract —
+    # so this is just {"total_amount_before_vat": <number>}, read straight
+    # into the invoice run at extract time (see extract_invoice) and from
+    # there into Matching's contract-side comparison. None for every
+    # document that doesn't need one (the vast majority).
+    supporting_document: Optional[dict] = None
+    supporting_document_pdf_path: Optional[Path] = None
 
 
 @dataclass
@@ -165,6 +176,8 @@ class DpFixtureLoader:
                     extraction_path = entry / doc["extraction"] if doc.get("extraction") else None
                     fp_path = entry / doc["faktur_pajak"] if doc.get("faktur_pajak") else None
                     fp_pdf_path = entry / doc["faktur_pajak_pdf"] if doc.get("faktur_pajak_pdf") else None
+                    supporting_doc_path = entry / doc["supporting_document"] if doc.get("supporting_document") else None
+                    supporting_doc_pdf_path = entry / doc["supporting_document_pdf"] if doc.get("supporting_document_pdf") else None
                     bundle.documents.append(DpDocumentEntry(
                         key=doc["key"],
                         match=doc.get("match", [doc["key"]]),
@@ -172,6 +185,8 @@ class DpFixtureLoader:
                         invoice_extraction=json.loads(extraction_path.read_text()) if extraction_path and extraction_path.exists() else {},
                         faktur_pajak=json.loads(fp_path.read_text()) if fp_path and fp_path.exists() else None,
                         faktur_pajak_pdf_path=fp_pdf_path if fp_pdf_path and fp_pdf_path.exists() else None,
+                        supporting_document=json.loads(supporting_doc_path.read_text()) if supporting_doc_path and supporting_doc_path.exists() else None,
+                        supporting_document_pdf_path=supporting_doc_pdf_path if supporting_doc_pdf_path and supporting_doc_pdf_path.exists() else None,
                     ))
 
             bundles[entry.name] = bundle

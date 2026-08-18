@@ -10,19 +10,29 @@
     },
     {
       "key": "invoice_2",
-      "match": ["inv_2", "invoice_2", "inv_fp_5", "invoice_fp_5"],
+      "match": [
+        "inv_2", "invoice_2", "inv_fp_5", "invoice_fp_5",
+        "supporting_doc_inv2", "supporting_doc_electricity_2"
+      ],
       "pdf": "invoice_2.pdf",
       "extraction": "invoice_2_extraction.json",
       "faktur_pajak": "faktur_pajak_2.json",
-      "faktur_pajak_pdf": "invoice_fp_5.pdf"
+      "faktur_pajak_pdf": "invoice_fp_5.pdf",
+      "supporting_document": "supporting_doc_inv2_extraction.json",
+      "supporting_document_pdf": "supporting_doc_inv2.pdf"
     },
     {
       "key": "invoice_3",
-      "match": ["inv_3", "invoice_3", "inv_fp_6", "invoice_fp_6"],
+      "match": [
+        "inv_3", "invoice_3", "inv_fp_6", "invoice_fp_6",
+        "supporting_doc_inv3", "supporting_doc_water_3"
+      ],
       "pdf": "invoice_3.pdf",
       "extraction": "invoice_3_extraction.json",
       "faktur_pajak": "faktur_pajak_3.json",
-      "faktur_pajak_pdf": "invoice_fp_6.pdf"
+      "faktur_pajak_pdf": "invoice_fp_6.pdf",
+      "supporting_document": "supporting_doc_inv3_extraction.json",
+      "supporting_document_pdf": "supporting_doc_inv3.pdf"
     }
   ]
 }
