@@ -228,7 +228,7 @@
     "section": "LEGAL & COMPLIANCE",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": "Not applicable — offer letter stage only"
+    "ai_match_reasoning": "NA — offer letter stage only"
   },
   "notice_period_days": {
     "label": "Notice Period (Days)",

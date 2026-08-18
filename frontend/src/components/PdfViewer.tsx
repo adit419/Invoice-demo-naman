@@ -250,6 +250,14 @@ export function PdfViewer({
 }: PdfViewerProps) {
   const [error, setError] = useState(false);
   const [pageDims, setPageDims] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
+  // The page's OWN /Rotate, as declared by the PDF. react-pdf overrides the
+  // intrinsic rotation whenever an explicit `rotate` prop is passed, so
+  // passing the caller's 0 default would silently discard it — which rendered
+  // a correctly-tagged sideways scan (fixtures/dp/PAKUWON/contract.pdf, a
+  // landscape scan with /Rotate 270) sideways in the app while every other
+  // document, being /Rotate 0, looked unaffected. The caller's `rotate` is
+  // therefore treated as a user-applied DELTA on top of this.
+  const [intrinsicRotate, setIntrinsicRotate] = useState(0);
 
   // react-pdf reloads the whole document whenever the `file` prop is a new
   // reference. Memoize it so onRenderSuccess→setState re-renders don't trigger
@@ -261,6 +269,11 @@ export function PdfViewer({
         : pdfUrl,
     [pdfUrl, authToken],
   );
+
+  // Document's own orientation + whatever the user rotated on top of it. With
+  // the common /Rotate 0 document this is exactly the caller's own value, so
+  // existing behavior (including P2P's) is unchanged.
+  const effectiveRotate = ((intrinsicRotate + rotate) % 360 + 360) % 360;
 
   return (
     // w-fit + mx-auto: centers when content fits, sticks to the left when the
@@ -287,9 +300,13 @@ export function PdfViewer({
             <Page
               pageNumber={page}
               scale={scale}
-              rotate={rotate}
+              rotate={effectiveRotate}
               renderAnnotationLayer={false}
               renderTextLayer={false}
+              onLoadSuccess={(p: { rotate?: number }) => {
+                const own = ((p.rotate ?? 0) % 360 + 360) % 360;
+                setIntrinsicRotate(prev => (prev === own ? prev : own));
+              }}
               onRenderSuccess={(p: RenderedPage) =>
                 setPageDims(prev =>
                   prev.w === p.width && prev.h === p.height
@@ -310,7 +327,7 @@ export function PdfViewer({
                 bbox={activeBbox}
                 pageWidth={pageDims.w}
                 pageHeight={pageDims.h}
-                rotation={rotate}
+                rotation={effectiveRotate}
                 currentPage={page}
                 isLineItemMode={isLineItemMode}
               />
