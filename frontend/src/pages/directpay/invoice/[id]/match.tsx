@@ -15,6 +15,7 @@ import {
 } from "@/services/directpay";
 import { isFindingResolved, MatchingTable } from "@/components/directpay/MatchingTable";
 import AiContractBanner from "@/components/directpay/AiContractBanner";
+import { TotalBeforeVatThresholdControl } from "@/components/directpay/TotalBeforeVatThresholdControl";
 import { DocumentPreviewModal } from "@/components/directpay/DocumentPreviewModal";
 import { ContractExtractionModal } from "@/components/directpay/ContractExtractionModal";
 import { StageTransitionOverlay } from "@/components/StageTransitionOverlay";
@@ -349,6 +350,8 @@ function InvoiceMatchPage() {
       <div className="flex-1 overflow-y-auto">
         <div className="px-6 py-6">
           {showAiBanner && recommendation && <AiContractBanner rec={recommendation} />}
+
+          <TotalBeforeVatThresholdControl onSaved={load} />
 
           {isRejected ? (
             <div

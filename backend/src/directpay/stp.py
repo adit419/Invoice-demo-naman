@@ -69,6 +69,32 @@ async def set_dp_ack_threshold(db, value: int) -> None:
     )
 
 
+# Matching-stage, per-field tolerance check — on by default per explicit
+# instruction (see _apply_mandatory_field_coverage's own reads of this).
+# Stored as a single {enabled, threshold_pct} value, not two separate keys
+# the way STP/Ack Threshold above are — the two sub-fields are only ever
+# meaningful together.
+DEFAULT_DP_TOTAL_BEFORE_VAT_THRESHOLD_ENABLED = True
+DEFAULT_DP_TOTAL_BEFORE_VAT_THRESHOLD_PCT = 5.0
+
+
+async def get_dp_total_before_vat_threshold(db) -> dict:
+    doc = await app_settings(db).find_one({"key": "directpay_total_before_vat_threshold"})
+    value = (doc or {}).get("value") or {}
+    return {
+        "enabled": bool(value.get("enabled", DEFAULT_DP_TOTAL_BEFORE_VAT_THRESHOLD_ENABLED)),
+        "threshold_pct": float(value.get("threshold_pct", DEFAULT_DP_TOTAL_BEFORE_VAT_THRESHOLD_PCT)),
+    }
+
+
+async def set_dp_total_before_vat_threshold(db, enabled: bool, threshold_pct: float) -> None:
+    await app_settings(db).update_one(
+        {"key": "directpay_total_before_vat_threshold"},
+        {"$set": {"value": {"enabled": enabled, "threshold_pct": threshold_pct}, "updated_at": _now()}},
+        upsert=True,
+    )
+
+
 # ── Cascade ────────────────────────────────────────────────────────────────────
 
 async def _set_stp_state(db, run_id: ObjectId, state: str, reason: str | None = None) -> None:
