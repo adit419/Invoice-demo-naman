@@ -333,8 +333,6 @@ _RATNA_INTAN_NO_VAT_FIELDS = {"vat_gst", "tax_rate"}
 # genuinely IS the mall the leased unit sits in — that comparison stays as-is
 # for those.
 _NO_STORE_LOCATION_MATCH_VENDORS = {"RATNA_INTAN", "PT_BANGUN"}
-
-
 def _has_no_schedule_charge(extracted: dict) -> bool:
     line_items = extracted.get("line_items") or []
     return any(item.get("charge_type") in _NO_SCHEDULE_CHARGE_TYPES for item in line_items)
@@ -524,6 +522,12 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
                 contract_value = supporting_value
                 used_supporting_document = True
             else:
+                # No contract figure and no INDEPENDENT supporting document.
+                # Deliberately NO Faktur Pajak fallback: an FP's Harga Jual is
+                # derived from the vendor's own billing calculation, so matching
+                # against it would only confirm the vendor is internally
+                # consistent with itself — not that the amount is correct. Left
+                # blank so the row fails and routes to manual review.
                 contract_value = None
         # RATNA_INTAN's own no-VAT case (see _RATNA_INTAN_NO_VAT_FIELDS) — the
         # schedule's Amount (Excl. Tax)/VAT Amount don't apply to this vendor
@@ -769,6 +773,12 @@ async def invoice_out(db, doc: dict) -> dict:
         # /supporting-document/pdf route). Distinct from whether the run has
         # supporting-document DATA — the extraction can exist without the PDF.
         "has_supporting_document_pdf": bool(document and document.supporting_document_pdf_path),
+        # Individually linkable Faktur Pajak PDFs when one invoice has several
+        # (KARYA_NASTARI invoice_3's Admin Fee / Water / Electricity set).
+        "faktur_pajak_documents": [
+            {"index": i, "label": f["label"]}
+            for i, f in enumerate(document.faktur_pajak_pdfs if document else [])
+        ],
         "has_payment_schedule": bool(bundle and bundle.payment_schedule),
         "expected": (match_result or {}).get("expected"),
         "summary": (match_result or {}).get("summary"),
@@ -1671,7 +1681,12 @@ def _bill_posting_out(doc: dict, contract_doc: Optional[dict] = None) -> dict:
         # government duty, not a billable/GL-codeable service charge — no
         # real VAT/WHT tax code applies to it (per explicit instruction),
         # so it's excluded from Bill Posting's line items the same way.
-        if item.get("charge_type") in ("wht_deduction", "stamp_duty"):
+        # Denda (late-payment charge) is real money owed and appears on the
+        # billing statement, but it is not a taxable supply and has no Faktur
+        # Pajak counterpart — so it gets no VAT/WHT code and is excluded here,
+        # then added back by Simulate as its own dedicated debit row (exactly
+        # how stamp duty is handled) so Debit still equals Credit.
+        if item.get("charge_type") in ("wht_deduction", "stamp_duty", "late_fee"):
             continue
         row_id = str(idx)
         item_defaults = default_items[idx] if idx < len(default_items) else {}
@@ -1698,6 +1713,11 @@ def _bill_posting_out(doc: dict, contract_doc: Optional[dict] = None) -> dict:
         float(item.get("amount") or 0)
         for item in (extracted.get("line_items") or [])
         if item.get("charge_type") == "stamp_duty"
+    )
+    late_fee_amount = sum(
+        float(item.get("amount") or 0)
+        for item in (extracted.get("line_items") or [])
+        if item.get("charge_type") == "late_fee"
     )
 
     # "Invoice Received Date" is a genuine system fact (when this run was
@@ -1779,6 +1799,7 @@ def _bill_posting_out(doc: dict, contract_doc: Optional[dict] = None) -> dict:
         "vat_applicable": not is_ratna_intan,
         "line_items": line_items,
         "stamp_duty_amount": stamp_duty_amount,
+        "late_fee_amount": late_fee_amount,
         "erp": doc.get("erp"),
         "updated_at": doc.get("updated_at"),
     }
@@ -2054,6 +2075,20 @@ async def simulate_bill_posting(db, oid: ObjectId) -> dict:
     # applies), but still real money owed to the vendor and already included
     # in grand_total/net_payable on the credit side below — needs its own
     # debit row here or Debit would no longer equal Credit.
+    late_fee_amount = float(bp.get("late_fee_amount") or 0)
+    if late_fee_amount > 0:
+        rows.append({
+            "position": pos,
+            "posting_key": "40 · Debit",
+            "account": "6500 · Late Payment Charges",
+            "description": "Late payment charge (Denda)",
+            "tax_code": "—",
+            "debit": round(late_fee_amount, 2),
+            "credit": 0,
+            "is_visible": True,
+        })
+        pos += 1
+
     stamp_duty_amount = float(bp.get("stamp_duty_amount") or 0)
     if stamp_duty_amount > 0:
         rows.append({

@@ -2,7 +2,12 @@
   "invoices": [
     {
       "key": "invoice_1",
-      "match": ["inv_1", "invoice_1", "inv_fp_5", "invoice_fp_5"],
+      "match": [
+        "inv_1",
+        "invoice_1",
+        "inv_fp_5",
+        "invoice_fp_5"
+      ],
       "pdf": "invoice_1.pdf",
       "extraction": "invoice_1_extraction.json",
       "faktur_pajak": "faktur_pajak_1.json",
@@ -10,7 +15,12 @@
     },
     {
       "key": "invoice_2",
-      "match": ["inv_2", "invoice_2", "inv_fp_4", "invoice_fp_4"],
+      "match": [
+        "inv_2",
+        "invoice_2",
+        "inv_fp_4",
+        "invoice_fp_4"
+      ],
       "pdf": "invoice_2.pdf",
       "extraction": "invoice_2_extraction.json",
       "faktur_pajak": "faktur_pajak_2.json",
@@ -18,10 +28,27 @@
     },
     {
       "key": "invoice_3",
-      "match": ["inv_3", "invoice_3"],
+      "match": [
+        "inv_3",
+        "invoice_3"
+      ],
       "pdf": "invoice_3.pdf",
       "extraction": "invoice_3_extraction.json",
-      "faktur_pajak": "faktur_pajak_3.json"
+      "faktur_pajak": "faktur_pajak_3.json",
+      "faktur_pajak_pdfs": [
+        {
+          "label": "FP — Admin Fee",
+          "file": "invoice_3_fp_admin_fee.pdf"
+        },
+        {
+          "label": "FP — Water",
+          "file": "invoice_3_fp_water.pdf"
+        },
+        {
+          "label": "FP — Electricity",
+          "file": "invoice_3_fp_electricity.pdf"
+        }
+      ]
     }
   ]
 }

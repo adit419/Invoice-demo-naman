@@ -15,7 +15,6 @@ import {
 } from "@/services/directpay";
 import { isFindingResolved, MatchingTable } from "@/components/directpay/MatchingTable";
 import AiContractBanner from "@/components/directpay/AiContractBanner";
-import { TotalBeforeVatThresholdControl } from "@/components/directpay/TotalBeforeVatThresholdControl";
 import { TotalBeforeVatVarianceBar } from "@/components/directpay/TotalBeforeVatVarianceBar";
 import { EscalateModal } from "@/components/directpay/EscalateModal";
 import { DocumentPreviewModal } from "@/components/directpay/DocumentPreviewModal";
@@ -50,6 +49,7 @@ function InvoiceMatchPage() {
   const [contractPdfOpen, setContractPdfOpen] = useState(false);
   const [contractExtractionOpen, setContractExtractionOpen] = useState(false);
   const [supportingDocOpen, setSupportingDocOpen] = useState(false);
+  const [fpDocIndex, setFpDocIndex] = useState<number | null>(null);
   const [escalateOpen, setEscalateOpen] = useState(false);
   // Mirrors the saved threshold so the variance bar can show the tolerance and
   // its resulting cap. Refreshed whenever the control saves.
@@ -265,10 +265,8 @@ function InvoiceMatchPage() {
   // Non-checklist findings (e.g. tax_rate) drop out of this table entirely.
   // Bank Details is on the checklist (`core`) but explicitly non-mandatory
   // (`mandatory`), so this filters on `core`, not `mandatory`.
-  // Total Amount Before VAT is rendered by the variance bar at the bottom
-  // instead of as a table row (per explicit instruction), so it's excluded
-  // here. It still counts toward blockingCount above — the bar is where its
-  // state is surfaced, and it can never be acknowledged away (NO_ACK_FIELDS).
+  // Total Amount Before VAT is a normal table row; the variance bar below shows
+  // only its variance and the tolerance (configured in admin Workflow Settings).
   const totalBeforeVatFinding = findings.find((f) => f.field === "total_amount_before_vat") ?? null;
   // Escalation only makes sense once the Total Amount Before VAT match can't be
   // satisfied — i.e. the invoice is outside tolerance (or there's no reference
@@ -282,7 +280,10 @@ function InvoiceMatchPage() {
     (li) => li.charge_type === "utility_electricity" || li.charge_type === "utility_water"
   );
   const referenceLabel = isBilledOnActuals ? "Supporting Doc" : "Contract";
-  const displayFindings = findings.filter((f) => f.core && f.field !== "total_amount_before_vat");
+  // When one invoice's reference is a set of Faktur Pajak (KARYA_NASTARI
+  // invoice_3), each is linked individually rather than as one document.
+  const fpDocs = run.faktur_pajak_documents ?? [];
+  const displayFindings = findings.filter((f) => f.core);
   const hasContract = !!run.contract_id;
   // Traces the current contract selection back to the AI's pick — reverting
   // once a human picks a different contract from the dropdown, same property
@@ -462,6 +463,16 @@ function InvoiceMatchPage() {
 
           <MatchingTable
             findings={displayFindings}
+            // Only a genuine INDEPENDENT supporting document is linked here.
+            // Faktur Pajak are deliberately NOT offered as a match source: an
+            // FP is derived from the vendor's own billing, so it validates
+            // nothing. (fpDocs stays available for viewing, just not as a
+            // supporting document.)
+            referenceDocs={
+              run.has_supporting_document_pdf
+                ? [{ label: "Supporting Doc", onOpen: () => setSupportingDocOpen(true) }]
+                : undefined
+            }
             acknowledgedFindings={run.acknowledged_findings}
             systemAcknowledgedFindings={run.system_acknowledged_findings}
             extracted={run.extracted}
@@ -475,20 +486,20 @@ function InvoiceMatchPage() {
         <TotalBeforeVatVarianceBar
           invoiceValue={typeof totalBeforeVatFinding.found_value === "number" ? totalBeforeVatFinding.found_value : null}
           referenceValue={typeof totalBeforeVatFinding.expected_value === "number" ? totalBeforeVatFinding.expected_value : null}
-          invoiceFormatted={totalBeforeVatFinding.found}
-          referenceFormatted={totalBeforeVatFinding.expected}
-          expectedSource={totalBeforeVatFinding.expected_source}
-          referenceLabel={isBilledOnActuals ? "Supporting Document" : undefined}
           thresholdEnabled={threshold.enabled}
           thresholdPct={threshold.threshold_pct}
           currency={run.extracted.currency}
           blocking={Boolean(totalBeforeVatFinding.mandatory) && !totalBeforeVatFinding.satisfied}
-          onOpenSupportingDoc={
-            run.has_supporting_document_pdf ? () => setSupportingDocOpen(true) : undefined
-          }
-          thresholdControl={
-            <TotalBeforeVatThresholdControl onSaved={() => { loadThreshold(); void load(); }} />
-          }
+        />
+      )}
+
+      {fpDocIndex !== null && (
+        <DocumentPreviewModal
+          open
+          onClose={() => setFpDocIndex(null)}
+          title={fpDocs.find((d) => d.index === fpDocIndex)?.label ?? "Faktur Pajak"}
+          pdfUrl={directpayService.fakturPajakDocumentPdfUrl(run.id, fpDocIndex)}
+          authToken={pdfToken}
         />
       )}
 

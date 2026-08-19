@@ -209,6 +209,9 @@ export interface DpInvoiceRun {
   has_faktur_pajak: boolean;
   // Whether a supporting-document PDF exists to link out to (§15).
   has_supporting_document_pdf?: boolean;
+  // Individually linkable Faktur Pajak PDFs when one invoice has several
+  // (KARYA_NASTARI invoice_3: Admin Fee / Water / Electricity).
+  faktur_pajak_documents?: { index: number; label: string }[];
   has_payment_schedule: boolean;
   // "manual" (real multipart /invoices/upload) vs "trigger"
   // (/ingestion/trigger-upload, single or batch) — drives the dashboard's
@@ -507,6 +510,8 @@ export const directpayService = {
   // otherwise, same as before.
   fakturPajakPdfUrl: (id: string) => `/dp-api/invoices/${id}/faktur-pajak/pdf`,
   supportingDocumentPdfUrl: (id: string) => `/dp-api/invoices/${id}/supporting-document/pdf`,
+  fakturPajakDocumentPdfUrl: (id: string, index: number) =>
+    `/dp-api/invoices/${id}/faktur-pajak/documents/${index}/pdf`,
 
   // Settings — DirectPay-scoped, independent of Invoice Processing's own.
   getStp: () => api.get<{ stp_enabled: boolean }>("/dp-api/settings/stp"),

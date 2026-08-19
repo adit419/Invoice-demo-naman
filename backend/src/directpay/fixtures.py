@@ -68,6 +68,13 @@ class DpDocumentEntry:
     # document that doesn't need one (the vast majority).
     supporting_document: Optional[dict] = None
     supporting_document_pdf_path: Optional[Path] = None
+    # Several real Faktur Pajak belonging to ONE invoice, each its own PDF (see
+    # documents.json's `faktur_pajak_pdfs`). KARYA_NASTARI's invoice_3 bundles
+    # three — Admin Fee / Water / Electricity — which together are the reference
+    # for its Total Amount Before VAT, so each needs to be linkable. Distinct
+    # from the single `faktur_pajak_pdf_path` above; a document has one or the
+    # other, not both.
+    faktur_pajak_pdfs: list = field(default_factory=list)
 
 
 @dataclass
@@ -187,6 +194,11 @@ class DpFixtureLoader:
                         faktur_pajak_pdf_path=fp_pdf_path if fp_pdf_path and fp_pdf_path.exists() else None,
                         supporting_document=json.loads(supporting_doc_path.read_text()) if supporting_doc_path and supporting_doc_path.exists() else None,
                         supporting_document_pdf_path=supporting_doc_pdf_path if supporting_doc_pdf_path and supporting_doc_pdf_path.exists() else None,
+                        faktur_pajak_pdfs=[
+                            {"label": fpd.get("label") or fpd["file"], "path": entry / fpd["file"]}
+                            for fpd in (doc.get("faktur_pajak_pdfs") or [])
+                            if (entry / fpd["file"]).exists()
+                        ],
                     ))
 
             bundles[entry.name] = bundle

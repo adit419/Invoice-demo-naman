@@ -122,9 +122,9 @@ async def update_ack_threshold_setting(body: DpAckThresholdRequest, current_user
     return _envelope(data={"ack_threshold": body.value})
 
 
-# Matching-stage control (not admin-gated like the two settings above — this
-# one lives directly on the Matching page itself, for whoever's working the
-# invoice, rather than in the admin Workflow Settings page).
+# Configured in the admin Workflow Settings page (DirectPay section), so the
+# PATCH is admin-gated like the STP/Ack-Threshold settings above. The GET stays
+# open — the Matching page's variance bar reads it to show the tolerance and cap.
 @router.get("/settings/total-before-vat-threshold")
 async def get_total_before_vat_threshold_setting():
     db = get_db()
@@ -132,7 +132,9 @@ async def get_total_before_vat_threshold_setting():
 
 
 @router.patch("/settings/total-before-vat-threshold")
-async def update_total_before_vat_threshold_setting(body: DpTotalBeforeVatThresholdRequest):
+async def update_total_before_vat_threshold_setting(body: DpTotalBeforeVatThresholdRequest, current_user: CurrentUser):
+    if current_user.role not in ("tenant_admin", "workspace_admin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
     if body.threshold_pct < 0:
         raise HTTPException(status_code=400, detail="Threshold must be a percentage >= 0")
     db = get_db()
@@ -377,6 +379,23 @@ async def get_invoice_faktur_pajak_pdf(run_id: str):
     if not pdf_path:
         raise HTTPException(status_code=404, detail="Faktur Pajak PDF not available")
     return Response(content=pdf_path.read_bytes(), media_type="application/pdf")
+
+
+# One of several Faktur Pajak belonging to a single invoice (see fixtures.py's
+# DpDocumentEntry.faktur_pajak_pdfs) — KARYA_NASTARI invoice_3's Admin Fee /
+# Water / Electricity set, which is that invoice's own amount reference.
+@router.get("/invoices/{run_id}/faktur-pajak/documents/{doc_index}/pdf")
+async def get_invoice_faktur_pajak_document_pdf(run_id: str, doc_index: int):
+    db = get_db()
+    doc = await dp_invoice_runs(db).find_one({"_id": _oid(run_id, "invoice ID")})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    bundle = get_dp_loader().discover().get(doc["fixture_key"])
+    document = service._document_entry(bundle, doc.get("document_key"))
+    pdfs = document.faktur_pajak_pdfs if document else []
+    if doc_index < 0 or doc_index >= len(pdfs):
+        raise HTTPException(status_code=404, detail="Faktur Pajak document not available")
+    return Response(content=pdfs[doc_index]["path"].read_bytes(), media_type="application/pdf")
 
 
 # The utility bill backing a charge the contract only bills "on actuals" (see

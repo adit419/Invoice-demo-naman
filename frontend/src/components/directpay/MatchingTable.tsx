@@ -29,7 +29,7 @@ const tableClassName = "dp-matching-table";
  * fixed/viewport-clamped so it's never clipped by the table's overflow
  * container.
  */
-function SupportingDocumentInfo() {
+function SupportingDocumentInfo({ docs }: { docs?: { label: string; onOpen: () => void }[] }) {
   const [pos, setPos] = useState<{ left: number; top?: number; bottom?: number } | null>(null);
 
   const CARD_W = 300;
@@ -107,6 +107,28 @@ function SupportingDocumentInfo() {
             (&ldquo;as per actuals&rdquo;) — so it states no fixed amount. Neo AI took the actual amount from
             the supporting document to compare the invoice against.
           </div>
+          {docs && docs.length > 0 && (
+            <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid #EEF0F3" }}>
+              <div style={{ fontSize: 10.5, fontWeight: 600, color: "#8D92A6", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 4 }}>
+                Supporting Documents
+              </div>
+              {docs.map((d) => (
+                <div key={d.label} style={{ marginTop: 2 }}>
+                  <button
+                    type="button"
+                    onClick={d.onOpen}
+                    style={{
+                      background: "none", border: "none", padding: 0, font: "inherit", textAlign: "left",
+                      fontSize: 11.5, color: "#1F5BD5", fontWeight: 600,
+                      textDecoration: "underline", cursor: "pointer",
+                    }}
+                  >
+                    {d.label}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </span>
@@ -194,6 +216,9 @@ interface MatchingTableProps {
   extracted: DpInvoiceExtracted;
   readonly?: boolean;
   onToggleAcknowledge: (findingId: string, acknowledged: boolean) => void;
+  /** Documents backing a supporting-document-sourced value, linked from that
+   *  row's ⓘ card (a utility billed on actuals; several for a Faktur Pajak set). */
+  referenceDocs?: { label: string; onOpen: () => void }[];
 }
 
 export function MatchingTable({
@@ -203,6 +228,7 @@ export function MatchingTable({
   extracted,
   readonly,
   onToggleAcknowledge,
+  referenceDocs,
 }: MatchingTableProps) {
   const isResolved = (f: DpFinding): boolean => isFindingResolved(f, extracted);
   const isSystemAcked = (f: DpFinding): boolean => systemAcknowledgedFindings.includes(f.finding_id);
@@ -355,13 +381,13 @@ export function MatchingTable({
               >
                 {f.expected ?? ""}
               </span>
-              {fromSupportingDoc && f.expected != null && <SupportingDocumentInfo />}
+              {fromSupportingDoc && f.expected != null && <SupportingDocumentInfo docs={referenceDocs} />}
             </div>
           );
         },
       },
     ],
-    [acknowledgedFindings, systemAcknowledgedFindings, extracted, readonly, onToggleAcknowledge]
+    [acknowledgedFindings, systemAcknowledgedFindings, extracted, readonly, onToggleAcknowledge, referenceDocs]
   );
 
   const tableStyles = `
