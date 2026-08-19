@@ -1,65 +1,81 @@
 /**
- * Hover ⓘ explaining a value that Neo AI DERIVED rather than transcribed —
- * the same affordance P2P uses for an AI-filled metadata field (see
- * NeoAiSuggestionBanner.tsx's AiAnalysisInfo): same icon geometry, same white
- * card chrome, same viewport-clamped fixed positioning so it's never clipped by
- * a table's overflow container, and it flips above when there's no room below.
+ * Hover ⓘ explaining a value that Neo AI DERIVED rather than transcribed, and
+ * the neutral `SourceNote` variant for a value that was simply read from a
+ * known source document.
  *
- * Pair it with the value itself rendered in AI_VALUE_STYLE (sparkle + italic
- * #1F5BD5) — that combination is what signals "derived, not read off the page".
+ * Same card chrome as P2P's AiAnalysisInfo (NeoAiSuggestionBanner.tsx). Open
+ * and close behaviour comes from useHoverCard, so the card stays open while the
+ * pointer is over it and links inside it are clickable.
  */
-import { useState } from "react";
 import { AiSparkleIcon } from "@/components/directpay/AiContractBanner";
+import { useHoverCard } from "@/components/directpay/useHoverCard";
 
-export function AiValueNote({ text, pill }: { text: string; pill?: string }) {
-  const [pos, setPos] = useState<{ left: number; top?: number; bottom?: number } | null>(null);
+export interface CardLink {
+  label: string;
+  onOpen: () => void;
+}
 
-  const CARD_W = 300;
-  // Only used to DECIDE whether to flip; a flipped card is anchored by `bottom`
-  // so an imprecise estimate here can't misalign it.
-  const CARD_H_ESTIMATE = 200;
-  const show = (e: React.MouseEvent<HTMLElement>) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    const left = Math.max(12, Math.min(r.right - CARD_W, window.innerWidth - CARD_W - 12));
-    if (window.innerHeight - r.bottom < CARD_H_ESTIMATE) {
-      setPos({ left, bottom: window.innerHeight - r.top + 8 });
-    } else {
-      setPos({ left, top: r.bottom + 8 });
-    }
-  };
-
+function InfoIcon({ active, tint }: { active: boolean; tint: string }) {
   return (
     <span
-      className="inline-flex items-center shrink-0"
-      style={{ position: "relative" }}
-      onMouseEnter={show}
-      onMouseLeave={() => setPos(null)}
-      onClick={(e) => e.stopPropagation()}
+      style={{
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+        width: 18, height: 18, borderRadius: "50%", cursor: "default",
+        color: active ? tint : "#98A2B3",
+      }}
     >
-      <span
-        aria-label="Why Neo AI derived this value"
-        style={{
-          display: "inline-flex", alignItems: "center", justifyContent: "center",
-          width: 18, height: 18, borderRadius: "50%", cursor: "default",
-          color: pos ? "#1F5BD5" : "#8FADEA",
-        }}
-      >
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-          <circle cx="7" cy="7" r="6" stroke="currentColor" strokeWidth="1.3" />
-          <path d="M7 6.3v3.4M7 4.2h.01" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-        </svg>
-      </span>
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <circle cx="7" cy="7" r="6" stroke="currentColor" strokeWidth="1.3" />
+        <path d="M7 6.3v3.4M7 4.2h.01" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      </svg>
+    </span>
+  );
+}
 
+function CardLinks({ heading, links }: { heading: string; links: CardLink[] }) {
+  if (!links.length) return null;
+  return (
+    <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid #EEF0F3" }}>
+      <div style={{ fontSize: 10.5, fontWeight: 600, color: "#8D92A6", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 4 }}>
+        {heading}
+      </div>
+      {links.map((l) => (
+        <div key={l.label} style={{ marginTop: 2 }}>
+          <button
+            type="button"
+            onClick={l.onOpen}
+            style={{
+              background: "none", border: "none", padding: 0, font: "inherit", textAlign: "left",
+              fontSize: 11.5, color: "#1F5BD5", fontWeight: 600, textDecoration: "underline", cursor: "pointer",
+            }}
+          >
+            {l.label}
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const CARD_STYLE: React.CSSProperties = {
+  position: "fixed", zIndex: 1000,
+  background: "#ffffff", border: "1px solid #DFE5EE", borderRadius: 8,
+  boxShadow: "0 8px 24px rgba(16,24,40,0.12)", padding: "12px 14px",
+  textAlign: "left", cursor: "default", fontFamily: "Inter, sans-serif",
+};
+
+/** For a value Neo AI derived (reasoned) rather than read off the document. */
+export function AiValueNote({
+  text, pill, links, linksHeading = "Source",
+}: { text: string; pill?: string; links?: CardLink[]; linksHeading?: string }) {
+  const { pos, width, triggerHandlers, cardHandlers } = useHoverCard({ estHeight: 210 });
+  return (
+    <span className="inline-flex items-center shrink-0" style={{ position: "relative" }} onClick={(e) => e.stopPropagation()}>
+      <span aria-label="Why Neo AI derived this value" {...triggerHandlers}>
+        <InfoIcon active={!!pos} tint="#1F5BD5" />
+      </span>
       {pos && (
-        <div
-          style={{
-            position: "fixed", top: pos.top, bottom: pos.bottom, left: pos.left,
-            width: CARD_W, zIndex: 1000,
-            background: "#ffffff", border: "1px solid #DFE5EE", borderRadius: 8,
-            boxShadow: "0 8px 24px rgba(16,24,40,0.12)", padding: "12px 14px",
-            textAlign: "left", cursor: "default", fontFamily: "Inter, sans-serif",
-          }}
-        >
+        <div style={{ ...CARD_STYLE, top: pos.top, bottom: pos.bottom, left: pos.left, width }} {...cardHandlers}>
           <div className="flex items-center justify-between gap-2" style={{ marginBottom: 8 }}>
             <span className="flex items-center gap-1.5" style={{ fontSize: 12.5, fontWeight: 600, color: "#0D388D" }}>
               <AiSparkleIcon size={14} />
@@ -78,6 +94,38 @@ export function AiValueNote({ text, pill }: { text: string; pill?: string }) {
             )}
           </div>
           <div style={{ fontSize: 11.5, color: "#585C65", lineHeight: "16px" }}>{text}</div>
+          <CardLinks heading={linksHeading} links={links ?? []} />
+        </div>
+      )}
+    </span>
+  );
+}
+
+/**
+ * Neutral variant: the value was simply READ from a known source, so it carries
+ * no AI framing. Deliberately slate rather than the AI blue, so the two are
+ * distinguishable at a glance.
+ */
+export function SourceNote({
+  title, text, links, linksHeading = "Open source",
+}: { title: string; text: string; links?: CardLink[]; linksHeading?: string }) {
+  const { pos, width, triggerHandlers, cardHandlers } = useHoverCard({ estHeight: 200 });
+  return (
+    <span className="inline-flex items-center shrink-0" style={{ position: "relative" }} onClick={(e) => e.stopPropagation()}>
+      <span aria-label="Where this value came from" {...triggerHandlers}>
+        <InfoIcon active={!!pos} tint="#475467" />
+      </span>
+      {pos && (
+        <div style={{ ...CARD_STYLE, top: pos.top, bottom: pos.bottom, left: pos.left, width }} {...cardHandlers}>
+          <div className="flex items-center gap-1.5" style={{ fontSize: 12.5, fontWeight: 600, color: "#101828", marginBottom: 8 }}>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+              <path d="M4 1.75h5L12.25 5v9.25H4V1.75Z" stroke="#475467" strokeWidth="1.3" strokeLinejoin="round" />
+              <path d="M8.75 1.75V5h3.5M5.75 8.5h4.5M5.75 11h4.5" stroke="#475467" strokeWidth="1.3" strokeLinecap="round" />
+            </svg>
+            {title}
+          </div>
+          <div style={{ fontSize: 11.5, color: "#585C65", lineHeight: "16px" }}>{text}</div>
+          <CardLinks heading={linksHeading} links={links ?? []} />
         </div>
       )}
     </span>

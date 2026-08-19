@@ -16,6 +16,11 @@ import { ContractDerivedFieldsTable } from "@/components/directpay/ContractDeriv
 import { directpayService, DpContractExtractionPostprocessing, DpContractRun } from "@/services/directpay";
 
 interface ContractExtractionModalProps {
+  /** Open straight onto a tab (e.g. "derived" when linked from a value whose
+   *  source is a payment-schedule row). */
+  initialTab?: "extracted" | "derived";
+  /** Installment row to visually mark as the one being matched against. */
+  highlightInstallmentIndex?: number | null;
   open: boolean;
   onClose: () => void;
   contractId: string | null;
@@ -23,7 +28,9 @@ interface ContractExtractionModalProps {
 
 type Tab = "extracted" | "derived";
 
-export function ContractExtractionModal({ open, onClose, contractId }: ContractExtractionModalProps) {
+export function ContractExtractionModal({
+  open, onClose, contractId, initialTab, highlightInstallmentIndex,
+}: ContractExtractionModalProps) {
   const [run, setRun] = useState<DpContractRun | null>(null);
   const [derived, setDerived] = useState<DpContractExtractionPostprocessing | null>(null);
   const [loading, setLoading] = useState(false);
@@ -35,7 +42,7 @@ export function ContractExtractionModal({ open, onClose, contractId }: ContractE
     let cancelled = false;
     setLoading(true);
     setActiveKey(null);
-    setTab("extracted");
+    setTab(initialTab ?? "extracted");
     Promise.all([
       directpayService.getContract(contractId),
       // Derived Fields tab is only shown at all when this resolves with
@@ -97,7 +104,7 @@ export function ContractExtractionModal({ open, onClose, contractId }: ContractE
           )}
 
           {tab === "derived" && hasDerivedFields ? (
-            <ContractDerivedFieldsTable installments={derived!.installments} oneTimePayments={derived!.one_time_payments} />
+            <ContractDerivedFieldsTable installments={derived!.installments} oneTimePayments={derived!.one_time_payments} highlightIndex={highlightInstallmentIndex ?? null} />
           ) : (
             <ContractFieldsTable
               fields={run.fields}

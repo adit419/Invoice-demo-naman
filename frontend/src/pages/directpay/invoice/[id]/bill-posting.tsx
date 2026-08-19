@@ -17,6 +17,7 @@ import { RejectModal } from "@/components/RejectModal";
 import { DpBillPostingMetadataGrid } from "@/components/directpay/DpBillPostingMetadataGrid";
 import { DocumentPreviewModal } from "@/components/directpay/DocumentPreviewModal";
 import { ContractExtractionModal } from "@/components/directpay/ContractExtractionModal";
+import { AiValueNote } from "@/components/directpay/AiValueNote";
 import { ApiError } from "@/services/api";
 import { directpayService, DpBillPostingData, DpBillPostingLineItem } from "@/services/directpay";
 import { BillPostingTable } from "@/components/BillPosting";
@@ -122,6 +123,7 @@ function InvoiceBillPostingPage() {
   const [loading, setLoading] = useState(true);
   const [posting, setPosting] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
+  const [contractDerivedOpen, setContractDerivedOpen] = useState(false);
   const [invoicePdfOpen, setInvoicePdfOpen] = useState(false);
   const [contractPdfOpen, setContractPdfOpen] = useState(false);
   const [contractExtractionOpen, setContractExtractionOpen] = useState(false);
@@ -265,6 +267,11 @@ function InvoiceBillPostingPage() {
   const isVendorSubjectToWht = data.wht_applicable;
   const isVendorSubjectToVat = data.vat_applicable;
 
+  // 2c: this vendor's WHT does not come from the invoice at all. Its rate is a
+  // contract term, recorded as WHT Rate on the matched payment-schedule row, so
+  // the cell carries the AI-derived treatment plus a link to that row.
+  const whtFromContract = data.wht_applicable && data.contract_id != null;
+
   const metaItems = [
     { icon: <TagOutlined />, text: "Manual Upload" },
     data.invoice_number
@@ -386,11 +393,41 @@ function InvoiceBillPostingPage() {
                 whtOptions={DP_WHT_OPTIONS}
                 onVatChange={handleVatChange}
                 onWhtChange={handleWhtChange}
+                renderWhtNote={
+                  whtFromContract
+                    ? () => (
+                        <AiValueNote
+                          pill="From contract"
+                          text={
+                            "Withholding is a contract term, not an invoice figure. The rate comes from " +
+                            "WHT Rate on the payment-schedule row this invoice is matched against, so the " +
+                            "PPh 4(2) code here reflects that 10% rather than anything printed on the invoice."
+                          }
+                          links={[
+                            {
+                              label: "WHT Rate on the matched installment",
+                              onOpen: () => setContractDerivedOpen(true),
+                            },
+                          ]}
+                        />
+                      )
+                    : undefined
+                }
               />
             </div>
           </div>
         </div>
       </div>
+
+      {data.contract_id && (
+        <ContractExtractionModal
+          open={contractDerivedOpen}
+          onClose={() => setContractDerivedOpen(false)}
+          contractId={data.contract_id}
+          initialTab="derived"
+          highlightInstallmentIndex={data.matched_installment_index ?? null}
+        />
+      )}
 
       <RejectModal open={rejectOpen} onClose={() => setRejectOpen(false)} onConfirm={handleReject} stage="bill_posting" />
 

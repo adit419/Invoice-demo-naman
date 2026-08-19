@@ -44,6 +44,7 @@ from .models import (
     DpInvoiceConfirmExtractionRequest,
     DpInvoiceEditRequest,
     DpInvoiceMatchRequest,
+    DpMatchedInstallmentRequest,
     DpReviewActionRequest,
     DpStpRequest,
     DpTotalBeforeVatThresholdRequest,
@@ -442,6 +443,21 @@ async def confirm_extraction(run_id: str, body: DpInvoiceConfirmExtractionReques
         return _envelope(data=await service.confirm_extraction(db, _oid(run_id, "invoice ID"), body.extracted, current_user.email))
     except service.NotFoundError as exc:
         _not_found(exc)
+
+
+# Which payment-schedule row this invoice is matched against. Amount proximity
+# cannot disambiguate rows that share an amount, so a human can pin the correct
+# instalment / service charge here and everything downstream follows.
+@router.patch("/invoices/{run_id}/matched-installment")
+async def set_matched_installment(run_id: str, body: DpMatchedInstallmentRequest):
+    db = get_db()
+    try:
+        return _envelope(data=await service.set_matched_installment(
+            db, _oid(run_id, "invoice ID"), body.installment_index))
+    except service.NotFoundError as exc:
+        _not_found(exc)
+    except service.InvalidStateError as exc:
+        raise HTTPException(status_code=400, detail=exc.message)
 
 
 @router.get("/invoices/{run_id}/edit-history")

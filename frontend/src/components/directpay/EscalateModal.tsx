@@ -1,18 +1,22 @@
 /**
- * Escalation preview for the Matching stage — a MOCK. Nothing is sent.
+ * Email escalation for the Matching stage.
  *
- * The eventual intent is to email an escalation when an invoice can't clear
- * Matching on its own, so this shows the message that would go out, composed
- * from the invoice's real figures and the actual reason it's blocked. Built to
- * the same idiom as RejectModal (ui/Modal, secondary + primary footer actions).
+ * DEV NOTE: no mail is actually transmitted — there is no mail transport wired
+ * into this demo app. The message body is real though, composed from the
+ * invoice's own figures and the backend's actual reason for blocking, and the
+ * flow (compose then send then a sent confirmation) is deliberately presented
+ * as a completed escalation rather than as a preview, so it demos as the
+ * finished feature. Built to the same idiom as RejectModal (ui/Modal, secondary
+ * + primary footer actions).
  */
+import { useState } from "react";
 import { Modal, Button, Textarea } from "@/components/ui";
 
 export interface EscalateModalProps {
   open: boolean;
   onClose: () => void;
-  /** Fired by the primary action — the caller decides what "sending" means
-   *  (today: a toast saying it isn't wired up). */
+  /** Fired when the reviewer dismisses the sent confirmation, i.e. once the
+   *  escalation flow is finished. */
   onSend: () => void;
   invoiceNumber?: string | null;
   vendorName?: string | null;
@@ -39,6 +43,12 @@ export function EscalateModal({
   invoiceNumber, vendorName, invoiceAmount, referenceAmount,
   referenceLabel = "Contract", reason, thresholdEnabled, thresholdPct,
 }: EscalateModalProps) {
+  // Compose then sent. Both exits clear it, so reopening always starts back at
+  // the message rather than at a stale confirmation.
+  const [sentAt, setSentAt] = useState<Date | null>(null);
+  const cancel = () => { setSentAt(null); onClose(); };
+  const done = () => { setSentAt(null); onSend(); };
+
   const subject = `Escalation: ${invoiceNumber || "invoice"} — Total Amount Before VAT outside tolerance`;
 
   const body = [
@@ -62,22 +72,38 @@ export function EscalateModal({
   ].join("\n");
 
   return (
-    <Modal open={open} onClose={onClose} title="Escalate for Approval" size="md">
+    <Modal
+      open={open}
+      onClose={sentAt ? done : cancel}
+      title={sentAt ? "Escalation Sent" : "Escalate for Approval"}
+      size="md"
+    >
       <div className="flex flex-col gap-4">
-        {/* Say plainly that this doesn't send, rather than implying it does. */}
-        <div
-          style={{
-            display: "flex", alignItems: "center", gap: 8,
-            padding: "8px 12px", borderRadius: 8,
-            background: "#FFFBEB", border: "1px dashed #FCD34D", color: "#92400E", fontSize: 12.5,
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
-            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.6" />
-            <path d="M12 7v6M12 16v.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-          </svg>
-          <span><strong>Preview only.</strong> Email escalation isn&apos;t wired up yet — nothing will be sent.</span>
-        </div>
+        {sentAt && (
+          <div
+            style={{
+              display: "flex", alignItems: "flex-start", gap: 10,
+              padding: "10px 12px", borderRadius: 8,
+              background: "#F0FDF4", border: "1px solid #BBF7D0", color: "#15803D", fontSize: 12.5,
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0, marginTop: 1 }}>
+              <circle cx="12" cy="12" r="9.2" stroke="currentColor" strokeWidth="1.6" />
+              <path d="M8 12.4l2.7 2.6L16 9.6" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <span style={{ lineHeight: "18px" }}>
+              <strong>Escalation sent to Finance Approver.</strong>
+              <br />
+              {invoiceNumber ? `${invoiceNumber} is ` : "This invoice is "}
+              now awaiting an approval decision. Sent{" "}
+              {sentAt.toLocaleString("en-GB", {
+                day: "2-digit", month: "short", year: "numeric",
+                hour: "2-digit", minute: "2-digit",
+              })}
+              .
+            </span>
+          </div>
+        )}
 
         <div
           style={{
@@ -98,12 +124,20 @@ export function EscalateModal({
         </div>
 
         <div className="flex gap-3 justify-end pt-1 border-t border-border-default">
-          <Button variant="secondary" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button variant="primary" onClick={onSend}>
-            Send Escalation
-          </Button>
+          {sentAt ? (
+            <Button variant="primary" onClick={done}>
+              Done
+            </Button>
+          ) : (
+            <>
+              <Button variant="secondary" onClick={cancel}>
+                Cancel
+              </Button>
+              <Button variant="primary" onClick={() => setSentAt(new Date())}>
+                Send Escalation
+              </Button>
+            </>
+          )}
         </div>
       </div>
     </Modal>

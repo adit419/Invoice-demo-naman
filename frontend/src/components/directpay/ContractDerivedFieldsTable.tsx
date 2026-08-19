@@ -2,7 +2,7 @@
 // Extraction Postprocessing page (editable while actionable) and the
 // ContractExtractionModal's read-only "Derived Fields" tab on the Matching
 // page, so the two can never drift apart visually.
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DpContractInstallment, DpContractOneTimePayment } from "@/services/directpay";
 
 // vat_rate/wht_rate are stored as a whole percentage number (11, not 0.11) —
@@ -28,11 +28,28 @@ interface ContractDerivedFieldsTableProps {
   canEdit?: boolean;
   onSaveInstallmentField?: (instIdx: number, fieldName: string, value: string) => void;
   onSaveOneTimePaymentField?: (otpIdx: number, fieldName: OneTimePaymentField, value: string) => void;
+  /** Marks the installment an invoice is currently matched against, so a link
+   *  from that invoice lands somewhere obvious. */
+  highlightIndex?: number | null;
 }
 
 export function ContractDerivedFieldsTable({
-  installments, oneTimePayments, canEdit, onSaveInstallmentField, onSaveOneTimePaymentField,
+  installments, oneTimePayments, canEdit, onSaveInstallmentField, onSaveOneTimePaymentField, highlightIndex,
 }: ContractDerivedFieldsTableProps) {
+  // Bring the matched row into view when this table is opened from a link that
+  // points at it (Matching's "Contract payment schedule (matched row)"). Without
+  // this the highlight is correct but often below the fold, so it reads as though
+  // nothing was preselected.
+  const highlightRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (highlightIndex == null || !highlightRef.current) return;
+    // Next frame, so the modal has finished laying out before we scroll.
+    const raf = requestAnimationFrame(() => {
+      highlightRef.current?.scrollIntoView({ block: "center", behavior: "auto" });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [highlightIndex, installments.length]);
+
   const [instEdits, setInstEdits] = useState<Record<string, string>>({});
   const [otpEdits, setOtpEdits] = useState<Record<string, string>>({});
 
@@ -47,16 +64,32 @@ export function ContractDerivedFieldsTable({
       {installments.map((inst, idx) => (
         <div
           key={idx}
+          ref={highlightIndex === idx ? highlightRef : undefined}
           className="mb-5"
-          style={{ border: "1px solid #E9EAEC", borderRadius: 8, overflow: "hidden", background: "#ffffff" }}
+          style={{
+            border: `1px solid ${highlightIndex === idx ? "#1876FF" : "#E9EAEC"}`,
+            borderRadius: 8, overflow: "hidden", background: "#ffffff",
+            boxShadow: highlightIndex === idx ? "0 0 0 3px rgba(24,118,255,0.12)" : undefined,
+          }}
         >
           <div
             style={{
-              padding: "10px 14px", background: "#F4F4F4", borderBottom: "1px solid #EBEDF0",
+              padding: "10px 14px", borderBottom: "1px solid #EBEDF0",
+              background: highlightIndex === idx ? "#EEF4FF" : "#F4F4F4",
               fontSize: 13, fontWeight: 600, color: "#101828",
+              display: "flex", alignItems: "center", gap: 8,
             }}
           >
             {inst.description || `Installment ${idx + 1}`}
+            {highlightIndex === idx && (
+              <span style={{
+                fontSize: 10.5, fontWeight: 600, color: "#1F5BD5",
+                background: "#ffffff", border: "1px solid #CFE2FF",
+                borderRadius: 9999, padding: "1px 8px", whiteSpace: "nowrap",
+              }}>
+                Matched against this invoice
+              </span>
+            )}
           </div>
           <table className="w-full text-sm" style={{ borderCollapse: "collapse", tableLayout: "fixed" }}>
             <tbody>

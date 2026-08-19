@@ -5,6 +5,7 @@ click and STP's automated equivalent always run the exact same code path.
 Mirrors the P2P split between `stages.approve_stage()` (shared core) and its
 thin HTTP wrappers in `api/v1/*.py`.
 """
+import re
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -424,6 +425,150 @@ _INSTALLMENT_MATCH_FIELD_MAP = {
 }
 
 
+def _schedule_row_category(description: str) -> str:
+    """Group a payment-schedule row for the Matching page's installment picker.
+    Derived from the row's own description rather than a fixture field, so no
+    vendor's payment_schedule.json needs re-authoring; anything unrecognised
+    falls back to "Rent", which is what a single-schedule vendor has."""
+    d = (description or "").lower()
+    if "service charge" in d:
+        return "Service Charge"
+    if "promotion" in d:
+        return "Promotion Levy"
+    if "deposit" in d:
+        return "Deposit"
+    return "Rent"
+
+
+# Month names as they appear on these invoices, English and Indonesian both
+# (PAKUWON prints "20 August 2025", PALLADIUM "01 Mei 2026", RATNA_INTAN
+# "10 Agustus 2026", KARYA_NASTARI plain ISO).
+_MONTH_NAMES = {
+    "january": 1, "februari": 2, "february": 2, "januari": 1, "march": 3, "maret": 3,
+    "april": 4, "may": 5, "mei": 5, "june": 6, "juni": 6, "july": 7, "juli": 7,
+    "august": 8, "agustus": 8, "september": 9, "october": 10, "oktober": 10,
+    "november": 11, "december": 12, "desember": 12,
+}
+
+
+def _parse_loose_date(value) -> Optional[datetime]:
+    """Parse the handful of date shapes these fixtures actually use. Returns None
+    for anything unrecognised (including "NA"), so callers simply skip the
+    comparison rather than guessing."""
+    if not isinstance(value, str):
+        return None
+    t = value.strip()
+    if not t or t.upper() == "NA":
+        return None
+    try:
+        return datetime.strptime(t, "%Y-%m-%d")
+    except ValueError:
+        pass
+    parts = t.replace("-", " ").replace("/", " ").split()
+    if len(parts) == 3:
+        day, month, year = parts
+        num = _MONTH_NAMES.get(month.lower())
+        if num and day.isdigit() and year.isdigit():
+            try:
+                return datetime(int(year), num, int(day))
+            except ValueError:
+                return None
+    return None
+
+
+def _due_date_tiebreak(schedule: Optional[dict], extracted: dict) -> Optional[dict]:
+    """Disambiguate rows that are equally close on amount by matching the
+    invoice's own due date against the schedule row's.
+
+    Amount alone cannot separate a schedule that repeats the same figure, e.g.
+    PAKUWON's 3 down payments (all 30,000,000) and 24 monthly instalments (all
+    15,000,000), so the automatic pick lands on the first of them regardless of
+    which period the invoice is actually for. Only ever returns a row on an EXACT
+    due-date match, so where the dates don't line up the existing pick stands."""
+    installments = (schedule or {}).get("installments") or []
+    inv_due = _parse_loose_date(extracted.get("due_date"))
+    if not inv_due or len(installments) < 2:
+        return None
+    try:
+        target = float(extracted.get("total_amount_before_vat"))
+    except (TypeError, ValueError):
+        return None
+
+    scored = []
+    for inst in installments:
+        try:
+            scored.append((abs(float(inst.get("amount_excl_tax")) - target), inst))
+        except (TypeError, ValueError):
+            continue
+    if not scored:
+        return None
+    best = min(d for d, _ in scored)
+    ties = [inst for d, inst in scored if abs(d - best) < 0.01]
+    if len(ties) < 2:
+        return None  # nothing ambiguous to break
+    exact = [i for i in ties if _parse_loose_date(i.get("due_date")) == inv_due]
+    return exact[0] if len(exact) == 1 else None
+
+
+def _matched_installment(doc: dict, schedule: Optional[dict], extracted: dict) -> Optional[dict]:
+    """The installment this invoice is being matched against.
+
+    A human's explicit pick (doc["installment_index"], set from the Matching
+    page) always wins; otherwise fall back to amount proximity. The manual path
+    matters because proximity cannot disambiguate rows that share an amount, and
+    several vendors have many identical rows (PAKUWON has 24 identical monthly
+    instalments and 3 identical down payments), so the automatic pick is often
+    the wrong period even though the figure is right."""
+    installments = (schedule or {}).get("installments") or []
+    if not installments:
+        return None
+    idx = doc.get("installment_index")
+    if isinstance(idx, int) and 0 <= idx < len(installments):
+        return installments[idx]
+    # Break an amount tie on the due date where that resolves it; otherwise the
+    # plain amount-proximity pick stands unchanged.
+    return _due_date_tiebreak(schedule, extracted) or _match_payment_installment(schedule, extracted)
+
+
+def _schedule_option_label(description: str, index: int) -> str:
+    """Just the row's own heading, for the Matching picker.
+
+    The picker is narrow, so a full description truncates to uselessness
+    ("Installment 1 of 10 (balance 80%) — ES..."). Two kinds of trailing text are
+    dropped, both of which QUALIFY a row rather than IDENTIFY it:
+      - parentheticals: "(balance 80%)", "(20%, cash upfront)", "(Year 1-2, upfront)"
+      - the "— ESTIMATED" provenance marker
+
+    What is deliberately NOT dropped is anything after an em dash generally —
+    PAKUWON's "Promotion Levy — Month 1 of 36" and PALLADIUM's "Service Charge —
+    Month 1 of 24" carry the distinguishing part there, and cutting at the dash
+    would collapse 36 and 24 rows respectively into identical labels.
+
+    The untrimmed description still shows in full in the Contract Derived Fields
+    table, so the ESTIMATED provenance is never lost — only shortened here."""
+    text = description or ""
+    text = re.sub(r"\s*[—–-]\s*ESTIMATED\b", "", text)
+    text = re.sub(r"\s*\([^)]*\)", "", text)
+    text = re.sub(r"\s+", " ", text).strip(" —–-")
+    return text or f"Installment {index + 1}"
+
+
+def _schedule_options(schedule: Optional[dict]) -> list[dict]:
+    """Installment rows offered in the Matching page's picker. One-time payments
+    (deposits, telephone charges) are deliberately excluded: they are never what
+    a recurring invoice is matched against."""
+    return [
+        {
+            "index": i,
+            "label": _schedule_option_label(inst.get("description") or "", i),
+            "category": _schedule_row_category(inst.get("description") or ""),
+            "due_date": inst.get("due_date"),
+            "amount_excl_tax": inst.get("amount_excl_tax"),
+        }
+        for i, inst in enumerate((schedule or {}).get("installments") or [])
+    ]
+
+
 def _resolve_contract_value(core, contract_fields: dict, installment: Optional[dict]):
     if installment and core.invoice_field in _INSTALLMENT_MATCH_FIELD_MAP:
         return installment.get(_INSTALLMENT_MATCH_FIELD_MAP[core.invoice_field])
@@ -470,7 +615,7 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
 
     bundle = get_dp_loader().discover().get(doc.get("fixture_key"))
     schedule = _effective_payment_schedule(bundle.payment_schedule if bundle else None, contract_doc)
-    installment = _match_payment_installment(schedule, extracted) if schedule else None
+    installment = _matched_installment(doc, schedule, extracted)
 
     core_by_field = {c.invoice_field: c for c in field_mapping.CORE_CROSS_VALIDATION_FIELDS}
 
@@ -739,8 +884,24 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
     return annotated
 
 
+def _effective_installment_index(doc: dict, bundle, contract_doc: Optional[dict], extracted: dict) -> Optional[int]:
+    """Index of the payment-schedule row this invoice is matched against, or None
+    when there isn't a meaningful one (no schedule, or a utility billed on
+    actuals). Mirrors _matched_installment but returns the position, so the
+    Matching page can show it as preselected."""
+    if _has_no_schedule_charge(extracted):
+        return None
+    schedule = _effective_payment_schedule(bundle.payment_schedule if bundle else None, contract_doc)
+    rows = (schedule or {}).get("installments") or []
+    if not rows:
+        return None
+    inst = _matched_installment(doc, schedule, extracted)
+    return rows.index(inst) if inst in rows else None
+
+
 async def invoice_out(db, doc: dict) -> dict:
     extracted = _merge(doc.get("base_extracted") or {}, doc.get("edited_extracted"))
+    matched_contract_doc = await _fetch_matched_contract_doc(db, doc)
     match_result = doc.get("match_result")
     findings = _refresh_findings_from_extracted((match_result or {}).get("findings") or [], extracted)
     findings = await _apply_mandatory_field_coverage(db, doc, findings, extracted)
@@ -780,6 +941,21 @@ async def invoice_out(db, doc: dict) -> dict:
             for i, f in enumerate(document.faktur_pajak_pdfs if document else [])
         ],
         "has_payment_schedule": bool(bundle and bundle.payment_schedule),
+        # Matching's installment picker: the rows on offer, which one is in
+        # effect, and whether that was a human's pick or the automatic
+        # amount-proximity guess (see _matched_installment).
+        "payment_schedule_options": _schedule_options(
+            _effective_payment_schedule(bundle.payment_schedule if bundle else None, matched_contract_doc)
+        ),
+        # The manual pin (None when nobody has pinned one) ...
+        "installment_index": doc.get("installment_index"),
+        "installment_is_manual": isinstance(doc.get("installment_index"), int),
+        # ... and the row actually IN EFFECT, which is what the picker shows as
+        # preselected: the pin when set, otherwise the automatic amount match.
+        # Suppressed for a utility invoice billed on actuals, where no schedule
+        # row is a meaningful counterpart and _match_payment_installment would
+        # only return the numerically nearest, misleading, row.
+        "matched_installment_index": _effective_installment_index(doc, bundle, matched_contract_doc, extracted),
         "expected": (match_result or {}).get("expected"),
         "summary": (match_result or {}).get("summary"),
         "findings": findings,
@@ -1158,6 +1334,9 @@ async def upload_invoice(
         # comparison is a stable snapshot like base_extracted/base_fields,
         # not something that could shift under an in-progress review.
         "supporting_document": None,
+        # Human override for which schedule row this invoice is matched
+        # against; None means fall back to amount proximity.
+        "installment_index": None,
         "contract_id": None,
         "match_result": None,
         "original_findings": None,
@@ -1184,6 +1363,23 @@ async def upload_invoice(
     result = await dp_invoice_runs(db).insert_one(doc)
     doc["_id"] = result.inserted_id
     return await invoice_out(db, doc)
+
+
+async def set_matched_installment(db, oid: ObjectId, installment_index: Optional[int]) -> dict:
+    """Pin (or unpin, with None) which payment-schedule row this invoice is
+    matched against. Everything downstream reads it through
+    _matched_installment, so Matching, Bill Posting and Simulate all follow."""
+    doc = await get_invoice_doc(db, oid)
+    bundle = get_dp_loader().discover().get(doc.get("fixture_key"))
+    contract_doc = await _fetch_matched_contract_doc(db, doc)
+    schedule = _effective_payment_schedule(bundle.payment_schedule if bundle else None, contract_doc)
+    rows = (schedule or {}).get("installments") or []
+    if installment_index is not None and not (0 <= installment_index < len(rows)):
+        raise InvalidStateError("That installment does not exist on this contract's payment schedule")
+    await dp_invoice_runs(db).update_one(
+        {"_id": oid}, {"$set": {"installment_index": installment_index, "updated_at": _now()}}
+    )
+    return await invoice_out(db, await get_invoice_doc(db, oid))
 
 
 async def list_invoices(db) -> list[dict]:
@@ -1735,7 +1931,7 @@ def _bill_posting_out(doc: dict, contract_doc: Optional[dict] = None) -> dict:
     # simulated posting and "Payable Amount" isn't silently left as the gross
     # total instead of the true net-of-WHT figure.
     schedule = _effective_payment_schedule(bundle.payment_schedule if bundle else None, contract_doc)
-    installment = _match_payment_installment(schedule, extracted) if schedule else None
+    installment = _matched_installment(doc, schedule, extracted)
     wht_value = extracted.get("wht")
     if wht_value is None and installment:
         wht_value = installment.get("wht_amount")
@@ -1775,6 +1971,9 @@ def _bill_posting_out(doc: dict, contract_doc: Optional[dict] = None) -> dict:
         wht_value = installment.get("wht_amount")
         payable_amount = installment.get("net_payment_to_lessor")
 
+    installments = (schedule or {}).get("installments") or []
+    matched_installment_index = installments.index(installment) if installment in installments else None
+
     return {
         "id": str(doc["_id"]),
         "status": doc.get("status"),
@@ -1793,6 +1992,9 @@ def _bill_posting_out(doc: dict, contract_doc: Optional[dict] = None) -> dict:
         "grand_total": extracted.get("total_amount"),
         "payable_amount": payable_amount,
         "wht_applicable": defaults.get("wht_applicable", False),
+        # Payment-schedule row in effect, for linking WHT to the contract's own
+        # WHT Rate from the Bill Posting page.
+        "matched_installment_index": matched_installment_index,
         # Drives hiding the VAT/GST Tax Code column on the Bill Posting page —
         # RATNA_INTAN only, see is_ratna_intan above. True for every other
         # vendor (no fixture currently opts a different vendor out of VAT).
@@ -2094,8 +2296,11 @@ async def simulate_bill_posting(db, oid: ObjectId) -> dict:
         rows.append({
             "position": pos,
             "posting_key": "40 · Debit",
-            "account": "6400 · Stamp Duty",
-            "description": "Stamp duty (Materai)",
+            # Posted to the invoice's own rent/expense account as an
+            # unallocated difference, per explicit instruction, rather than to a
+            # dedicated stamp-duty account.
+            "account": f"{(line_items[0].get('gl_account_code') if line_items else None) or '6100-RENT'} · rent",
+            "description": "Unallocated difference",
             "tax_code": "—",
             "debit": round(stamp_duty_amount, 2),
             "credit": 0,

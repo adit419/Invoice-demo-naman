@@ -104,6 +104,11 @@ class DpAckThresholdRequest(BaseModel):
     value: int
 
 
+class DpMatchedInstallmentRequest(BaseModel):
+    # None reverts to the automatic amount-proximity match.
+    installment_index: Optional[int] = None
+
+
 class DpTotalBeforeVatThresholdRequest(BaseModel):
     enabled: bool
     threshold_pct: float

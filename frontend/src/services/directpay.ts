@@ -136,6 +136,14 @@ export interface DpTotalBeforeVatThreshold {
   threshold_pct: number;
 }
 
+export interface DpScheduleOption {
+  index: number;
+  label: string;
+  category: string;
+  due_date?: string | null;
+  amount_excl_tax?: number | null;
+}
+
 export interface DpFinding {
   finding_id: string;
   severity: "error" | "warning" | "info";
@@ -212,6 +220,14 @@ export interface DpInvoiceRun {
   // Individually linkable Faktur Pajak PDFs when one invoice has several
   // (KARYA_NASTARI invoice_3: Admin Fee / Water / Electricity).
   faktur_pajak_documents?: { index: number; label: string }[];
+  // Matching's installment picker: rows on offer, which is in effect, and
+  // whether that was a human's pick or the automatic amount-proximity guess.
+  payment_schedule_options?: DpScheduleOption[];
+  installment_index?: number | null;
+  installment_is_manual?: boolean;
+  /** Row actually in effect (the pin when set, else the automatic amount match).
+   *  Null for a utility invoice, which has no meaningful schedule counterpart. */
+  matched_installment_index?: number | null;
   has_payment_schedule: boolean;
   // "manual" (real multipart /invoices/upload) vs "trigger"
   // (/ingestion/trigger-upload, single or batch) — drives the dashboard's
@@ -299,6 +315,8 @@ export interface DpBillPostingData {
   // False only for a vendor with no VAT at all (RATNA_INTAN) — drives
   // hiding the VAT/GST Tax Code column on the Bill Posting page.
   vat_applicable: boolean;
+  /** Payment-schedule row in effect, for linking WHT to the contract's WHT Rate. */
+  matched_installment_index?: number | null;
   line_items: DpBillPostingLineItem[];
   erp: DpBillPostingErp | null;
   updated_at: string;
@@ -510,6 +528,8 @@ export const directpayService = {
   // otherwise, same as before.
   fakturPajakPdfUrl: (id: string) => `/dp-api/invoices/${id}/faktur-pajak/pdf`,
   supportingDocumentPdfUrl: (id: string) => `/dp-api/invoices/${id}/supporting-document/pdf`,
+  setMatchedInstallment: (id: string, installmentIndex: number | null) =>
+    api.patch<DpInvoiceRun>(`/dp-api/invoices/${id}/matched-installment`, { installment_index: installmentIndex }),
   fakturPajakDocumentPdfUrl: (id: string, index: number) =>
     `/dp-api/invoices/${id}/faktur-pajak/documents/${index}/pdf`,
 

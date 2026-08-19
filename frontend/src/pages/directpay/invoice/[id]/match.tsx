@@ -48,6 +48,7 @@ function InvoiceMatchPage() {
   const [invoicePdfOpen, setInvoicePdfOpen] = useState(false);
   const [contractPdfOpen, setContractPdfOpen] = useState(false);
   const [contractExtractionOpen, setContractExtractionOpen] = useState(false);
+  const [contractModalTab, setContractModalTab] = useState<"extracted" | "derived">("extracted");
   const [supportingDocOpen, setSupportingDocOpen] = useState(false);
   const [fpDocIndex, setFpDocIndex] = useState<number | null>(null);
   const [escalateOpen, setEscalateOpen] = useState(false);
@@ -61,6 +62,19 @@ function InvoiceMatchPage() {
   useEffect(() => {
     setPdfToken(localStorage.getItem("access_token"));
   }, []);
+
+  const handleInstallmentChange = async (index: number | null) => {
+    if (!id) return;
+    setBusy(true); setBusyLabel("Updating matched installment…");
+    try {
+      await directpayService.setMatchedInstallment(id, index);
+      await load();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : "Could not change the matched installment", "error");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const loadThreshold = useCallback(() => {
     directpayService.getTotalBeforeVatThreshold().then(setThreshold).catch(() => { /* keep default */ });
@@ -238,6 +252,51 @@ function InvoiceMatchPage() {
       : null,
   ].filter(Boolean) as { icon: React.ReactNode; text: string; onClick?: () => void }[];
 
+  // Invoice type flag. "Utility" is exactly the metered charges; everything
+  // else (rent, service charge, admin fee) is a rent-type flow.
+  const invoiceKind: "Utility" | "Rent" = (run.extracted.line_items ?? []).some(
+    (li) => li.charge_type === "utility_electricity" || li.charge_type === "utility_water"
+  )
+    ? "Utility"
+    : "Rent";
+
+  const scheduleOptions = run.payment_schedule_options ?? [];
+  const matchedInstallmentIndex = run.matched_installment_index ?? null;
+  // A utility invoice is billed on actual metered consumption, so the contract's
+  // payment schedule has no counterpart row for it at all — the backend returns
+  // matched_installment_index: null for exactly this reason (_has_no_schedule_charge).
+  // Pinning one would assert a match that doesn't exist, so the picker is locked.
+  const scheduleLocked = invoiceKind === "Utility";
+  // Grouped by category (Rent / Service Charge / Promotion Levy) because a
+  // vendor can have several parallel schedules — PAKUWON has 75 rows across 3.
+  const scheduleGroups = Array.from(new Set(scheduleOptions.map((o) => o.category))).map((cat) => ({
+    label: cat,
+    options: scheduleOptions
+      .filter((o) => o.category === cat)
+      // Just the row's own heading. Due date and amount were truncating away at
+      // this width, and the group header already says which schedule it is.
+      .map((o) => ({ value: o.index, label: o.label })),
+  }));
+
+  const kindBadge = (
+    <span
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 5,
+        padding: "1px 9px", borderRadius: 9999, fontSize: 11.5, fontWeight: 600, whiteSpace: "nowrap",
+        background: invoiceKind === "Utility" ? "#FFF7ED" : "#EEF2FF",
+        color: invoiceKind === "Utility" ? "#B45309" : "#3B5BDB",
+        border: `1px solid ${invoiceKind === "Utility" ? "#FED7AA" : "#C7D7FD"}`,
+      }}
+      title={
+        invoiceKind === "Utility"
+          ? "Utility invoice, billed on actual consumption"
+          : "Rent-type invoice, billed against the contract's payment schedule"
+      }
+    >
+      {invoiceKind}
+    </span>
+  );
+
   const findings = run.findings ?? [];
   // Every finding is acknowledgeable regardless of severity (mirrors P2P's
   // MetadataTab, where Acknowledge is exactly how a mandatory-field mismatch
@@ -311,16 +370,16 @@ function InvoiceMatchPage() {
     </AntButton>
   ) : (
     <Space>
-      {/* Placeholder — intentionally does nothing yet. Inactive by default,
-          becoming active only when the Total Amount Before VAT match isn't
-          satisfied, since emailing an escalation is only meaningful once this
-          invoice genuinely can't clear Matching on its own. */}
+      {/* Inactive by default, becoming active only when the Total Amount Before
+          VAT match isn't satisfied, since emailing an escalation is only
+          meaningful once this invoice genuinely can't clear Matching on its own.
+          (No mail transport is wired into this app — see EscalateModal.) */}
       <AntButton
         onClick={() => setEscalateOpen(true)}
         disabled={busy || !totalBeforeVatUnsatisfied}
         title={
           totalBeforeVatUnsatisfied
-            ? "Escalate this invoice by email (not yet wired up)"
+            ? "Email this invoice to the Finance Approver for a decision"
             : "Available only when the Total Amount Before VAT match can't be satisfied"
         }
       >
@@ -379,6 +438,8 @@ function InvoiceMatchPage() {
         className="flex items-center justify-end gap-2"
         style={{ padding: "10px 24px", borderBottom: "1px solid #E6E6E6", background: "#ffffff" }}
       >
+        {kindBadge}
+        <div style={{ flex: 1 }} />
         <span className="text-xs font-medium text-gray-500">Contract</span>
         <AntSelect
           value={run.contract_id ?? undefined}
@@ -394,6 +455,48 @@ function InvoiceMatchPage() {
             label: `${c.fields.vendor_name ?? c.file_name} — ${c.fields.contract_type ?? ""}`,
           }))}
         />
+
+        {/* Which schedule row this invoice is matched against. Amount proximity
+            cannot tell apart rows that share an amount, so this makes the pick
+            explicit and correctable; it persists and drives Matching, Bill
+            Posting and Simulate alike. */}
+        {scheduleOptions.length > 0 && (
+          <>
+            <span className="text-xs font-medium text-gray-500" style={{ marginLeft: 8 }}>
+              Matched against
+            </span>
+            <span
+              style={{
+                fontSize: 10.5, fontWeight: 600, whiteSpace: "nowrap",
+                padding: "1px 7px", borderRadius: 9999,
+                background: run.installment_is_manual && !scheduleLocked ? "#EEF2FF" : "#F2F4F7",
+                color: run.installment_is_manual && !scheduleLocked ? "#3B5BDB" : "#6B7280",
+                border: `1px solid ${run.installment_is_manual && !scheduleLocked ? "#C7D7FD" : "#E4E7EC"}`,
+              }}
+              title={
+                scheduleLocked
+                  ? undefined
+                  : run.installment_is_manual
+                  ? "Pinned by a reviewer"
+                  : "Chosen automatically by matching the invoice amount. Pick a row to override."
+              }
+            >
+              {scheduleLocked ? "N/A" : run.installment_is_manual ? "Pinned" : "Auto"}
+            </span>
+            <AntSelect
+              value={scheduleLocked ? undefined : matchedInstallmentIndex ?? undefined}
+              placeholder={scheduleLocked ? "Not applicable (billed on actuals)" : "Auto (by amount)"}
+              style={{ width: 320 }}
+              size="small"
+              showSearch
+              allowClear
+              disabled={isTerminal || busy || scheduleLocked}
+              optionFilterProp="label"
+              onChange={(v) => void handleInstallmentChange(typeof v === "number" ? v : null)}
+              options={scheduleGroups}
+            />
+          </>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -468,6 +571,14 @@ function InvoiceMatchPage() {
             // FP is derived from the vendor's own billing, so it validates
             // nothing. (fpDocs stays available for viewing, just not as a
             // supporting document.)
+            contractSourceLink={
+              run.contract_id && scheduleOptions.length > 0
+                ? {
+                    label: "Contract payment schedule (matched row)",
+                    onOpen: () => { setContractModalTab("derived"); setContractExtractionOpen(true); },
+                  }
+                : undefined
+            }
             referenceDocs={
               run.has_supporting_document_pdf
                 ? [{ label: "Supporting Doc", onOpen: () => setSupportingDocOpen(true) }]
@@ -554,8 +665,10 @@ function InvoiceMatchPage() {
       )}
       <ContractExtractionModal
         open={contractExtractionOpen}
-        onClose={() => setContractExtractionOpen(false)}
+        onClose={() => { setContractExtractionOpen(false); setContractModalTab("extracted"); }}
         contractId={run.contract_id}
+        initialTab={contractModalTab}
+        highlightInstallmentIndex={matchedInstallmentIndex}
       />
     </div>
   );

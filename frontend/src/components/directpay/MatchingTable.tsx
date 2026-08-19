@@ -9,131 +9,14 @@
 // the invoice — nothing back-populates the invoice's own extraction record.
 // A real mismatch (invoice HAS a value, it just disagrees) still gets
 // Acknowledge.
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Table } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { DpFinding, DpInvoiceExtracted } from "@/services/directpay";
 import { AiSparkleIcon, AI_VALUE_STYLE } from "@/components/directpay/AiContractBanner";
+import { SourceNote, type CardLink } from "@/components/directpay/AiValueNote";
 
 const tableClassName = "dp-matching-table";
-
-/**
- * Explains a Contract-column value that didn't actually come from the
- * contract — a utility the contract only says is "billed as per actuals",
- * whose real amount was taken from the invoice's supporting document.
- *
- * The same inline-AI-derived-value treatment P2P uses for an AI-filled
- * metadata field (see NeoAiSuggestionBanner.tsx's AiAnalysisInfo and
- * pages/invoice/[id]/review.tsx's use of it): sparkle + italic #1F5BD5 value
- * + this hover ⓘ, same icon geometry and white card chrome, positioned
- * fixed/viewport-clamped so it's never clipped by the table's overflow
- * container.
- */
-function SupportingDocumentInfo({ docs }: { docs?: { label: string; onOpen: () => void }[] }) {
-  const [pos, setPos] = useState<{ left: number; top?: number; bottom?: number } | null>(null);
-
-  const CARD_W = 300;
-  // Only used to DECIDE whether to flip, never to position — a flipped card
-  // is anchored by `bottom` (see below), so an imprecise estimate here can't
-  // misalign it. Comfortably above the card's real rendered height (~170px).
-  const CARD_H_ESTIMATE = 220;
-  const show = (e: React.MouseEvent<HTMLElement>) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    const left = Math.max(12, Math.min(r.right - CARD_W, window.innerWidth - CARD_W - 12));
-    // Opens below by default, but flips above when the row is near the bottom
-    // of the viewport — otherwise the card runs off the bottom edge and gets
-    // cut off. Anchoring the flipped case by `bottom` rather than a computed
-    // `top` keeps it exactly 8px above the icon whatever the card's height.
-    if (window.innerHeight - r.bottom < CARD_H_ESTIMATE) {
-      setPos({ left, bottom: window.innerHeight - r.top + 8 });
-    } else {
-      setPos({ left, top: r.bottom + 8 });
-    }
-  };
-
-  return (
-    <span
-      className="inline-flex items-center shrink-0"
-      style={{ position: "relative" }}
-      onMouseEnter={show}
-      onMouseLeave={() => setPos(null)}
-      onClick={(e) => e.stopPropagation()}
-    >
-      <span
-        aria-label="Why this value came from the supporting document"
-        style={{
-          display: "inline-flex", alignItems: "center", justifyContent: "center",
-          width: 18, height: 18, borderRadius: "50%", cursor: "default",
-          color: pos ? "#1F5BD5" : "#8FADEA",
-        }}
-      >
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-          <circle cx="7" cy="7" r="6" stroke="currentColor" strokeWidth="1.3" />
-          <path d="M7 6.3v3.4M7 4.2h.01" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-        </svg>
-      </span>
-
-      {pos && (
-        <div
-          style={{
-            position: "fixed", top: pos.top, bottom: pos.bottom, left: pos.left,
-            width: CARD_W, zIndex: 1000,
-            background: "#ffffff", border: "1px solid #DFE5EE", borderRadius: 8,
-            boxShadow: "0 8px 24px rgba(16,24,40,0.12)", padding: "12px 14px",
-            textAlign: "left", cursor: "default", fontFamily: "Inter, sans-serif",
-          }}
-        >
-          <div className="flex items-center justify-between gap-2" style={{ marginBottom: 8 }}>
-            <span className="flex items-center gap-1.5" style={{ fontSize: 12.5, fontWeight: 600, color: "#0D388D" }}>
-              <AiSparkleIcon size={14} />
-              Neo AI analysis
-            </span>
-            <span style={{
-              fontSize: 11, fontWeight: 600, color: "#1F5BD5",
-              background: "#EDF3FF", border: "1px solid #CFE2FF",
-              borderRadius: 999, padding: "1px 8px", whiteSpace: "nowrap",
-            }}>
-              Supporting document
-            </span>
-          </div>
-
-          <div style={{ fontSize: 11.5, color: "#585C65", lineHeight: "15px", marginBottom: 4 }}>
-            Sourced from the invoice&apos;s <strong style={{ color: "#414651" }}>supporting document</strong>,
-            not the contract.
-          </div>
-
-          <div style={{ fontSize: 11, color: "#8D92A6", lineHeight: "15px" }}>
-            The contract sets the billing rule for this utility — charged on actual consumption
-            (&ldquo;as per actuals&rdquo;) — so it states no fixed amount. Neo AI took the actual amount from
-            the supporting document to compare the invoice against.
-          </div>
-          {docs && docs.length > 0 && (
-            <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid #EEF0F3" }}>
-              <div style={{ fontSize: 10.5, fontWeight: 600, color: "#8D92A6", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 4 }}>
-                Supporting Documents
-              </div>
-              {docs.map((d) => (
-                <div key={d.label} style={{ marginTop: 2 }}>
-                  <button
-                    type="button"
-                    onClick={d.onOpen}
-                    style={{
-                      background: "none", border: "none", padding: 0, font: "inherit", textAlign: "left",
-                      fontSize: 11.5, color: "#1F5BD5", fontWeight: 600,
-                      textDecoration: "underline", cursor: "pointer",
-                    }}
-                  >
-                    {d.label}
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </span>
-  );
-}
 
 // Short field-column labels — mirrors the plain "display_name" MetadataTab
 // shows for P2P (no long sentence, no description line). Keyed by the same
@@ -218,7 +101,10 @@ interface MatchingTableProps {
   onToggleAcknowledge: (findingId: string, acknowledged: boolean) => void;
   /** Documents backing a supporting-document-sourced value, linked from that
    *  row's ⓘ card (a utility billed on actuals; several for a Faktur Pajak set). */
-  referenceDocs?: { label: string; onOpen: () => void }[];
+  referenceDocs?: CardLink[];
+  /** Opens the payment-schedule row a contract-sourced amount came from, for
+   *  the fields whose reference is an installment rather than a flat field. */
+  contractSourceLink?: CardLink;
 }
 
 export function MatchingTable({
@@ -229,6 +115,7 @@ export function MatchingTable({
   readonly,
   onToggleAcknowledge,
   referenceDocs,
+  contractSourceLink,
 }: MatchingTableProps) {
   const isResolved = (f: DpFinding): boolean => isFindingResolved(f, extracted);
   const isSystemAcked = (f: DpFinding): boolean => systemAcknowledgedFindings.includes(f.finding_id);
@@ -300,7 +187,7 @@ export function MatchingTable({
               </span>
               {systemAcked ? (
                 <span
-                  title="Auto-approved — the DirectPay Acknowledge Threshold has learned this exact mismatch from prior manual acknowledgements"
+                  title="Auto-approved. The DirectPay Acknowledge Threshold has learned this exact mismatch from prior manual acknowledgements."
                   style={{
                     display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0, whiteSpace: "nowrap",
                     padding: "2px 10px", borderRadius: 9999,
@@ -320,7 +207,7 @@ export function MatchingTable({
                 <button
                   type="button"
                   onClick={!readonly ? () => onToggleAcknowledge(f.finding_id, false) : undefined}
-                  title={!readonly ? "Acknowledged — click to revert" : "Acknowledged"}
+                  title={!readonly ? "Acknowledged. Click to revert." : "Acknowledged"}
                   style={{
                     display: "inline-flex", alignItems: "center", justifyContent: "center",
                     width: 22, height: 22, borderRadius: "50%", flexShrink: 0,
@@ -381,13 +268,35 @@ export function MatchingTable({
               >
                 {f.expected ?? ""}
               </span>
-              {fromSupportingDoc && f.expected != null && <SupportingDocumentInfo docs={referenceDocs} />}
+              {!fromSupportingDoc && f.expected != null && contractSourceLink
+                && f.field === "total_amount_before_vat" && (
+                <SourceNote
+                  title="Contract payment schedule"
+                  text={
+                    "This figure comes from the matched row of the contract's own payment schedule, " +
+                    "reviewed at the Contract Extraction Postprocessing stage."
+                  }
+                  links={[contractSourceLink]}
+                  linksHeading="Open source"
+                />
+              )}
+              {fromSupportingDoc && f.expected != null && (
+                <SourceNote
+                  title="Supporting document"
+                  text={
+                    "The contract sets the billing rule for this utility, charged on actual consumption, " +
+                    "so it states no fixed amount. The amount compared here is the actual taken from the " +
+                    "supporting document."
+                  }
+                  links={referenceDocs}
+                />
+              )}
             </div>
           );
         },
       },
     ],
-    [acknowledgedFindings, systemAcknowledgedFindings, extracted, readonly, onToggleAcknowledge, referenceDocs]
+    [acknowledgedFindings, systemAcknowledgedFindings, extracted, readonly, onToggleAcknowledge, referenceDocs, contractSourceLink]
   );
 
   const tableStyles = `
