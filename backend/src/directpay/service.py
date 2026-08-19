@@ -477,8 +477,8 @@ def _parse_loose_date(value) -> Optional[datetime]:
 
 
 def _due_date_tiebreak(schedule: Optional[dict], extracted: dict) -> Optional[dict]:
-    """Disambiguate rows that are equally close on amount by matching the
-    invoice's own due date against the schedule row's.
+    """Disambiguate rows that are equally close on amount by matching a date the
+    invoice itself prints against the schedule row's due date.
 
     Amount alone cannot separate a schedule that repeats the same figure, e.g.
     PAKUWON's 3 down payments (all 30,000,000) and 24 monthly instalments (all
@@ -486,8 +486,18 @@ def _due_date_tiebreak(schedule: Optional[dict], extracted: dict) -> Optional[di
     which period the invoice is actually for. Only ever returns a row on an EXACT
     due-date match, so where the dates don't line up the existing pick stands."""
     installments = (schedule or {}).get("installments") or []
-    inv_due = _parse_loose_date(extracted.get("due_date"))
-    if not inv_due or len(installments) < 2:
+    # Two invoice-side dates can identify the period, tried in this order:
+    #   1. the invoice's own due date (PAKUWON's case — its due dates coincide
+    #      with the schedule's), then
+    #   2. the start of the billing period the invoice prints (GRAHA_MEGARIA's
+    #      case — it bills "Period From : 01-Aug-2026 to 31-Aug-2026" and each
+    #      schedule row falls due on the first day of the month it covers,
+    #      while the invoice's own due date is 3 weeks earlier).
+    # Every other vendor's invoices leave billing_period_start as "NA", so
+    # candidate 2 simply never fires for them.
+    candidates = [_parse_loose_date(extracted.get("due_date")),
+                  _parse_loose_date(extracted.get("billing_period_start"))]
+    if not any(candidates) or len(installments) < 2:
         return None
     try:
         target = float(extracted.get("total_amount_before_vat"))
@@ -506,8 +516,13 @@ def _due_date_tiebreak(schedule: Optional[dict], extracted: dict) -> Optional[di
     ties = [inst for d, inst in scored if abs(d - best) < 0.01]
     if len(ties) < 2:
         return None  # nothing ambiguous to break
-    exact = [i for i in ties if _parse_loose_date(i.get("due_date")) == inv_due]
-    return exact[0] if len(exact) == 1 else None
+    for inv_date in candidates:
+        if not inv_date:
+            continue
+        exact = [i for i in ties if _parse_loose_date(i.get("due_date")) == inv_date]
+        if len(exact) == 1:
+            return exact[0]
+    return None
 
 
 def _matched_installment(doc: dict, schedule: Optional[dict], extracted: dict) -> Optional[dict]:
@@ -1308,13 +1323,23 @@ async def upload_invoice(
     # upload's document_key — a second upload teaches the system nothing new,
     # it would just be a duplicate dashboard row that also never resolves
     # a Faktur Pajak stage of its own).
+    #
+    # Scoped to a run that is still IN FLIGHT, newest first. A run that has
+    # finished (TERMINAL_STATUSES — posted/rejected) no longer has a Faktur
+    # Pajak stage to attach anything to, so re-uploading the pair after that
+    # legitimately means "process this document again" and starts a fresh run.
+    # Without this scope the lookup could not tell the FP partner of the run
+    # just created from a deliberate re-run, so every later upload of either
+    # file kept returning the very first run forever — even a posted one.
     if document:
-        existing = await dp_invoice_runs(db).find_one({
+        cursor = dp_invoice_runs(db).find({
             "fixture_key": bundle.key,
             "document_key": document.key,
-        })
-        if existing:
-            return await invoice_out(db, existing)
+            "status": {"$nin": list(TERMINAL_STATUSES)},
+        }).sort("created_at", -1)
+        in_flight = await cursor.to_list(length=1)
+        if in_flight:
+            return await invoice_out(db, in_flight[0])
 
     now = _now()
     doc = {
@@ -1410,18 +1435,30 @@ async def extract_invoice(db, oid: ObjectId) -> dict:
     # Contract extraction). None for every document that doesn't carry one.
     supporting_document = document.supporting_document if document else None
 
-    await dp_invoice_runs(db).update_one(
-        {"_id": oid},
-        {"$set": {
-            "base_extracted": extracted,
-            "supporting_document": supporting_document,
-            "status": "extracted",
-            "updated_at": _now(),
-        }},
-    )
-    doc["base_extracted"] = extracted
-    doc["supporting_document"] = supporting_document
-    doc["status"] = "extracted"
+    # One-way stage advance, exactly like confirm_extraction's own: re-extracting
+    # a run that has ALREADY moved past Extraction refreshes its extracted data
+    # but must never drag its status backwards.
+    #
+    # This is reachable in normal use. dashboard.tsx's upload paths call
+    # /extract unconditionally after an upload (review.tsx and fp-extraction.tsx
+    # both guard on status == "extraction"; the dashboard does not), and
+    # upload_invoice deliberately returns the SAME in-flight run when an
+    # invoice or its Faktur Pajak is uploaded again. Re-uploading a pair whose
+    # run had already reached Matching therefore reset it to "extracted", and
+    # because its contract_id was set by then, get_contract_recommendation
+    # short-circuited on "contract_already_set" and nothing ever put it back —
+    # leaving Matching showing every check green while review_action rejected
+    # the approval with "This invoice is not at the Matching stage".
+    set_fields = {
+        "base_extracted": extracted,
+        "supporting_document": supporting_document,
+        "updated_at": _now(),
+    }
+    if doc.get("status") == "extraction":
+        set_fields["status"] = "extracted"
+
+    await dp_invoice_runs(db).update_one({"_id": oid}, {"$set": set_fields})
+    doc.update(set_fields)
     return await invoice_out(db, doc)
 
 
@@ -1864,6 +1901,19 @@ def _bill_posting_out(doc: dict, contract_doc: Optional[dict] = None) -> dict:
     # page) — no VAT Tax Code column/value applies to its line items either.
     is_ratna_intan = doc.get("fixture_key") == "RATNA_INTAN"
 
+    # Defaults are matched to a line item BY CHARGE TYPE first, falling back to
+    # the positional pairing this file has always used. Positional alone breaks
+    # for a vendor whose several invoices each carry one line item of a DIFFERENT
+    # charge type (GRAHA_MEGARIA bills Rent, Service Charge, Electricity and
+    # Water as four separate invoices): every one of them reads default_items[0]
+    # and so would post to the same G/L account. Purely additive — a fixture
+    # whose defaults don't name the charge type keeps the old behaviour exactly.
+    defaults_by_charge_type = {}
+    for d in default_items:
+        ct = d.get("charge_type")
+        if ct:
+            defaults_by_charge_type.setdefault(ct, d)
+
     line_items = []
     for idx, item in enumerate(extracted.get("line_items") or []):
         # A WHT-deduction line (e.g. RATNA_INTAN's own "Pemotongan PPH" row)
@@ -1885,7 +1935,10 @@ def _bill_posting_out(doc: dict, contract_doc: Optional[dict] = None) -> dict:
         if item.get("charge_type") in ("wht_deduction", "stamp_duty", "late_fee"):
             continue
         row_id = str(idx)
-        item_defaults = default_items[idx] if idx < len(default_items) else {}
+        item_defaults = (
+            defaults_by_charge_type.get(item.get("charge_type"))
+            or (default_items[idx] if idx < len(default_items) else {})
+        )
         row_overrides = overrides.get(row_id) or {}
         line_items.append({
             "id": row_id,

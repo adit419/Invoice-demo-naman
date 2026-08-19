@@ -1,0 +1,29 @@
+{
+  "line_items": [
+    {
+      "charge_type": "rental_fee",
+      "gl_account_code": "6100-RENT",
+      "vat_tax_code": "IB",
+      "wht_tax_code": ""
+    },
+    {
+      "charge_type": "service_fee",
+      "gl_account_code": "6200-SVC",
+      "vat_tax_code": "IB",
+      "wht_tax_code": ""
+    },
+    {
+      "charge_type": "utility_electricity",
+      "gl_account_code": "6300-ELEC",
+      "vat_tax_code": "IB",
+      "wht_tax_code": ""
+    },
+    {
+      "charge_type": "utility_water",
+      "gl_account_code": "6310-WATER",
+      "vat_tax_code": "IB",
+      "wht_tax_code": ""
+    }
+  ],
+  "wht_applicable": false
+}

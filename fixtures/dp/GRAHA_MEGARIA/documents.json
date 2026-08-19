@@ -1,0 +1,64 @@
+{
+  "invoices": [
+    {
+      "key": "invoice_1",
+      "match": [
+        "inv_1",
+        "invoice_1",
+        "inv_fp_3",
+        "invoice_fp_3"
+      ],
+      "pdf": "invoice_1.pdf",
+      "extraction": "invoice_1_extraction.json",
+      "faktur_pajak": "faktur_pajak_1.json",
+      "faktur_pajak_pdf": "invoice_fp_3.pdf"
+    },
+    {
+      "key": "invoice_2",
+      "match": [
+        "inv_2",
+        "invoice_2",
+        "inv_fp_2",
+        "invoice_fp_2"
+      ],
+      "pdf": "invoice_2.pdf",
+      "extraction": "invoice_2_extraction.json",
+      "faktur_pajak": "faktur_pajak_2.json",
+      "faktur_pajak_pdf": "invoice_fp_2.pdf"
+    },
+    {
+      "key": "invoice_3",
+      "match": [
+        "inv_3",
+        "invoice_3",
+        "inv_fp_5",
+        "invoice_fp_5",
+        "supporting_doc_inv3",
+        "supporting_doc_water_3"
+      ],
+      "pdf": "invoice_3.pdf",
+      "extraction": "invoice_3_extraction.json",
+      "faktur_pajak": "faktur_pajak_3.json",
+      "faktur_pajak_pdf": "invoice_fp_5.pdf",
+      "supporting_document": "supporting_doc_inv3_extraction.json",
+      "supporting_document_pdf": "supporting_doc_inv3.pdf"
+    },
+    {
+      "key": "invoice_4",
+      "match": [
+        "inv_4",
+        "invoice_4",
+        "inv_fp_4",
+        "invoice_fp_4",
+        "supporting_doc_inv4",
+        "supporting_doc_electricity_4"
+      ],
+      "pdf": "invoice_4.pdf",
+      "extraction": "invoice_4_extraction.json",
+      "faktur_pajak": "faktur_pajak_4.json",
+      "faktur_pajak_pdf": "invoice_fp_4.pdf",
+      "supporting_document": "supporting_doc_inv4_extraction.json",
+      "supporting_document_pdf": "supporting_doc_inv4.pdf"
+    }
+  ]
+}
