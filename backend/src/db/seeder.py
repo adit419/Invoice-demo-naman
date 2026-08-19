@@ -137,6 +137,7 @@ SEED_NEOFLO_TEAM_USERS = [
     {"email": "sundip@neoflo.ai",    "full_name": "Sundip"},
     {"email": "vibs@neoflo.ai",      "full_name": "Vibs"},
     {"email": "adit.n@neoflo.ai",    "full_name": "Adit"},
+    {"email": "bheem@neoflo.ai",    "full_name": "Bheem"},
 ]
 
 NEOFLO_TEAM_PASSWORD = "Neoflo@123"
