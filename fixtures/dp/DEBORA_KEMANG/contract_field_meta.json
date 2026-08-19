@@ -1,0 +1,345 @@
+{
+  "premises_address": {
+    "label": "Property / Premises Address",
+    "section": "PROPERTY & PARTIES",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "vendor_name": {
+    "label": "Vendor Name",
+    "section": "PROPERTY & PARTIES",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": "Debora Debby Wage is an individual property owner, not a company — the agreement calls her \"the PARTNER\" (MITRA), not a Lessor. Both invoices are issued in her personal name, which is why they carry no Faktur Pajak."
+  },
+  "lessor_phone": {
+    "label": "Vendor Phone",
+    "section": "PROPERTY & PARTIES",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "vendor_email": {
+    "label": "Vendor Email",
+    "section": "PROPERTY & PARTIES",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "lessor_npwp": {
+    "label": "Vendor NPWP",
+    "section": "PROPERTY & PARTIES",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": "Not stated. The source tracker records a NIK (National Identity Number) 3276024502830010 instead, consistent with an individual rather than a registered taxable business (non-PKP)."
+  },
+  "customer_name": {
+    "label": "Customer Name",
+    "section": "PROPERTY & PARTIES",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "actual_start": {
+    "label": "Lease Commencement Date",
+    "section": "AGREEMENT DATES & TERM",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "lease_expiry_date": {
+    "label": "Lease Expiry Date",
+    "section": "AGREEMENT DATES & TERM",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "lock_in_period_months": {
+    "label": "Lock-in Period (Months)",
+    "section": "AGREEMENT DATES & TERM",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "term_months": {
+    "label": "Tenure (Months)",
+    "section": "AGREEMENT DATES & TERM",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "rent_basis_type": {
+    "label": "Rent Basis Type",
+    "section": "RENT & DEPOSIT",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": "Revenue Share, flat 15% of Net Sales Value for all 5 years. There is no fixed rent, so Base Rent, Monthly Rent, Total Contract Value and No. of Installments are all blank in the source BY DESIGN, not missing."
+  },
+  "currency": {
+    "label": "Currency",
+    "section": "RENT & DEPOSIT",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "vat_included": {
+    "label": "VAT Incl/Excl",
+    "section": "RENT & DEPOSIT",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "vat_rate": {
+    "label": "VAT Rate",
+    "section": "RENT & DEPOSIT",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "base_rent_monthly_excl_tax": {
+    "label": "Base Rent (Excl Tax) Monthly",
+    "section": "RENT & DEPOSIT",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": "No fixed rent exists under a revenue-share agreement — blank in the source by design."
+  },
+  "monthly_rent_incl_tax": {
+    "label": "Monthly Rent incl. Tax (Cond.)",
+    "section": "RENT & DEPOSIT",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": "No fixed rent exists under a revenue-share agreement — blank in the source by design."
+  },
+  "total_contract_value": {
+    "label": "Total Contract Value, Lumpsum",
+    "section": "RENT & DEPOSIT",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": "Not computable: the total depends on 5 years of future sales. Do not enter the Rp211,670,000 Investment Cost here — that is paid by the PARTNER TO BBB for outlet assets, the opposite direction, and is tracked as a one-time payment instead."
+  },
+  "no_of_installments": {
+    "label": "No. of Installments",
+    "section": "RENT & DEPOSIT",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": "Not a fixed-installment contract. The derived schedule instead carries 60 monthly revenue-share periods plus 60 monthly IPL fee rows."
+  },
+  "base_fee": {
+    "label": "Monthly Rent",
+    "section": "RENT & DEPOSIT",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": "No fixed monthly rent to fall back on — the reference amount is computed as Revenue Share % x Net Sales instead."
+  },
+  "revenue_share_pct": {
+    "label": "Revenue Share (%)",
+    "section": "RENT & DEPOSIT",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": "The only rent driver this contract has: 15% of Net Sales Value, flat across all five years. Net Sales Value is the sales report's own Sales (Ex. PB1) less Biaya Ojol and Discount."
+  },
+  "revenue_threshold": {
+    "label": "Revenue Share Threshold Amount",
+    "section": "RENT & DEPOSIT",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": "No minimum threshold — 15% applies from Rp0 of Net Sales Value."
+  },
+  "rent_billing_day": {
+    "label": "Rent Billing Day",
+    "section": "RENT & DEPOSIT",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": "No fixed billing day. BBB sends the monthly sales report by the 10th of the following month, the PARTNER then invoices, and BBB pays within 14 working days of receiving a complete invoice."
+  },
+  "security_deposit": {
+    "label": "Security Deposit",
+    "section": "RENT & DEPOSIT",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": "No landlord-style deposit exists under this Cooperation Agreement structure."
+  },
+  "escalation_rate": {
+    "label": "Escalation Clause (%)",
+    "section": "ESCALATION",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "escalation_frequency": {
+    "label": "Escalation Frequency",
+    "section": "ESCALATION",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "escalation_starts_after_months": {
+    "label": "Escalation Starts After (months)",
+    "section": "ESCALATION",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "next_escalation_date": {
+    "label": "Next Escalation Date",
+    "section": "ESCALATION",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "first_escalation_date": {
+    "label": "First Escalation Date",
+    "section": "ESCALATION",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "utilities_billing": {
+    "label": "Utilities Billing",
+    "section": "UTILITIES & TAX",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": "BBB pays electricity, water, cleaning and maintenance directly. Separately the PARTNER levies a FLAT IPL fee of Rp4,000,000/month (security, cleanliness, waste) plus Rp11,000,000/month (electricity and water) = Rp15,000,000/month excl. VAT, explicitly in lieu of metered utility billing. That is why the utility invoice is matched against the IPL schedule and NOT treated as a billed-on-actuals charge."
+  },
+  "wht_applicable": {
+    "label": "WHT Applicable",
+    "section": "UTILITIES & TAX",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": "Recorded as \"Not stated\" in the source tracker; shown as NA. In practice PPh IS withheld — the utility invoice deducts 10% (\"Pemotongan PPH\") on both of its lines."
+  },
+  "wht_rate_pct": {
+    "label": "WHT Rate (%)",
+    "section": "UTILITIES & TAX",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": "Recorded as \"Not stated\" in the source tracker; shown as NA. The utility invoice implies 10% (Rp1,222,222 on Rp12,222,222), but no rate is printed anywhere and the contract only says \"per prevailing tax regulations\"."
+  },
+  "stamp_duty_registered": {
+    "label": "Stamp Duty / Registered",
+    "section": "LEGAL & COMPLIANCE",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "registration_number": {
+    "label": "Registration Number",
+    "section": "LEGAL & COMPLIANCE",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "notice_period_days": {
+    "label": "Notice Period (Days)",
+    "section": "LEGAL & COMPLIANCE",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "renewal_option": {
+    "label": "Renewal Option",
+    "section": "LEGAL & COMPLIANCE",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "property_code": {
+    "label": "Property Code",
+    "section": "STATUS & TRACKING",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "days_to_expiry": {
+    "label": "Days to Expiry",
+    "section": "STATUS & TRACKING",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "computed_status": {
+    "label": "Computed Status",
+    "section": "STATUS & TRACKING",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": "Active — signed 3-Mar-2026, term 12-Mar-2026 to 11-Mar-2031, both signature blocks executed."
+  },
+  "rent_commencement_date": {
+    "label": "Rent Commencement Date",
+    "section": "STATUS & TRACKING",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "rent_free_months": {
+    "label": "Rent Free Months",
+    "section": "PAYMENT STRUCTURE",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "co_landlord": {
+    "label": "Co-Landlord",
+    "section": "PAYMENT STRUCTURE",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "lessor_split_pct": {
+    "label": "Vendor Split (%)",
+    "section": "PAYMENT STRUCTURE",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "lessor_payment_share": {
+    "label": "Vendor Payment Share",
+    "section": "PAYMENT STRUCTURE",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "lessor_bank_account_name": {
+    "label": "Bank Account Name",
+    "section": "PAYMENT STRUCTURE",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": "Not in the tracker's own Field 46, but printed identically on both invoices and in the agreement's payment article: MANDIRI 1270000055283, DEBORA DEBBY WAGE."
+  },
+  "lessor_bank_account_number": {
+    "label": "Bank Account Number",
+    "section": "PAYMENT STRUCTURE",
+    "mandatory": true,
+    "audit_trail": null,
+    "ai_match_reasoning": "Not in the tracker's own Field 46, but printed identically on both invoices and in the agreement's payment article: MANDIRI 1270000055283."
+  },
+  "split_check": {
+    "label": "Split Check",
+    "section": "PAYMENT STRUCTURE",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "rent_scenario_notes": {
+    "label": "Rent Scenario Notes",
+    "section": "REVENUE & ADDITIONAL",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  },
+  "contract_type": {
+    "label": "Contract Type",
+    "section": "OTHER",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": "Perjanjian Kerja Sama (Cooperation Agreement), not a lease. Structurally different from every other vendor in this set."
+  },
+  "floor": {
+    "label": "Floor",
+    "section": "OTHER",
+    "mandatory": false,
+    "audit_trail": null,
+    "ai_match_reasoning": null
+  }
+}

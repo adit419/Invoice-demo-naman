@@ -292,6 +292,41 @@ def _is_non_rent_invoice(extracted: dict) -> bool:
 # comparison — per explicit instruction, it's shown empty instead of a
 # misleadingly specific number from an unrelated schedule category.
 _NO_SCHEDULE_CHARGE_TYPES = {"utility_electricity", "utility_water"}
+
+# A revenue-share contract has no fixed rent at all: the amount due is a
+# PERCENTAGE of the outlet's own reported sales, so the reference figure cannot
+# come from the contract alone or from a supporting document alone — it is
+# computed from one value in each.
+#   Revenue Share %  <- the matched schedule row's own `revenue_share_pct`
+#                       (contract derived fields)
+#   Net Sales        <- the supporting document's `net_sales`, i.e. the sales
+#                       report's own Sales (Ex. PB1) - Biaya Ojol - Discount
+#   Rent due         =  Revenue Share % x Net Sales
+# DEBORA_KEMANG is the first such vendor (Perjanjian Kerja Sama, 15% of Nilai
+# Penjualan Bersih). Its OTHER invoice — a flat monthly IPL fee covering
+# electricity/water plus security/cleaning — is deliberately NOT part of this:
+# it is a fixed contractual amount with its own schedule, so it carries
+# charge_type `ipl_fee` and is matched against that schedule the ordinary way.
+_REVENUE_SHARE_CHARGE_TYPES = {"revenue_share"}
+
+
+def _is_revenue_share_invoice(extracted: dict) -> bool:
+    line_items = extracted.get("line_items") or []
+    return any(item.get("charge_type") in _REVENUE_SHARE_CHARGE_TYPES for item in line_items)
+
+
+def _revenue_share_reference(doc: dict, installment: Optional[dict]):
+    """(amount_due, pct, net_sales) for a revenue-share invoice, or (None, ...)
+    when either input is missing — never a partial guess."""
+    supporting = doc.get("supporting_document") or {}
+    net_sales = supporting.get("net_sales")
+    pct = (installment or {}).get("revenue_share_pct")
+    if net_sales is None or pct is None:
+        return None, pct, net_sales
+    try:
+        return round(float(net_sales) * float(pct) / 100.0, 2), float(pct), float(net_sales)
+    except (TypeError, ValueError):
+        return None, pct, net_sales
 _NO_SCHEDULE_BLANK_FIELDS = {"total_amount_before_vat"}
 # This money field is mandatory-and-blocking even when there's no real
 # contract figure to compare against at all (e.g. Electricity/Water's
@@ -333,7 +368,7 @@ _RATNA_INTAN_NO_VAT_FIELDS = {"vat_gst", "tax_rate"}
 # vendor (Palladium/Pakuwon/Karya Nastari), whose own registered address
 # genuinely IS the mall the leased unit sits in — that comparison stays as-is
 # for those.
-_NO_STORE_LOCATION_MATCH_VENDORS = {"RATNA_INTAN", "PT_BANGUN"}
+_NO_STORE_LOCATION_MATCH_VENDORS = {"RATNA_INTAN", "PT_BANGUN", "DEBORA_KEMANG"}
 def _has_no_schedule_charge(extracted: dict) -> bool:
     line_items = extracted.get("line_items") or []
     return any(item.get("charge_type") in _NO_SCHEDULE_CHARGE_TYPES for item in line_items)
@@ -437,6 +472,13 @@ def _schedule_row_category(description: str) -> str:
         return "Promotion Levy"
     if "deposit" in d:
         return "Deposit"
+    # DEBORA_KEMANG runs two parallel monthly schedules — a revenue-share rent
+    # and a flat IPL fee — so they need their own groups to be tellable apart in
+    # the picker (both would otherwise fall through to "Rent").
+    if "revenue share" in d:
+        return "Revenue Share"
+    if "ipl" in d:
+        return "IPL Fee"
     return "Rent"
 
 
@@ -689,6 +731,21 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
                 # consistent with itself — not that the amount is correct. Left
                 # blank so the row fails and routes to manual review.
                 contract_value = None
+        # Revenue-share contracts (DEBORA_KEMANG): the rent due is
+        # Revenue Share % x Net Sales, so neither the schedule row's own stored
+        # amount nor the supporting document alone is the reference — see
+        # _revenue_share_reference. Computed live from both, so editing either
+        # the contract's % (Contract Postprocessing) or re-reading the sales
+        # report moves this figure. Placed BEFORE the RATNA/no-schedule
+        # overrides below and after the metered-utility branch above, so it only
+        # ever affects an invoice that actually carries a revenue_share line.
+        used_revenue_share = False
+        revenue_share_pct = revenue_share_net_sales = None
+        if core.invoice_field == "total_amount_before_vat" and _is_revenue_share_invoice(extracted):
+            rs_amount, revenue_share_pct, revenue_share_net_sales = _revenue_share_reference(doc, installment)
+            if rs_amount is not None:
+                contract_value = rs_amount
+                used_revenue_share = True
         # RATNA_INTAN's own no-VAT case (see _RATNA_INTAN_NO_VAT_FIELDS) — the
         # schedule's Amount (Excl. Tax)/VAT Amount don't apply to this vendor
         # at all, so there's genuinely nothing on the contract side either.
@@ -807,7 +864,11 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
                 # from the supporting document instead (see
                 # used_supporting_document above), so the wording shouldn't
                 # imply a "contract amount" that doesn't exist for this row.
-                reference_label = "supporting document amount" if used_supporting_document else "contract amount"
+                reference_label = (
+                    "supporting document amount" if used_supporting_document
+                    else "revenue share due" if used_revenue_share
+                    else "contract amount"
+                )
                 if within_threshold:
                     severity = "info"
                     # Mandatory either way (the field is never optional) — the
@@ -894,7 +955,21 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
             # AMOUNT came from the invoice's supporting document instead —
             # surfaced as an ⓘ next to the value so that's transparent rather
             # than implicit. See used_supporting_document above.
-            "expected_source": "supporting_document" if used_supporting_document else "contract",
+            "expected_source": (
+                "supporting_document" if used_supporting_document
+                else "revenue_share" if used_revenue_share
+                else "contract"
+            ),
+            # Only present on a revenue-share row, so the Matching page can show
+            # HOW the reference was derived rather than just the result.
+            **({
+                "revenue_share": {
+                    "pct": revenue_share_pct,
+                    "net_sales": revenue_share_net_sales,
+                    "formatted_net_sales": _format_finding_invoice_value(
+                        "total_amount_before_vat", revenue_share_net_sales, currency),
+                }
+            } if used_revenue_share else {}),
         })
     return annotated
 
@@ -1146,6 +1221,26 @@ _CONTRACT_DERIVED_COLUMNS = [
     ("payment_status", "Payment Status"),
 ]
 
+# Only meaningful for a revenue-share contract (DEBORA_KEMANG): the rent due is
+# Revenue Share % x Reported Net Sales rather than a stored flat amount, so both
+# inputs have to be visible and editable here — this IS the "contract derived
+# fields" the Matching page's revenue-share reference reads its % from. Appended
+# only when the vendor's own schedule carries them, so no other vendor gains two
+# permanently-NA columns.
+_REVENUE_SHARE_DERIVED_COLUMNS = [
+    ("revenue_share_pct", "Revenue Share %"),
+    ("reported_net_sales", "Reported Net Sales"),
+]
+
+
+def _contract_derived_columns(installments: list) -> list:
+    if any("revenue_share_pct" in (inst or {}) for inst in installments):
+        # Placed directly before the amount they produce, so the row reads
+        # left-to-right as the calculation: % x Net Sales = Total Before VAT.
+        i = [c[0] for c in _CONTRACT_DERIVED_COLUMNS].index("amount_excl_tax")
+        return _CONTRACT_DERIVED_COLUMNS[:i] + _REVENUE_SHARE_DERIVED_COLUMNS + _CONTRACT_DERIVED_COLUMNS[i:]
+    return _CONTRACT_DERIVED_COLUMNS
+
 
 def _format_contract_derived_value(key: str, value) -> str:
     if value is None:
@@ -1154,14 +1249,15 @@ def _format_contract_derived_value(key: str, value) -> str:
         # (driven by the raw `value` field being null, not by this string),
         # so the highlight survives showing visible text here.
         return "NA"
-    if key in ("vat_rate", "wht_rate"):
+    if key in ("vat_rate", "wht_rate", "revenue_share_pct"):
         # Stored as a whole percentage number (11, not 0.11) — same
         # convention as the contract's own flat vat_rate field.
         try:
             return f"{float(value):.0f}%"
         except (TypeError, ValueError):
             return str(value)
-    if key in ("amount_excl_tax", "vat_amount", "total_amount_incl_tax", "wht_amount", "net_payment_to_lessor"):
+    if key in ("amount_excl_tax", "vat_amount", "total_amount_incl_tax", "wht_amount",
+               "net_payment_to_lessor", "reported_net_sales"):
         try:
             return f"{float(value):,.2f}"
         except (TypeError, ValueError):
@@ -1180,6 +1276,7 @@ async def get_contract_extraction_postprocessing(db, oid: ObjectId) -> dict:
     inst_overrides = overrides.get("installments") or {}
     otp_overrides = overrides.get("one_time_payments") or {}
 
+    columns = _contract_derived_columns(installments)
     rows = [
         {
             "description": (merged := {**inst, **(inst_overrides.get(str(idx)) or {})}).get("description"),
@@ -1190,7 +1287,7 @@ async def get_contract_extraction_postprocessing(db, oid: ObjectId) -> dict:
                     "value": merged.get(key),
                     "formatted_value": _format_contract_derived_value(key, merged.get(key)),
                 }
-                for key, label in _CONTRACT_DERIVED_COLUMNS
+                for key, label in columns
             ],
         }
         for idx, inst in enumerate(installments)
@@ -1306,13 +1403,52 @@ async def get_invoice_doc(db, oid: ObjectId) -> dict:
     return doc
 
 
-async def upload_invoice(
+async def upload_invoice_documents(
     db, filename: str, email: Optional[str] = None, tag: Optional[str] = None, source: str = "manual"
-) -> dict:
-    bundle, document = get_dp_loader().resolve_document(filename or "")
+) -> list[dict]:
+    """Every run this upload should produce.
+
+    Normally exactly one. But a vendor's real document can be a single file that
+    physically contains SEVERAL of its invoices — GRAHA_MEGARIA's 6-page PDF holds
+    four, two of them followed by their own supporting-document page — and that
+    must fan out into one independently-processable run per invoice. Declared per
+    vendor in documents.json's `combined_uploads` (see fixtures.DpCombinedUpload),
+    so this is fixture-driven, not vendor-specific logic.
+
+    Each run is created through the same _create_or_reuse_invoice_run() a
+    single-file upload uses, so the invoice+Faktur-Pajak collapse still applies per
+    document: uploading the combined file and then its 4 separate FP files (in
+    either order) still yields exactly 4 runs."""
+    loader = get_dp_loader()
+    bundle, combined = loader.resolve_combined_upload(filename or "")
     if bundle is None:
         raise NotFoundError("No DirectPay fixture scenarios configured")
 
+    if combined:
+        by_key = {d.key: d for d in bundle.documents}
+        return [
+            await _create_or_reuse_invoice_run(db, bundle, by_key[k], filename, email, tag, source)
+            for k in combined.document_keys
+            if k in by_key
+        ]
+
+    _, document = loader.resolve_document(filename or "")
+    return [await _create_or_reuse_invoice_run(db, bundle, document, filename, email, tag, source)]
+
+
+async def upload_invoice(
+    db, filename: str, email: Optional[str] = None, tag: Optional[str] = None, source: str = "manual"
+) -> dict:
+    """Single-run upload. Kept for callers that want exactly one run back; a
+    combined file resolves to its first document here."""
+    runs = await upload_invoice_documents(db, filename, email, tag, source)
+    return runs[0]
+
+
+async def _create_or_reuse_invoice_run(
+    db, bundle, document, filename: str,
+    email: Optional[str] = None, tag: Optional[str] = None, source: str = "manual",
+) -> dict:
     # A multi-invoice vendor folder's Faktur Pajak can be its own real,
     # separately-uploaded document (documents.json's faktur_pajak_pdf) that
     # resolves to the SAME document_key as its paired invoice — e.g.
@@ -2051,7 +2187,12 @@ def _bill_posting_out(doc: dict, contract_doc: Optional[dict] = None) -> dict:
         # Drives hiding the VAT/GST Tax Code column on the Bill Posting page —
         # RATNA_INTAN only, see is_ratna_intan above. True for every other
         # vendor (no fixture currently opts a different vendor out of VAT).
-        "vat_applicable": not is_ratna_intan,
+        # Fixture-driven, defaulting to RATNA_INTAN's long-standing hardcode.
+        # DEBORA_KEMANG is the second vendor with no VAT at all: an individual,
+        # non-PKP landlord who issues no Faktur Pajak for either invoice, so no
+        # VAT tax code applies and _validate_bill_posting_tax_codes must not
+        # demand one.
+        "vat_applicable": defaults.get("vat_applicable", not is_ratna_intan),
         "line_items": line_items,
         "stamp_duty_amount": stamp_duty_amount,
         "late_fee_amount": late_fee_amount,

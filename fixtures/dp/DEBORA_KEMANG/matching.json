@@ -1,0 +1,24 @@
+{
+  "expected": {
+    "vendor": "Debora Debby Wage (\"the PARTNER\") — individual property owner, not a company",
+    "customer": "PT Bumi Berkah Boga (\"BBB\"), represented by Tico Salikin, Attorney-in-Fact of the Board of Directors (POA No. 002/LEG/BBB/INT/I/2026)",
+    "subtotal": 0,
+    "currency": "IDR",
+    "line_items": [
+      {
+        "charge_type": "revenue_share",
+        "label": "Revenue Share",
+        "expected_amount": 0,
+        "unit": "IDR",
+        "clause_id": null
+      }
+    ]
+  },
+  "summary": {
+    "errors": 0,
+    "warnings": 0,
+    "info": 0,
+    "total": 0
+  },
+  "findings": []
+}

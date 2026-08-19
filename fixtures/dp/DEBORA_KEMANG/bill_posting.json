@@ -1,0 +1,16 @@
+{
+  "line_items": [
+    {
+      "charge_type": "revenue_share",
+      "gl_account_code": "6150-REVSHARE",
+      "wht_tax_code": "PPH4(2)-SEWA"
+    },
+    {
+      "charge_type": "ipl_fee",
+      "gl_account_code": "6250-IPL",
+      "wht_tax_code": "PPH4(2)-SEWA"
+    }
+  ],
+  "wht_applicable": true,
+  "vat_applicable": false
+}

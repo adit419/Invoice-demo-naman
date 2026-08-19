@@ -252,13 +252,17 @@ function InvoiceMatchPage() {
       : null,
   ].filter(Boolean) as { icon: React.ReactNode; text: string; onClick?: () => void }[];
 
-  // Invoice type flag. "Utility" is exactly the metered charges; everything
-  // else (rent, service charge, admin fee) is a rent-type flow.
-  const invoiceKind: "Utility" | "Rent" = (run.extracted.line_items ?? []).some(
-    (li) => li.charge_type === "utility_electricity" || li.charge_type === "utility_water"
-  )
-    ? "Utility"
-    : "Rent";
+  // Invoice type flag. "Utility" is exactly the metered charges. "Revenue Share"
+  // is a contract with no fixed rent at all, where the amount due is a
+  // percentage of reported sales (DEBORA_KEMANG). Everything else (rent, service
+  // charge, admin fee, a flat IPL fee) is a rent-type flow.
+  const chargeTypes = (run.extracted.line_items ?? []).map((li) => li.charge_type);
+  const invoiceKind: "Utility" | "Revenue Share" | "Rent" =
+    chargeTypes.some((c) => c === "utility_electricity" || c === "utility_water")
+      ? "Utility"
+      : chargeTypes.some((c) => c === "revenue_share")
+      ? "Revenue Share"
+      : "Rent";
 
   const scheduleOptions = run.payment_schedule_options ?? [];
   const matchedInstallmentIndex = run.matched_installment_index ?? null;
@@ -283,13 +287,17 @@ function InvoiceMatchPage() {
       style={{
         display: "inline-flex", alignItems: "center", gap: 5,
         padding: "1px 9px", borderRadius: 9999, fontSize: 11.5, fontWeight: 600, whiteSpace: "nowrap",
-        background: invoiceKind === "Utility" ? "#FFF7ED" : "#EEF2FF",
-        color: invoiceKind === "Utility" ? "#B45309" : "#3B5BDB",
-        border: `1px solid ${invoiceKind === "Utility" ? "#FED7AA" : "#C7D7FD"}`,
+        background: invoiceKind === "Utility" ? "#FFF7ED" : invoiceKind === "Revenue Share" ? "#F0FDF4" : "#EEF2FF",
+        color: invoiceKind === "Utility" ? "#B45309" : invoiceKind === "Revenue Share" ? "#15803D" : "#3B5BDB",
+        border: `1px solid ${
+          invoiceKind === "Utility" ? "#FED7AA" : invoiceKind === "Revenue Share" ? "#BBF7D0" : "#C7D7FD"
+        }`,
       }}
       title={
         invoiceKind === "Utility"
           ? "Utility invoice, billed on actual consumption"
+          : invoiceKind === "Revenue Share"
+          ? "Revenue-share invoice: the amount due is a percentage of the sales reported for the period, not a fixed rent"
           : "Rent-type invoice, billed against the contract's payment schedule"
       }
     >

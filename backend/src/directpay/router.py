@@ -259,27 +259,40 @@ async def approve_contract_extraction_postprocessing(run_id: str):
 
 async def _upload_invoice_by_filename(
     filename: str, email: str | None = None, tag: str | None = None, source: str = "manual"
-) -> dict:
+) -> list[dict]:
     """Shared by /invoices/upload and /ingestion/trigger-upload — both just
     resolve a fixture by name and kick off Auto-Process the same way; the
     only difference is where the name comes from (a real upload vs. a
     trigger request body) — recorded as `source` so the dashboard can show
-    the right icon (see service.invoice_out)."""
+    the right icon (see service.invoice_out).
+
+    Returns a LIST because one uploaded file can legitimately be several
+    invoices: a vendor whose documents.json declares a `combined_upload`
+    (GRAHA_MEGARIA's 6-page PDF holding four invoices) fans out into one run
+    each. Every other upload returns a single-element list."""
     db = get_db()
     try:
-        result = await service.upload_invoice(db, filename or "", email, tag, source)
+        results = await service.upload_invoice_documents(db, filename or "", email, tag, source)
     except service.NotFoundError as exc:
         _not_found(exc)
-        return {}
+        return []
     if await get_global_dp_stp(db):
         from bson import ObjectId
-        asyncio.create_task(run_dp_stp_for_invoice(ObjectId(result["id"])))
-    return result
+        for result in results:
+            asyncio.create_task(run_dp_stp_for_invoice(ObjectId(result["id"])))
+    return results
+
+
+def _upload_payload(results: list[dict]):
+    """One run -> the run itself (the long-standing response shape). Several ->
+    {"items": [...]}, the same shape the batch trigger already returns, so a
+    client can normalise both with a single `items` check."""
+    return results[0] if len(results) == 1 else {"items": results}
 
 
 @router.post("/invoices/upload")
 async def upload_invoice(file: UploadFile = File(...)):
-    return _envelope(data=await _upload_invoice_by_filename(file.filename or "", source="manual"))
+    return _envelope(data=_upload_payload(await _upload_invoice_by_filename(file.filename or "", source="manual")))
 
 
 # ── Ingestion (trigger by filename, no file bytes) ────────────────────────────
@@ -315,14 +328,17 @@ async def trigger_upload_invoice(body: DpTriggerUploadRequest):
         seen: dict[str, dict] = {}
         files: list[dict] = []
         for name in names:
-            result = await _upload_invoice_by_filename(name, body.email, body.tag, source="trigger")
-            files.append({"file_name": name, "invoice_id": result.get("id")})
-            seen.setdefault(result["id"], result)
+            results = await _upload_invoice_by_filename(name, body.email, body.tag, source="trigger")
+            for result in results:
+                files.append({"file_name": name, "invoice_id": result.get("id")})
+                seen.setdefault(result["id"], result)
         return _envelope(data={"items": list(seen.values()), "files": files})
 
     if not (body.file_name or "").strip():
         raise HTTPException(status_code=422, detail="file_name or file_names is required")
-    return _envelope(data=await _upload_invoice_by_filename(body.file_name.strip(), body.email, body.tag, source="trigger"))
+    return _envelope(data=_upload_payload(
+        await _upload_invoice_by_filename(body.file_name.strip(), body.email, body.tag, source="trigger")
+    ))
 
 
 @router.get("/invoices")

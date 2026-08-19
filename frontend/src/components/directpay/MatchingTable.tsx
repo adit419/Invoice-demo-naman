@@ -250,6 +250,14 @@ export function MatchingTable({
           // Surfaced explicitly rather than left implicit, since the column
           // header still (correctly) reads "Contract".
           const fromSupportingDoc = f.expected_source === "supporting_document";
+          // A revenue-share contract has no fixed rent to compare against at
+          // all: the reference is COMPUTED from the contract's own Revenue
+          // Share % and the sales report's Net Sales. Shown in the same
+          // derived treatment as a supporting-document value, since it is
+          // likewise not transcribed off the contract.
+          const fromRevenueShare = f.expected_source === "revenue_share";
+          const derived = fromSupportingDoc || fromRevenueShare;
+          const rs = f.revenue_share;
           // Same inline treatment P2P gives an AI-derived value (sparkle +
           // italic blue value + hover ⓘ) — see review.tsx's isAiFilled rows.
           // One deliberate deviation: P2P pushes its ⓘ to the cell's right
@@ -258,17 +266,17 @@ export function MatchingTable({
           // on the lower rows and couldn't be hovered at all.
           return (
             <div className="flex items-start gap-1.5" style={{ width: "100%" }}>
-              {fromSupportingDoc && <span style={{ marginTop: 3 }}><AiSparkleIcon size={14} /></span>}
+              {derived && <span style={{ marginTop: 3 }}><AiSparkleIcon size={14} /></span>}
               <span
                 style={{
                   minWidth: 0, fontSize: 14, wordBreak: "break-word",
-                  color: fromSupportingDoc ? AI_VALUE_STYLE.color : f.expected ? "#414651" : "#9CA3AF",
-                  fontStyle: fromSupportingDoc ? AI_VALUE_STYLE.fontStyle : undefined,
+                  color: derived ? AI_VALUE_STYLE.color : f.expected ? "#414651" : "#9CA3AF",
+                  fontStyle: derived ? AI_VALUE_STYLE.fontStyle : undefined,
                 }}
               >
                 {f.expected ?? ""}
               </span>
-              {!fromSupportingDoc && f.expected != null && contractSourceLink
+              {!derived && f.expected != null && contractSourceLink
                 && f.field === "total_amount_before_vat" && (
                 <SourceNote
                   title="Contract payment schedule"
@@ -278,6 +286,20 @@ export function MatchingTable({
                   }
                   links={[contractSourceLink]}
                   linksHeading="Open source"
+                />
+              )}
+              {fromRevenueShare && f.expected != null && (
+                <SourceNote
+                  title="Revenue share calculation"
+                  text={
+                    "This contract sets no fixed rent. The amount due is the contract's own Revenue " +
+                    `Share ${rs?.pct != null ? `of ${rs.pct}% ` : ""}applied to the Net Sales reported for the period` +
+                    `${rs?.formatted_net_sales ? `, ${rs.formatted_net_sales}` : ""}. Net Sales is the sales ` +
+                    "report's Sales (Ex. PB1) less Biaya Ojol and less Discount, not the gross sales figure. " +
+                    "The percentage comes from the contract's derived fields and the Net Sales figure from the " +
+                    "sales report attached to this invoice."
+                  }
+                  links={[...(referenceDocs ?? []), ...(contractSourceLink ? [contractSourceLink] : [])]}
                 />
               )}
               {fromSupportingDoc && f.expected != null && (

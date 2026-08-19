@@ -60,5 +60,25 @@
       "supporting_document": "supporting_doc_inv4_extraction.json",
       "supporting_document_pdf": "supporting_doc_inv4.pdf"
     }
+  ],
+  "combined_uploads": [
+    {
+      "label": "Invoices 1-4 + both supporting documents (one 6-page PDF, as the vendor sends it)",
+      "match": [
+        "inv_1_all_6_pages",
+        "inv_all_6_pages",
+        "all_6_pages",
+        "inv_all",
+        "inv_combined",
+        "inv_bundle",
+        "inv_1_to_4"
+      ],
+      "documents": [
+        "invoice_1",
+        "invoice_2",
+        "invoice_3",
+        "invoice_4"
+      ]
+    }
   ]
 }

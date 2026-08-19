@@ -174,9 +174,14 @@ export interface DpFinding {
   // Where the Contract-column value came from. "supporting_document" means
   // the contract only states the billing rule for this charge (utility
   // "billed on actuals") and the amount came from the invoice's supporting
-  // document — drives the ⓘ explainer next to the value. Absent/"contract"
-  // for every ordinary row.
-  expected_source?: "contract" | "supporting_document";
+  // document. "revenue_share" means there is no fixed rent at all and the
+  // figure was COMPUTED as Revenue Share % x Net Sales (DEBORA_KEMANG). Both
+  // drive the ⓘ explainer next to the value. Absent/"contract" for every
+  // ordinary row.
+  expected_source?: "contract" | "supporting_document" | "revenue_share";
+  // Present only on a revenue-share row, so the derivation itself can be shown
+  // rather than just its result.
+  revenue_share?: { pct: number | null; net_sales: number | null; formatted_net_sales?: string };
   [key: string]: unknown;
 }
 
@@ -457,13 +462,26 @@ export const directpayService = {
     api.get<{ items: DpEditHistoryItem[] }>(`/dp-api/contracts/${id}/edit-history`),
 
   // Invoices
-  uploadInvoice: (file: File) => {
+  /**
+   * Returns EVERY run the upload produced. Normally one — but a single file can
+   * legitimately be several invoices: a vendor whose fixtures declare a
+   * `combined_upload` (GRAHA_MEGARIA's 6-page PDF holding four invoices, two of
+   * them followed by their own supporting-document page) fans out into one run
+   * per invoice. The backend answers with the bare run for one and
+   * `{items: [...]}` for several, so both collapse to an array here.
+   */
+  uploadInvoice: async (file: File): Promise<DpInvoiceRun[]> => {
+    type UploadResult = DpInvoiceRun | { items: DpInvoiceRun[] };
+    let res: UploadResult;
     if (file.size > LARGE_FILE_THRESHOLD_BYTES) {
-      return api.post<DpInvoiceRun>("/dp-api/ingestion/trigger-upload", { file_name: file.name });
+      res = await api.post<UploadResult>("/dp-api/ingestion/trigger-upload", { file_name: file.name });
+    } else {
+      const fd = new FormData();
+      fd.append("file", file);
+      res = await api.postForm<UploadResult>("/dp-api/invoices/upload", fd);
     }
-    const fd = new FormData();
-    fd.append("file", file);
-    return api.postForm<DpInvoiceRun>("/dp-api/invoices/upload", fd);
+    const items = (res as { items?: DpInvoiceRun[] }).items;
+    return Array.isArray(items) ? items : [res as DpInvoiceRun];
   },
   listInvoices: () => api.get<{ items: DpInvoiceRun[] }>("/dp-api/invoices"),
   getInvoice: (id: string) => api.get<DpInvoiceRun>(`/dp-api/invoices/${id}`),
