@@ -310,6 +310,40 @@ _NO_SCHEDULE_CHARGE_TYPES = {"utility_electricity", "utility_water"}
 _REVENUE_SHARE_CHARGE_TYPES = {"revenue_share"}
 
 
+def _wht_gross_up_note(extracted: dict, contract_fields: dict, contract_value) -> Optional[str]:
+    """Flag the case where an invoice's NET-of-withholding figure equals the
+    contract amount while its GROSS exceeds it — i.e. the vendor grossed the
+    charge up so that what it actually receives after PPh matches the contract.
+
+    DEBORA_KEMANG's IPL invoice does exactly this: contract Rp15,000,000, invoice
+    Rp16,666,666 gross, Rp1,666,666 PPh withheld, Rp15,000,000 net. The +11.11%
+    gross figure fails the tolerance check, and this note explains WHY it fails
+    so an escalation says something more useful than "exceeds threshold".
+
+    Only raised when the contract itself says nothing about withholding — for a
+    vendor whose contract does state it (PT_BANGUN, RATNA_INTAN: Yes / 10%) a
+    gross-up is expected behaviour, not a discrepancy to report.
+    """
+    if contract_value is None:
+        return None
+    if contract_fields.get("wht_applicable") or contract_fields.get("wht_rate_pct"):
+        return None
+    try:
+        wht = float(extracted.get("wht"))
+        net = float(extracted.get("net_amount_after_wht"))
+        gross = float(extracted.get("total_amount_before_vat"))
+        reference = float(contract_value)
+    except (TypeError, ValueError):
+        return None
+    if wht <= 0 or gross <= reference + 0.01:
+        return None
+    # The net has to land ON the contract figure — that is what makes it a
+    # gross-up rather than simply an over-billed invoice.
+    if abs(net - reference) > 0.01:
+        return None
+    return "Invoice looks like grossed up for wht which is not mentioned in the contract."
+
+
 def _is_revenue_share_invoice(extracted: dict) -> bool:
     line_items = extracted.get("line_items") or []
     return any(item.get("charge_type") in _REVENUE_SHARE_CHARGE_TYPES for item in line_items)
@@ -741,6 +775,10 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
         # ever affects an invoice that actually carries a revenue_share line.
         used_revenue_share = False
         revenue_share_pct = revenue_share_net_sales = None
+        escalation_note = (
+            _wht_gross_up_note(extracted, contract_fields, contract_value)
+            if core.invoice_field == "total_amount_before_vat" else None
+        )
         if core.invoice_field == "total_amount_before_vat" and _is_revenue_share_invoice(extracted):
             rs_amount, revenue_share_pct, revenue_share_net_sales = _revenue_share_reference(doc, installment)
             if rs_amount is not None:
@@ -960,6 +998,9 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
                 else "revenue_share" if used_revenue_share
                 else "contract"
             ),
+            # Extra context for the escalation email, when this row's failure has
+            # a known explanation beyond "exceeds the threshold". Absent otherwise.
+            **({"escalation_note": escalation_note} if escalation_note else {}),
             # Only present on a revenue-share row, so the Matching page can show
             # HOW the reference was derived rather than just the result.
             **({

@@ -27,6 +27,10 @@ export interface EscalateModalProps {
   referenceLabel?: string;
   /** The backend's own explanation of why this is blocked. */
   reason?: string | null;
+  /** Additional findings worth stating in the mail, beyond `reason` — e.g. that
+   *  the invoice appears grossed up for a withholding the contract never
+   *  mentions. Each becomes its own bullet. */
+  notes?: string[];
   thresholdEnabled: boolean;
   thresholdPct: number;
 }
@@ -41,7 +45,7 @@ const FieldRow = ({ label, children }: { label: string; children: React.ReactNod
 export function EscalateModal({
   open, onClose, onSend,
   invoiceNumber, vendorName, invoiceAmount, referenceAmount,
-  referenceLabel = "Contract", reason, thresholdEnabled, thresholdPct,
+  referenceLabel = "Contract", reason, notes, thresholdEnabled, thresholdPct,
 }: EscalateModalProps) {
   // Compose then sent. Both exits clear it, so reopening always starts back at
   // the message rather than at a stale confirmation.
@@ -64,6 +68,7 @@ export function EscalateModal({
     ``,
     `Reason it is blocked:`,
     `  ${reason || "Total Amount Before VAT does not satisfy the configured tolerance."}`,
+    ...((notes ?? []).length ? [``, `Also noted:`, ...(notes ?? []).map((n) => `  - ${n}`)] : []),
     ``,
     `Please review and confirm whether to approve this variance, or advise on the`,
     `correction required.`,

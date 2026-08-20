@@ -643,6 +643,7 @@ function InvoiceMatchPage() {
           referenceAmount={totalBeforeVatFinding.expected}
           referenceLabel={referenceLabel}
           reason={totalBeforeVatFinding.detail}
+          notes={totalBeforeVatFinding.escalation_note ? [totalBeforeVatFinding.escalation_note] : []}
           thresholdEnabled={threshold.enabled}
           thresholdPct={threshold.threshold_pct}
         />

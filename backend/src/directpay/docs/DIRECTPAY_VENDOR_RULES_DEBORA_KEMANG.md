@@ -88,8 +88,8 @@ which is why `_schedule_row_category()` gained two groups so the picker can tell
 | 1-60 | `Revenue Share — M1 Mar-26` … | **Revenue Share** | 15% x that month's reported Net Sales |
 | 61-120 | `IPL Fee — M1 Mar-26` … | **IPL Fee** | flat Rp 15,000,000 |
 
-Only **M1** has a reported Net Sales figure; the other 59 revenue-share rows are `0` with status
-"No Sales Reported", exactly as the source tracker has them. Descriptions deliberately avoid
+Only **M2 (Apr-26)** has a reported Net Sales figure; the other 59 revenue-share rows are `0` with
+status "No Sales Reported". Descriptions deliberately avoid
 parentheses (`M1 Mar-26`, not `M1 (Mar-26)`) because the picker's label shortener strips
 parentheticals and here the month is the identifying part, not a qualifier.
 
@@ -135,7 +135,21 @@ Compared as printed, the invoice's pre-VAT total is **+11.11%** over the contrac
 exceeds the 5% tolerance, so the row is a hard `error`, cannot be acknowledged away
 (`_ALWAYS_BLOCKING_FIELDS` / `NO_ACK_FIELDS`) and activates **Escalate**. **This is deliberate and is
 left unreconciled** — it is a real, systematic difference between what the contract says and how the
-vendor bills, and silently comparing the net figure instead would hide it. If the intended reading is
+vendor bills, and silently comparing the net figure instead would hide it.
+
+The escalation email for this invoice carries the explanation as well as the failure, under
+**"Also noted"**:
+
+> Invoice looks like grossed up for wht which is not mentioned in the contract.
+
+That line comes from the finding's own `escalation_note`, set by `_wht_gross_up_note()`, which
+detects the pattern from the data rather than from the vendor's name: the invoice's **net**-of-WHT
+figure lands exactly on the contract amount while its **gross** exceeds it, *and* the contract itself
+states nothing about withholding. All three conditions are required, so it stays silent for
+PT_BANGUN and RATNA_INTAN (whose contracts do state WHT: Yes / 10%, making a gross-up expected
+rather than a discrepancy), for DEBORA's own revenue-share invoice (no withholding on it), and for
+GRAHA_MEGARIA's service-charge invoice (which also breaches the tolerance, but for an unrelated
+reason — a revised per-m² rate, with nothing withheld). If the intended reading is
 that Rp15,000,000 is what the lessor must receive, the fix is a contract-side decision, not an
 extraction change.
 
@@ -176,7 +190,18 @@ that cannot exist. Both invoices post with a balanced Simulate; the IPL one emit
   non-mall landlords) so Store Location is a non-blocking warning instead of a permanent error.
 - **The sales report's period labelling differs from the contract's.** The contract's years run
   12th-to-11th, so the derived schedule's M1 is 12-Mar-2026 to 11-Apr-2026 while the report is by
-  calendar month. The source tracker places April's Net Sales in **M1**, and the fixtures follow it.
+  calendar month. The source tracker reports April's Net Sales against **M1**; the fixtures
+  deliberately move it to **M2 (Apr-26)**, per explicit instruction, because that is the period the
+  April invoice belongs to. Only the reported figures move — every row's period dates, Revenue
+  Share % and the schedule total are untouched, and M1 reverts to "No Sales Reported" like its
+  siblings. The builder does this via `REPORTED_SHIFT`, so it survives a rebuild from the CSV.
+
+  **Still inconsistent:** the April *IPL* invoice matches `IPL Fee — M1 Mar-26`, because all 60 IPL
+  rows carry the identical Rp15,000,000 and nothing in that invoice distinguishes one from another
+  (its due date is 01-Jul-2026 and it states no billing period). Amount proximity therefore takes the
+  first row. Aligning it to `IPL Fee — M2 Apr-26` needs a human's determination recorded in the
+  fixture — a default installment pin in `documents.json` — rather than an inference from data that
+  cannot tell the rows apart.
 - **Do not enter the Rp211,670,000 Investment Cost as a deposit or contract value.** It is paid by
   the PARTNER **to BBB** for outlet assets — the opposite direction from a tenant deposit — and is
   carried as a one-time payment row instead.

@@ -182,6 +182,10 @@ export interface DpFinding {
   // Present only on a revenue-share row, so the derivation itself can be shown
   // rather than just its result.
   revenue_share?: { pct: number | null; net_sales: number | null; formatted_net_sales?: string };
+  // Extra context for the escalation email when this row's failure has a known
+  // explanation beyond "exceeds the threshold" (e.g. the invoice is grossed up
+  // for withholding the contract never mentions). Absent otherwise.
+  escalation_note?: string;
   [key: string]: unknown;
 }
 
