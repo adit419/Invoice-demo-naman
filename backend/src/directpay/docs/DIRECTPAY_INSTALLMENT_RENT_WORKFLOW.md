@@ -235,6 +235,37 @@ run each. All four GRAHA runs then process independently to `posted` with balanc
 
 ---
 
+### 2d. Uploading several contracts at once
+
+Both contract endpoints take one file or many, one run per file — each is resolved to its own
+fixture and extracted separately:
+
+| Endpoint | Single | Batch |
+|---|---|---|
+| `POST /contracts/upload` (multipart) | one `file` field | the **`file` field repeated** per document (`list[UploadFile]`) |
+| `POST /contracts/trigger-upload` (by name) | `{"file_name": "..."}` | `{"file_names": [...]}` |
+
+Response shape matches the invoice side exactly: the bare run for one result, `{"items": [...]}` for
+several, so a client normalises both with one `items` check. `services/directpay.ts`'s
+`uploadContract` now returns `DpContractRun[]` always, and handles a **mixed** selection — anything
+over the large-file threshold goes by name through the trigger endpoint, the rest as real multipart
+bytes, and the two result sets are concatenated.
+
+Unlike the invoice side there is **no dedupe**: `upload_contract` has never had one, so two files
+always mean two runs, and re-uploading the same contract deliberately creates another. (The
+invoice+Faktur-Pajak collapse in §6e exists because two *different* files can be the same real
+document; two contract files never are.)
+
+On the dashboard the file picker is now `multiple` on both tabs. Contracts go through one call and,
+when more than one run comes back, the page reloads the list and reports the count instead of routing
+to a single review screen — the same outcome the invoice batch path already had, since there is no
+single "the" contract to land on.
+
+Verified: 7 contract files in one multipart request produced 7 runs with 7 distinct `fixture_key`s and
+7 distinct ids, each with its own 49-field extraction and its own vendor data; approving three of them
+left the other four untouched at `review`. Single-file uploads still return the bare run object on
+both endpoints.
+
 ## 3. Contract pipeline
 
 **Status vocabulary**: `review → postprocessing → saved` (postprocessing only runs when the
@@ -852,6 +883,196 @@ drops the VAT/GST Tax Code column entirely. `simulate_bill_posting` correspondin
 **For a new no-VAT vendor**: drop `vat_tax_code` from its `bill_posting.json` *and* extend the
 `vat_applicable` condition (currently a literal `fixture_key == "RATNA_INTAN"` check — generalize
 it to a set at that point).
+
+---
+
+## 10a. WHT: the line-item override
+
+VAT is derived from the invoice; WHT is normally derived from the contract. Where the contract states
+**no** withholding there is nothing to derive from, so the reviewer applies it by hand from the
+line-item WHT dropdown, and everything downstream follows that selection live.
+
+**One rate per invoice.** Per explicit instruction the rate is invoice-level even though the control
+sits on each row, so `handleWhtChange` propagates a change to **every** line and
+`_selected_wht_rate()` reads the first coded line. Rows can therefore never display different codes
+while a single rate is being applied.
+
+**Where the rate lives.** `service._WHT_CODE_RATES` and `bill-posting.tsx`'s `WHT_RATES` — two maps
+that must stay in sync, the same mirroring convention `validateTaxCodes` already follows. The rate is
+**not** parsed out of the option label (`"… SEWA TANAH DAN/ATAU BANGUNAN 10%"`); that is display text
+and must never become a calculation input.
+
+**What the selection resolves to**, in `_bill_posting_out`:
+
+| Selected | Result |
+|---|---|
+| `00 · No Withholding` (rate 0) | WHT = **0**, whatever the data says |
+| a real rate, and the documents state no withholding | WHT = **rate x Taxable Amount** |
+| a real rate, and the documents state one | the **document's own figure** is kept |
+
+The third row protects source fidelity: PT_BANGUN, RATNA_INTAN and DEBORA_KEMANG all print a real
+withholding, and it would be wrong to replace a printed figure with a recomputation of itself.
+"The documents state no withholding" deliberately includes an explicit **zero** — a contract with no
+WHT clause still yields `wht_amount: 0.0` on every schedule row (GRAHA_MEGARIA, PALLADIUM, PAKUWON,
+KARYA_NASTARI), and those four are exactly the population this override exists for. An early version
+tested `is None` alone and the dropdown was a silent no-op for all of them.
+
+`wht_from_document` is returned alongside `wht_amount` so the frontend's live preview applies the
+identical rule instead of trying to infer the baseline from an already-adjusted figure.
+
+**What moves with it — and what does not.** Metadata **Taxable Amount** displays net of the WHT in
+effect, and Simulate gains/loses its **WHT credit** row with the **AP credit** shrinking to match
+(Simulate derives that itself as `grand_total - wht_amount`, so it always balances; line-item debits
+stay **gross**).
+
+**Payable Amount is deliberately invariant.** It is the cash figure the *documents* establish
+(`extracted.net_amount_after_wht`, else the matched installment's `net_payment_to_lessor`), and per
+explicit instruction it must not move when the reviewer changes the rate. An earlier version
+recomputed it from the selection, which was wrong. Nothing about the balance depended on it.
+
+Two visible consequences, both accepted deliberately:
+
+- Taxable Amount no longer equals the sum of the line items listed beneath it, nor satisfies
+  `Taxable + Tax = Total`, on the same screen.
+- Where the documents state no withholding, metadata Payable Amount and Simulate's AP credit can
+  differ while a manual rate is applied (GRAHA_MEGARIA inv 1 at 10%: Payable stays 10,886,702.40
+  while AP is credited 9,905,918.40). Payable reports what the invoice says is owed; the AP line
+  reports what this posting would settle after withholding.
+
+**Nothing persists until Post to ERP.** The selection lives in React state (`lineEdits`); `data` is
+the untouched server response and is never mutated, so it *is* the in-memory original. Reverting to
+"No Withholding" recomputes straight off it and Taxable Amount lands back on its starting value with
+no trace of the intermediate rate. Simulate used to `PATCH` the codes before computing, which broke
+that guarantee — it now sends them in its own request body (`DpBillPostingSimulateRequest.line_items`)
+and `simulate_bill_posting` merges them into a **copy** of the run. Verified: three simulations at
+10% / 0% / 10% leave the stored document byte-identical.
+
+**Superseded rule.** `_validate_bill_posting_tax_codes` no longer rejects a WHT code on a vendor whose
+contract says WHT does not apply — that was an earlier explicit instruction, and manual discretion is
+the direct opposite of it. `bp["wht_applicable"]` is now `fixture default OR a rate is selected`, so
+a deliberate selection makes WHT applicable and posting succeeds. Both VAT directions, and the
+"subject to WHT but nothing selected" error, are untouched.
+
+Verified end to end (rate 10% -> 0% -> 10%, then Post):
+
+| Vendor | Documents state WHT? | 10% selected | Reverted to 0% | Payable |
+|---|---|---|---|---|
+| GRAHA_MEGARIA inv 1 | no (0.0) | WHT **980,784** computed, taxable 8,827,056, AP 9,905,918.40 | WHT gone, taxable back to 9,807,840 | 10,886,702.40 throughout |
+| DEBORA_KEMANG inv 2 | yes (1,666,666) | document figure kept, taxable 15,000,000 | WHT gone, taxable back to 16,666,666 | 15,000,000 throughout |
+| PT_BANGUN | yes (67,567,568) | document figure kept, taxable 608,108,108 | WHT gone, taxable back to 675,675,676 | 682,432,432 throughout |
+
+Every posting balanced, and posting a manual 10% on GRAHA_MEGARIA (a `wht_applicable: false` vendor)
+persisted 340,550 on a 3,405,500 base and succeeded.
+
+---
+
+## 10b. Auto-Process (STP)
+
+**It was broken, and the cause was a mis-reading of P2P.** `directpay/stp.py`'s own docstring
+asserted that "P2P's STP does NOT auto-drive an uploaded invoice all the way through
+matching/bill-posting either", and scoped DirectPay's cascade to *run extraction, then stop*. The
+claim is false: `api/v1/stp.py`'s `_cascade_validation()` auto-approves every stage in
+`STAGE_SEQUENCE` and `_auto_post_bill()` then posts the bill to Zoho/QBD. So the toggle looked
+functional while doing nothing the Extraction screen wouldn't have done by itself.
+
+### What P2P actually does
+
+| | |
+|---|---|
+| Triggered by | upload (`ingestion.py`), trigger-upload, email ingestion — **and as a resume** whenever a human approves `fp_extraction` / `metadata_validation` / `line_item_matching` (`stages.py:255`), guarded so the STP actor can't re-trigger itself |
+| Cascade | waits for each stage to reach `in_review`, then calls the real `approve_stage()` as an STP actor; skips already-approved stages, which is what makes resume work |
+| Holds on | `ai_recommendation_pending_review`, `line_items_pending_review`, `mandatory_fields_missing`, `stage_not_ready` |
+| Then | `_auto_post_bill()` posts to the ERP |
+| Publishes | `stp_state` = processing → done \| waiting_review, which the dashboard uses to disable Review while it runs |
+| Pacing | 5s after extraction, 3s between stages |
+
+### What DirectPay now does
+
+`_cascade_dp_invoice()` drives the same shape over DP's own stages, each step gated on the run's
+current status so it is safe to re-enter:
+
+1. `extraction` → `extract_invoice`
+2. `extracted` and not yet confirmed → `confirm_extraction` (which itself advances to
+   `fp_extraction` when the vendor has an FP)
+3. `fp_extraction` → `approve_faktur_pajak` **without `force`**
+4. `extracted` with no contract → `get_contract_recommendation` (the same lazy auto-apply the
+   Matching screen performs on load)
+5. `matching` → `review_action("approve")`
+6. `bill_posting` → `post_bill`
+
+**Every hand-off reuses the stage's own approve function**, so Auto-Process can never be more
+permissive than a human clicking the same button: the gate that 409s a person raises here and the
+cascade holds, recording why on the run.
+
+| Reason | Meaning |
+|---|---|
+| `faktur_pajak_mismatch` | a required FP field mismatches and isn't acknowledged |
+| `no_contract_matched` | no saved contract scored high enough to auto-apply |
+| `matching_open_issues` | a mandatory Matching field is unresolved (`has_open_issues`) |
+| `tax_code_invalid` | VAT/WHT codes don't apply to this vendor |
+| `extraction_failed` | the cascade itself raised |
+
+### The resume hook DirectPay was missing entirely
+
+Nothing but the upload ever called `run_dp_stp_for_invoice`, so a hold was a **dead end**: automation
+stopped for a mismatch, the reviewer cleared it, and nothing picked the invoice back up.
+`resume_dp_stp_if_enabled()` is now called from the three human-facing approve handlers
+(`confirm-extraction`, `faktur-pajak/approve`, `validate/review-action`), placed **after** the 409
+guard so a held stage never triggers a resume, and only from the router — never from the cascade —
+so it cannot recurse.
+
+Verified end to end with Auto-Process on:
+
+```
+PT_BANGUN        extraction -> extracted -> fp_extraction   HOLD faktur_pajak_mismatch
+  human acks the 2 FP name mismatches, approves
+                 -> extracted -> matching                   HOLD matching_open_issues
+  human acks vendor_name, approves
+                 -> bill_posting -> posted                   stp_state=done, ERP bill stamped
+
+GRAHA_MEGARIA 1  -> fp_extraction                            HOLD faktur_pajak_mismatch
+DEBORA_KEMANG 2  -> (no FP) auto-matched contract -> matching HOLD matching_open_issues
+```
+
+Both holds are correct: those vendors' FP vendor/customer names are genuinely shortened variants
+needing acknowledgement, and DEBORA inv 2 genuinely breaches the tolerance (§10a). With the DP
+Acknowledge Threshold's learned memory, a repeat of the same mismatch becomes
+`system_acknowledged` and a later run of the same vendor passes those gates without a human.
+
+### Upload behaviour with Auto-Process on
+
+The uploader no longer waits or navigates. Previously the dashboard polled `waitForExtraction()` and
+then pushed the user to the Extraction screen even with Auto-Process on — which fought the cascade
+for the same work and dropped the reviewer onto a stage automation was about to leave.
+
+Now, exactly as P2P's own dashboard does: **stay on the dashboard, no loader, no hand-off.** The row
+reports progress itself from `stp_state`, with a local `stpProcessingIds` lock covering the moment
+before the server publishes the first state (released once `stp_state` settles, or on a terminal
+status as a fallback — the same mechanism and auto-clear as P2P's). The frontend no longer calls
+`/extract` at all when Auto-Process is on; the cascade owns it. `waitForExtraction()` is deleted —
+it existed only to block the uploader for work that is now server-side.
+
+> **Consequence worth knowing:** with Auto-Process on, approving Matching posts the bill
+> immediately, so the reviewer never lands on Bill Posting — which means the line-item WHT override
+> (§10a) is bypassed. P2P behaves identically (approving `line_item_matching` auto-posts). Turn
+> Auto-Process off to work the Bill Posting screen by hand.
+
+### Open limitation: learned acks can't clear a blocking Matching finding
+
+`_apply_dp_ack_memory()` skips any finding with `severity == "error"`. Everything that actually
+blocks Matching **is** an error (a mandatory field that mismatches), so the DP Acknowledge Threshold
+is effectively inert there: a vendor whose mismatch was acknowledged 3 times still stops the cascade
+on the 4th invoice.
+
+The Faktur Pajak stage has no such filter (it counts `fp_<field>` memory directly), which is why a
+repeat vendor now sails through FP unattended but still holds at Matching. Verified: with the
+threshold set to 1 and one prior manual pass, a second PT_BANGUN invoice auto-cleared Faktur Pajak
+and then held at `matching_open_issues` on `CORE-vendor_name` (severity `error`,
+`system_acknowledged_findings: []`).
+
+Left as-is deliberately — auto-clearing a hard error is a policy decision, not a bug fix. Removing
+the severity filter would make Auto-Process able to run a known vendor end to end with no human at
+all.
 
 ---
 
