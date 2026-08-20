@@ -1,0 +1,32 @@
+{
+  "vendor_name": {
+    "bbox": {
+      "page": 2,
+      "bbox_left": 0.597733,
+      "bbox_top": 0.11673,
+      "bbox_width": 0.19731,
+      "bbox_height": 0.014571,
+      "value_confidence": 1.0
+    }
+  },
+  "customer_name": {
+    "bbox": {
+      "page": 2,
+      "bbox_left": 0.128556,
+      "bbox_top": 0.32647,
+      "bbox_width": 0.164838,
+      "bbox_height": 0.014571,
+      "value_confidence": 1.0
+    }
+  },
+  "vat_amount": {
+    "bbox": {
+      "page": 2,
+      "bbox_left": 0.871056,
+      "bbox_top": 0.693078,
+      "bbox_width": 0.041037,
+      "bbox_height": 0.014571,
+      "value_confidence": 0.95
+    }
+  }
+}

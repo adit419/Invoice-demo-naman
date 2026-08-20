@@ -1,0 +1,52 @@
+{
+  "fp_number": {
+    "bbox": {
+      "page": 2,
+      "bbox_left": 0.326723,
+      "bbox_top": 0.058599,
+      "bbox_width": 0.164454,
+      "bbox_height": 0.016318,
+      "value_confidence": 1.0
+    }
+  },
+  "vendor_name": {
+    "bbox": {
+      "page": 2,
+      "bbox_left": 0.110941,
+      "bbox_top": 0.101698,
+      "bbox_width": 0.253092,
+      "bbox_height": 0.016318,
+      "value_confidence": 1.0
+    }
+  },
+  "customer_name": {
+    "bbox": {
+      "page": 2,
+      "bbox_left": 0.110941,
+      "bbox_top": 0.189062,
+      "bbox_width": 0.199866,
+      "bbox_height": 0.016318,
+      "value_confidence": 1.0
+    }
+  },
+  "taxable_amount": {
+    "bbox": {
+      "page": 2,
+      "bbox_left": 0.859866,
+      "bbox_top": 0.316318,
+      "bbox_width": 0.074756,
+      "bbox_height": 0.016318,
+      "value_confidence": 0.95
+    }
+  },
+  "vat_amount": {
+    "bbox": {
+      "page": 2,
+      "bbox_left": 0.873882,
+      "bbox_top": 0.444584,
+      "bbox_width": 0.06074,
+      "bbox_height": 0.016318,
+      "value_confidence": 0.95
+    }
+  }
+}

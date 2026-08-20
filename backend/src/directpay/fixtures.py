@@ -57,6 +57,14 @@ class DpDocumentEntry:
     # 2nd page of the same PDF as the invoice (PT_BANGUN's case, the
     # default the FP Extraction page falls back to when this is None).
     faktur_pajak_pdf_path: Optional[Path] = None
+    # Per-field {bbox: {page, bbox_left, bbox_top, bbox_width, bbox_height,
+    # value_confidence}} — same convention as DpFixtureBundle.invoice_field_meta
+    # (see its own docstring), loaded from <key>_field_meta.json.
+    field_meta: dict = field(default_factory=dict)
+    # Same, but for THIS document's own faktur_pajak dict — loaded from
+    # <key>_fp_field_meta.json, searched against faktur_pajak_pdf_path (its
+    # own separate PDF) rather than pdf_path.
+    fp_field_meta: dict = field(default_factory=dict)
     # A separate real-world document (e.g. a utility company's own bill)
     # providing the actual billing amount for a charge the contract itself
     # only describes as "billed on actuals" (Palladium's Electricity/Water —
@@ -105,6 +113,16 @@ class DpFixtureBundle:
     # review screen falls back to bare Field/Value rows).
     contract_field_meta: dict = field(default_factory=dict)
     invoice_extraction: dict = field(default_factory=dict)
+    # Per-field {bbox: {page, bbox_left, bbox_top, bbox_width, bbox_height,
+    # value_confidence}} for invoice_extraction's own flat keys — NOT a
+    # schema change to invoice_extraction.json itself, just a sibling file
+    # (invoice_field_meta.json), same convention as contract_field_meta's own
+    # optional per-field `bbox`. Generated offline by
+    # backend/scripts/generate_dp_invoice_bbox.py (PDF text-layer search,
+    # with an OCR fallback for scanned pages) rather than hand-authored —
+    # unlike contract_field_meta.json's label/section/mandatory metadata,
+    # there's nothing here to author by hand.
+    invoice_field_meta: dict = field(default_factory=dict)
     matching: dict = field(default_factory=dict)
     # Default ERP coding (GL account / VAT / WHT tax codes) per line item,
     # seeded onto the Bill Posting stage — mirrors P2P's ERP Fields, adapted
@@ -121,6 +139,11 @@ class DpFixtureBundle:
     # DpDocumentEntry.faktur_pajak instead (see documents.json) — the two
     # mechanisms are mutually exclusive per folder, not layered.
     fp_extraction: Optional[dict] = None
+    # Per-field {bbox: {...}} for fp_extraction's own flat keys — same
+    # convention as invoice_field_meta, loaded from fp_field_meta.json.
+    # Always searched against invoice_pdf_path: a single-invoice folder's FP
+    # has no separate PDF of its own (see fp_extraction's docstring above).
+    fp_field_meta: dict = field(default_factory=dict)
     # Contract-derived payment schedule (fixtures/dp/<KEY>/payment_schedule.json)
     # — the Extraction Postprocessing stage's source of truth for fields the
     # raw invoice extraction leaves empty (due_date, wht_rate, wht,
@@ -181,9 +204,15 @@ class DpFixtureLoader:
                 bundle.contract_field_meta = json.loads(contract_meta_json.read_text())
             if invoice_json.exists():
                 bundle.invoice_extraction = json.loads(invoice_json.read_text())
+            invoice_field_meta_json = entry / "invoice_field_meta.json"
+            if invoice_field_meta_json.exists():
+                bundle.invoice_field_meta = json.loads(invoice_field_meta_json.read_text())
             fp_json = entry / "fp_extraction.json"
             if fp_json.exists():
                 bundle.fp_extraction = json.loads(fp_json.read_text())
+            fp_field_meta_json = entry / "fp_field_meta.json"
+            if fp_field_meta_json.exists():
+                bundle.fp_field_meta = json.loads(fp_field_meta_json.read_text())
             payment_schedule_json = entry / "payment_schedule.json"
             if payment_schedule_json.exists():
                 bundle.payment_schedule = json.loads(payment_schedule_json.read_text())
@@ -204,6 +233,12 @@ class DpFixtureLoader:
                     extraction_path = entry / doc["extraction"] if doc.get("extraction") else None
                     fp_path = entry / doc["faktur_pajak"] if doc.get("faktur_pajak") else None
                     fp_pdf_path = entry / doc["faktur_pajak_pdf"] if doc.get("faktur_pajak_pdf") else None
+                    # Convention, not a manifest key: <key>_field_meta.json /
+                    # <key>_fp_field_meta.json (see generate_dp_invoice_bbox.py)
+                    # — avoids needing to edit every vendor's documents.json
+                    # just to wire this in.
+                    field_meta_path = entry / f"{doc['key']}_field_meta.json"
+                    fp_field_meta_path = entry / f"{doc['key']}_fp_field_meta.json"
                     supporting_doc_path = entry / doc["supporting_document"] if doc.get("supporting_document") else None
                     supporting_doc_pdf_path = entry / doc["supporting_document_pdf"] if doc.get("supporting_document_pdf") else None
                     bundle.documents.append(DpDocumentEntry(
@@ -213,6 +248,8 @@ class DpFixtureLoader:
                         invoice_extraction=json.loads(extraction_path.read_text()) if extraction_path and extraction_path.exists() else {},
                         faktur_pajak=json.loads(fp_path.read_text()) if fp_path and fp_path.exists() else None,
                         faktur_pajak_pdf_path=fp_pdf_path if fp_pdf_path and fp_pdf_path.exists() else None,
+                        field_meta=json.loads(field_meta_path.read_text()) if field_meta_path.exists() else {},
+                        fp_field_meta=json.loads(fp_field_meta_path.read_text()) if fp_field_meta_path.exists() else {},
                         supporting_document=json.loads(supporting_doc_path.read_text()) if supporting_doc_path and supporting_doc_path.exists() else None,
                         supporting_document_pdf_path=supporting_doc_pdf_path if supporting_doc_pdf_path and supporting_doc_pdf_path.exists() else None,
                         faktur_pajak_pdfs=[

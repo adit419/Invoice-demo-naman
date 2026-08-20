@@ -4,56 +4,112 @@
     "section": "PROPERTY & PARTIES",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.155645,
+      "bbox_top": 0.313876,
+      "bbox_width": 0.703231,
+      "bbox_height": 0.037396,
+      "value_confidence": 0.831
+    }
   },
   "vendor_name": {
     "label": "Vendor Name",
     "section": "PROPERTY & PARTIES",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "MATCH — invoice vendor_name is a punctuation variant of this"
+    "ai_match_reasoning": "MATCH \u2014 invoice vendor_name is a punctuation variant of this",
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.154839,
+      "bbox_top": 0.291632,
+      "bbox_width": 0.137906,
+      "bbox_height": 0.009374,
+      "value_confidence": 1.0
+    }
   },
   "lessor_phone": {
     "label": "Vendor Phone",
     "section": "PROPERTY & PARTIES",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 26,
+      "bbox_left": 0.3184,
+      "bbox_top": 0.607725,
+      "bbox_width": 0.121333,
+      "bbox_height": 0.009048,
+      "value_confidence": 0.9
+    }
   },
   "vendor_email": {
     "label": "Vendor Email",
     "section": "PROPERTY & PARTIES",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 10,
+      "bbox_left": 0.448533,
+      "bbox_top": 0.378189,
+      "bbox_width": 0.362933,
+      "bbox_height": 0.012372,
+      "value_confidence": 0.9
+    }
   },
   "lessor_npwp": {
     "label": "Vendor NPWP",
     "section": "PROPERTY & PARTIES",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "Source tracker cell is 14 digits, not the 16 the tracker's own validation rule expects — genuine source data-quality issue, not padded/altered here"
+    "ai_match_reasoning": "Source tracker cell is 14 digits, not the 16 the tracker's own validation rule expects \u2014 genuine source data-quality issue, not padded/altered here"
   },
   "customer_name": {
     "label": "Customer Name",
     "section": "PROPERTY & PARTIES",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.667706,
+      "bbox_top": 0.058465,
+      "bbox_width": 0.133098,
+      "bbox_height": 0.010454,
+      "value_confidence": 1.0
+    }
   },
   "actual_start": {
     "label": "Lease Commencement Date",
     "section": "AGREEMENT DATES & TERM",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 4,
+      "bbox_left": 0.397623,
+      "bbox_top": 0.181089,
+      "bbox_width": 0.018839,
+      "bbox_height": 0.010702,
+      "value_confidence": 1.0
+    }
   },
   "lease_expiry_date": {
     "label": "Lease Expiry Date",
     "section": "AGREEMENT DATES & TERM",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 4,
+      "bbox_left": 0.720223,
+      "bbox_top": 0.17729,
+      "bbox_width": 0.018823,
+      "bbox_height": 0.010152,
+      "value_confidence": 1.0
+    }
   },
   "lock_in_period_months": {
     "label": "Lock-in Period (Months)",
@@ -102,7 +158,7 @@
     "section": "RENT & DEPOSIT",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": "Literal 0 in the tracker — this is a lumpsum-installment lease, not a monthly-rent one"
+    "ai_match_reasoning": "Literal 0 in the tracker \u2014 this is a lumpsum-installment lease, not a monthly-rent one"
   },
   "monthly_rent_incl_tax": {
     "label": "Monthly Rent incl. Tax (Cond.)",
@@ -116,7 +172,15 @@
     "section": "RENT & DEPOSIT",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "Tracker labels this \"excl. tax\" but the value (1,250,000,000) matches the payment schedule's tax-INCLUSIVE total (750,000,000 + 500,000,000) — a labeling inconsistency in the source itself, not altered here"
+    "ai_match_reasoning": "Tracker labels this \"excl. tax\" but the value (1,250,000,000) matches the payment schedule's tax-INCLUSIVE total (750,000,000 + 500,000,000) \u2014 a labeling inconsistency in the source itself, not altered here",
+    "bbox": {
+      "page": 4,
+      "bbox_left": 0.46873,
+      "bbox_top": 0.651754,
+      "bbox_width": 0.106082,
+      "bbox_height": 0.012439,
+      "value_confidence": 0.95
+    }
   },
   "no_of_installments": {
     "label": "No. of Installments",
@@ -130,7 +194,7 @@
     "section": "RENT & DEPOSIT",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": "Literal source value ('Base Rent (Excl Tax) Monthly') is 0 in the tracker — this is a lumpsum-installment lease with no true monthly-rent concept, not derived/assumed here."
+    "ai_match_reasoning": "Literal source value ('Base Rent (Excl Tax) Monthly') is 0 in the tracker \u2014 this is a lumpsum-installment lease with no true monthly-rent concept, not derived/assumed here."
   },
   "revenue_share_pct": {
     "label": "Revenue Share (%)",
@@ -221,14 +285,22 @@
     "section": "LEGAL & COMPLIANCE",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "\"Yes\" because materai (Rp 10,000 stamp) is present — standard on virtually all Indonesian agreements. The separate \"Registered\" step (formal registration with government authorities) is a distinct legal step most lease agreements don't go through."
+    "ai_match_reasoning": "\"Yes\" because materai (Rp 10,000 stamp) is present \u2014 standard on virtually all Indonesian agreements. The separate \"Registered\" step (formal registration with government authorities) is a distinct legal step most lease agreements don't go through."
   },
   "registration_number": {
     "label": "Registration Number",
     "section": "LEGAL & COMPLIANCE",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.421774,
+      "bbox_top": 0.16156,
+      "bbox_width": 0.212907,
+      "bbox_height": 0.01323,
+      "value_confidence": 1.0
+    }
   },
   "notice_period_days": {
     "label": "Notice Period (Days)",
@@ -270,7 +342,15 @@
     "section": "STATUS & TRACKING",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 4,
+      "bbox_left": 0.397623,
+      "bbox_top": 0.181089,
+      "bbox_width": 0.018839,
+      "bbox_height": 0.010702,
+      "value_confidence": 1.0
+    }
   },
   "rent_free_months": {
     "label": "Rent Free Months",
@@ -298,21 +378,21 @@
     "section": "PAYMENT STRUCTURE",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": "Invoice's own vendor_bank_name is BCA; this note says Bank Mandiri — different bank, a genuine mismatch preserved from the source"
+    "ai_match_reasoning": "Invoice's own vendor_bank_name is BCA; this note says Bank Mandiri \u2014 different bank, a genuine mismatch preserved from the source"
   },
   "lessor_bank_account_name": {
     "label": "Bank Account Name",
     "section": "PAYMENT STRUCTURE",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "Not present in the new tracker — no literal bank account name/number fields exist in this source"
+    "ai_match_reasoning": "Not present in the new tracker \u2014 no literal bank account name/number fields exist in this source"
   },
   "lessor_bank_account_number": {
     "label": "Bank Account Number",
     "section": "PAYMENT STRUCTURE",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "Not present in the new tracker — no literal bank account name/number fields exist in this source"
+    "ai_match_reasoning": "Not present in the new tracker \u2014 no literal bank account name/number fields exist in this source"
   },
   "split_check": {
     "label": "Split Check",
@@ -333,7 +413,15 @@
     "section": "OTHER",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.378226,
+      "bbox_top": 0.136985,
+      "bbox_width": 0.094356,
+      "bbox_height": 0.011007,
+      "value_confidence": 1.0
+    }
   },
   "floor": {
     "label": "Floor",

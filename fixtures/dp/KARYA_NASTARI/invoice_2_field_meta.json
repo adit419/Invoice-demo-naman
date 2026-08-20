@@ -1,0 +1,82 @@
+{
+  "invoice_number": {
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.132941,
+      "bbox_top": 0.140909,
+      "bbox_width": 0.193725,
+      "bbox_height": 0.01101,
+      "value_confidence": 0.9
+    }
+  },
+  "invoice_date": {
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.64549,
+      "bbox_top": 0.476869,
+      "bbox_width": 0.117255,
+      "bbox_height": 0.011414,
+      "value_confidence": 0.824
+    }
+  },
+  "vendor_name": {
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.033987,
+      "bbox_top": 0.963636,
+      "bbox_width": 0.14732,
+      "bbox_height": 0.009192,
+      "value_confidence": 0.821
+    }
+  },
+  "customer_legal_entity": {
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.068235,
+      "bbox_top": 0.197273,
+      "bbox_width": 0.166013,
+      "bbox_height": 0.011818,
+      "value_confidence": 0.9
+    }
+  },
+  "customer_address": {
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.068235,
+      "bbox_top": 0.211818,
+      "bbox_width": 0.766275,
+      "bbox_height": 0.040505,
+      "value_confidence": 0.9
+    }
+  },
+  "due_date": {
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.64549,
+      "bbox_top": 0.476869,
+      "bbox_width": 0.117255,
+      "bbox_height": 0.011414,
+      "value_confidence": 0.824
+    }
+  },
+  "total_amount": {
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.833203,
+      "bbox_top": 0.613131,
+      "bbox_width": 0.101961,
+      "bbox_height": 0.011414,
+      "value_confidence": 0.9
+    }
+  },
+  "currency": {
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.778562,
+      "bbox_top": 0.476768,
+      "bbox_width": 0.020654,
+      "bbox_height": 0.01101,
+      "value_confidence": 0.9
+    }
+  }
+}

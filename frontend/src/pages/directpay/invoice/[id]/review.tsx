@@ -14,6 +14,11 @@ import { StageTransitionOverlay } from "@/components/StageTransitionOverlay";
 import { ApiError } from "@/services/api";
 import { directpayService, DpInvoiceExtracted, DpInvoiceRun, DpLineItem } from "@/services/directpay";
 import { invoiceRoute } from "@/utils/directpayRoutes";
+import type { ActiveBbox } from "@/components/PdfViewer";
+
+// Below this → red overlay, at/above → green. Mirrors P2P's own
+// review.tsx/PdfViewer convention, and DirectPay's own contract review.tsx.
+const LOW_CONF = 0.85;
 
 const PdfViewer = dynamic(() => import("@/components/PdfViewer").then((m) => m.PdfViewer), {
   ssr: false,
@@ -278,6 +283,24 @@ function InvoiceReviewPage() {
 
   const extracted = run.extracted;
 
+  const activeFieldDef = activeTab === "metadata" && activeKey ? FIELD_DEFS.find((f) => f.key === activeKey) : null;
+  const activeFieldBbox = activeFieldDef ? run.field_meta[activeFieldDef.key]?.bbox : null;
+  const activeBbox: ActiveBbox | null =
+    activeFieldDef && activeFieldBbox
+      ? {
+          bbox_left: activeFieldBbox.bbox_left,
+          bbox_top: activeFieldBbox.bbox_top,
+          bbox_width: activeFieldBbox.bbox_width,
+          bbox_height: activeFieldBbox.bbox_height,
+          page: activeFieldBbox.page,
+          confidence: activeFieldBbox.value_confidence,
+          confidenceThreshold: LOW_CONF,
+          id: `field-${activeFieldDef.key}`,
+          label: activeFieldDef.label,
+          value: (edits[activeFieldDef.key] ?? (extracted[activeFieldDef.key] == null ? undefined : String(extracted[activeFieldDef.key]))) || undefined,
+        }
+      : null;
+
   const metaItems = [
     { icon: <TagOutlined />, text: "Manual Upload" },
     extracted.invoice_number ? { icon: <FileTextOutlined />, text: extracted.invoice_number } : null,
@@ -347,7 +370,7 @@ function InvoiceReviewPage() {
               scale={scale}
               rotate={rotate}
               onNumPages={setNumPages}
-              activeBbox={null}
+              activeBbox={activeBbox}
               isLineItemMode={activeTab === "line_items"}
             />
           </div>
@@ -453,7 +476,15 @@ function InvoiceReviewPage() {
                           return (
                             <tr
                               key={f.key}
-                              onClick={() => setActiveKey(isActive ? null : f.key)}
+                              onClick={() => {
+                                const nextKey = isActive ? null : f.key;
+                                setActiveKey(nextKey);
+                                // Selecting a field also jumps the PDF to the page its
+                                // bbox lives on — mirrors DirectPay's own contract
+                                // review.tsx (selectField) and P2P's review.tsx.
+                                const bbox = nextKey ? run.field_meta[nextKey]?.bbox : null;
+                                if (bbox) setPdfPage(bbox.page);
+                              }}
                               style={{ borderBottom: "1px solid #EBEDF0", background: isActive ? "rgba(24,118,255,0.06)" : undefined, cursor: "pointer" }}
                               onMouseEnter={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.background = "#FAFAFA"; }}
                               onMouseLeave={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.background = ""; }}
