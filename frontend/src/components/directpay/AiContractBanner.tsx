@@ -5,8 +5,8 @@
  * but typed to DpContractCandidate instead of P2P's PoCandidate, kept
  * self-contained here rather than importing the P2P component directly.
  */
-import { useState } from "react";
 import type { DpContractCandidate, DpContractRecommendation } from "@/services/directpay";
+import { useHoverCard } from "@/components/directpay/useHoverCard";
 
 export function AiSparkleIcon({ size = 16 }: { size?: number }) {
   return (
@@ -41,27 +41,12 @@ export const AI_VALUE_STYLE = {
 };
 
 export function AiAnalysisInfo({ rec }: { rec: DpContractRecommendation }) {
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const { pos, width, triggerHandlers, cardHandlers } = useHoverCard({ width: 300, estHeight: 300 });
   const c: DpContractCandidate | null | undefined = rec.recommended;
   if (!c) return null;
 
-  const CARD_W = 300;
-  const show = (e: React.MouseEvent<HTMLElement>) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    setPos({
-      top: r.bottom + 8,
-      left: Math.max(12, Math.min(r.right - CARD_W, window.innerWidth - CARD_W - 12)),
-    });
-  };
-
   return (
-    <span
-      className="inline-flex items-center shrink-0"
-      style={{ position: "relative" }}
-      onMouseEnter={show}
-      onMouseLeave={() => setPos(null)}
-      onClick={(e) => e.stopPropagation()}
-    >
+    <span className="inline-flex items-center shrink-0" style={{ position: "relative" }} onClick={(e) => e.stopPropagation()}>
       <span
         aria-label="Why AI recommended this contract"
         style={{
@@ -69,6 +54,7 @@ export function AiAnalysisInfo({ rec }: { rec: DpContractRecommendation }) {
           width: 18, height: 18, borderRadius: "50%", cursor: "default",
           color: pos ? "#1F5BD5" : "#8FADEA",
         }}
+        {...triggerHandlers}
       >
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
           <circle cx="7" cy="7" r="6" stroke="currentColor" strokeWidth="1.3" />
@@ -79,11 +65,12 @@ export function AiAnalysisInfo({ rec }: { rec: DpContractRecommendation }) {
       {pos && (
         <div
           style={{
-            position: "fixed", top: pos.top, left: pos.left, width: CARD_W, zIndex: 1000,
+            position: "fixed", top: pos.top, bottom: pos.bottom, left: pos.left, width, zIndex: 1000,
             background: "#ffffff", border: "1px solid #DFE5EE", borderRadius: 8,
             boxShadow: "0 8px 24px rgba(16,24,40,0.12)", padding: "12px 14px",
             textAlign: "left", cursor: "default",
           }}
+          {...cardHandlers}
         >
           <div className="flex items-center justify-between gap-2" style={{ marginBottom: 8 }}>
             <span className="flex items-center gap-1.5" style={{ fontSize: 12.5, fontWeight: 600, color: "#0D388D" }}>
@@ -101,7 +88,7 @@ export function AiAnalysisInfo({ rec }: { rec: DpContractRecommendation }) {
 
           <div style={{ fontSize: 11.5, color: "#585C65", lineHeight: "15px", marginBottom: 4 }}>
             Recommended <strong style={{ color: "#414651" }}>{c.file_name}</strong>
-            {c.vendor_name ? <> — {c.vendor_name}</> : null}
+            {c.vendor_name ? <> ({c.vendor_name})</> : null}
           </div>
 
           <div style={{ fontSize: 11, color: "#8D92A6", lineHeight: "15px", marginBottom: 8 }}>
@@ -132,6 +119,7 @@ export function AiAnalysisInfo({ rec }: { rec: DpContractRecommendation }) {
     </span>
   );
 }
+
 
 export default function AiContractBanner({ rec }: { rec: DpContractRecommendation }) {
   return (

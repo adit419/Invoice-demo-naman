@@ -1,0 +1,39 @@
+{
+  "invoice_number": "INV/2026/03847",
+  "invoice_date": "2026-06-30",
+  "vendor_name": "PT GRAHA MEGARIA RAYA",
+  "vendor_address": "CILANDAK TOWNSQUARE, JL. TB SIMATUPANG KAV.17, JAKARTA JK 12430, Indonesia",
+  "vendor_vat_id": "NA",
+  "customer_legal_entity": "PT. BUMI BERKAH BOGA, KOPI KENANGAN",
+  "customer_address": "Plaza Blok M, Lantai 7, Jalan Bulungan No. 76 RT. 006 RW. 006, Kramat Pela, Kebayoran Baru, Kota Adm. Jakarta Selatan, DKI Jakarta, Jakarta Selatan JK 12160, Indonesia",
+  "customer_vat_id": "NA",
+  "description": "Utility PLN: June 2026, Unit TSC-UNT-01-000-157",
+  "billing_period_start": "NA",
+  "billing_period_end": "NA",
+  "payment_terms": "NA",
+  "due_date": "2026-07-14",
+  "total_amount_before_vat": 2407870.14,
+  "tax_type": "NA",
+  "tax_rate": "NA",
+  "vat_gst": 264865.72,
+  "wht_rate": "NA",
+  "wht": "NA",
+  "net_amount_after_wht": "NA",
+  "total_amount": 2672735.86,
+  "currency": "IDR",
+  "vendor_bank_name": "Maybank",
+  "vendor_bank_account_name": "PT. Graha Megaria Raya",
+  "vendor_bank_account_number": "2003072602",
+  "vendor_bank_swift": "NA",
+  "notes": "NA",
+  "line_items": [
+    {
+      "label": "Utility PLN: June 2026",
+      "item_code": null,
+      "charge_type": "utility_electricity",
+      "quantity": 1,
+      "unit_price": 2407870.14,
+      "amount": 2407870.14
+    }
+  ]
+}

@@ -94,6 +94,16 @@ interface BillPostingTableProps {
    */
   isVendorSubjectToVat?: boolean;
   /**
+   * When true the WHT Tax Code column is rendered even for a vendor not
+   * subject to WHT (which then shows its own explicit "no withholding" code
+   * rather than the column vanishing). Opt-in so P2P's existing
+   * isVendorSubjectToWht-gated behavior is unchanged.
+   */
+  alwaysShowWhtColumn?: boolean;
+  /** Optional annotation rendered beside a row's WHT code, e.g. a provenance
+   *  note when the rate comes from the contract rather than the invoice. */
+  renderWhtNote?: (item: BillLineItem) => React.ReactNode;
+  /**
    * Set of erp_fields keys where mask=true (from workflow settings).
    * null/undefined = no filtering (show all).
    * vat_tax_code absent → hide VAT column.
@@ -137,6 +147,8 @@ export function BillPostingTable({
   isEditMode,
   isVendorSubjectToWht,
   isVendorSubjectToVat = true,
+  alwaysShowWhtColumn = false,
+  renderWhtNote,
   allowedErpFields,
   currency,
   vatOptions,
@@ -151,7 +163,7 @@ export function BillPostingTable({
   // Column visibility: workflow settings mask=false → hide column.
   // null allowedErpFields = no filtering (show all).
   const showVatColumn = isVendorSubjectToVat && (!allowedErpFields || allowedErpFields.has("vat_tax_code"));
-  const showWhtColumn = isVendorSubjectToWht && (!allowedErpFields || allowedErpFields.has("wht_tax_code"));
+  const showWhtColumn = (isVendorSubjectToWht || alwaysShowWhtColumn) && (!allowedErpFields || allowedErpFields.has("wht_tax_code"));
 
   const rows: Row[] = useMemo(
     () => lineItems.map((item, idx) => ({ key: item.id, index: idx + 1, item })),
@@ -238,7 +250,8 @@ export function BillPostingTable({
         onCell: () => ({ style: { backgroundColor: "#f7f8f9", padding: 0 } }),
         render: (_, row) => {
           const current = lineEdits.get(row.item.id)?.wht_tax_code ?? row.item.wht_tax_code ?? "";
-          return (
+          const note = renderWhtNote?.(row.item);
+          const select = (
             <Select
               value={current || undefined}
               onChange={(val) => onWhtChange(row.item.id, val ?? "")}
@@ -248,7 +261,7 @@ export function BillPostingTable({
               size="small"
               suffixIcon={caretIcon}
               popupMatchSelectWidth={false}
-              placeholder="— select tax type / code —"
+              placeholder="select tax type / code"
               options={activeWhtOptions}
               style={{ minWidth: 180 }}
               allowClear={isEditMode}
@@ -257,12 +270,20 @@ export function BillPostingTable({
               optionRender={wrapRender}
             />
           );
+          return note ? (
+            <div className="flex items-center gap-1.5" style={{ width: "100%" }}>
+              <div style={{ flex: 1, minWidth: 0 }}>{select}</div>
+              {note}
+            </div>
+          ) : (
+            select
+          );
         },
       });
     }
 
     return base;
-  }, [symbol, lineEdits, isEditMode, showVatColumn, showWhtColumn, activeVatOptions, activeWhtOptions, onVatChange, onWhtChange]);
+  }, [symbol, lineEdits, isEditMode, showVatColumn, showWhtColumn, renderWhtNote, activeVatOptions, activeWhtOptions, onVatChange, onWhtChange]);
 
   if (rows.length === 0) {
     return (

@@ -1,0 +1,39 @@
+{
+  "invoice_number": "Invoice - 1",
+  "invoice_date": "2026-05-21",
+  "vendor_name": "Debora Debby Wage",
+  "vendor_address": "NA",
+  "vendor_vat_id": "NA",
+  "customer_legal_entity": "PT. Bumi Berkah Boga",
+  "customer_address": "Plaza Blok M Lantai 7 Unit A Jl. Bulungan No.76, RT.6/RW.6, Kramat Pela, Kec. Kby. Baru, Kota Jakarta Selatan - 12130",
+  "customer_vat_id": "NA",
+  "description": "Invoice Revenue Sharing Kopi Kenangan - Kemang Timur",
+  "billing_period_start": "NA",
+  "billing_period_end": "NA",
+  "payment_terms": "NA",
+  "due_date": "2026-06-10",
+  "total_amount_before_vat": 21759425.0,
+  "tax_type": "NA",
+  "tax_rate": "NA",
+  "vat_gst": "NA",
+  "wht_rate": "NA",
+  "wht": "NA",
+  "net_amount_after_wht": "NA",
+  "total_amount": 21759425.0,
+  "currency": "IDR",
+  "vendor_bank_name": "MANDIRI",
+  "vendor_bank_account_name": "DEBORA DEBBY WAGE",
+  "vendor_bank_account_number": "1270000055283",
+  "vendor_bank_swift": "NA",
+  "notes": "NA",
+  "line_items": [
+    {
+      "label": "Revenue Sharing Bulan April Kopi Kenangan - Kemang Timur",
+      "item_code": null,
+      "charge_type": "revenue_share",
+      "quantity": 1,
+      "unit_price": 21759425.0,
+      "amount": 21759425.0
+    }
+  ]
+}

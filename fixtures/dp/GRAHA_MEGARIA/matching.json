@@ -1,0 +1,24 @@
+{
+  "expected": {
+    "vendor": "PT Graha Megaria Raya (manager of Townsquare Cilandak / CITOS)",
+    "customer": "PT Bumi Berkah Boga (Kopi Kenangan); Attn: Mr. Edward Tirtanata",
+    "subtotal": 0,
+    "currency": "IDR",
+    "line_items": [
+      {
+        "charge_type": "rental_fee",
+        "label": "Monthly Rent",
+        "expected_amount": 0,
+        "unit": "IDR",
+        "clause_id": null
+      }
+    ]
+  },
+  "summary": {
+    "errors": 0,
+    "warnings": 0,
+    "info": 0,
+    "total": 0
+  },
+  "findings": []
+}

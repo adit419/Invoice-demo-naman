@@ -25,7 +25,7 @@
   "vendor_bank_account_name": "BUMI BERKAH BOGA, PT",
   "vendor_bank_account_number": "00801-625000 (Virtual Acc)",
   "vendor_bank_swift": "NA",
-  "notes": "Invoice states VAT = 0.00 with annotation \"PPN DIBEBASKAN - PP 49/2022\" (VAT exempted per Government Regulation 49/2022) — kept verbatim. Note this directly contradicts the paired Faktur Pajak (FP5), which shows a real vat_amount of 53,713 — a genuine invoice-vs-FP discrepancy, not reconciled here.",
+  "notes": "Invoice states VAT = 0.00 with annotation “PPN DIBEBASKAN - PP 49/2022” (VAT exempted per Government Regulation 49/2022, clean water). The paired Faktur Pajak (FP5) prints a mechanically-computed PPN of Rp 53,713, but that tax is waived under the same exemption, so the VAT actually charged is 0.00 and the payable stays Rp 488,300 — reconciled on that basis, see faktur_pajak_5.json's ai_reasoning.",
   "line_items": [
     {
       "label": "Air — IURAN PELAYANAN AIR MEI 26",

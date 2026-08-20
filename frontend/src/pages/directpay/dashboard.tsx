@@ -573,12 +573,16 @@ function DirectPayDashboard() {
       local[i] = { ...local[i], status: "uploading" };
       setBatchFiles([...local]);
       try {
-        const run = await directpayService.uploadInvoice(files[i]);
-        runIds.push(run.id);
-        if (stpEnabled) {
-          await waitForExtraction(run.id);
-        } else {
-          await directpayService.extractInvoice(run.id);
+        // One file can resolve to SEVERAL runs (a combined multi-invoice PDF —
+        // see uploadInvoice), so extract each of them.
+        const runs = await directpayService.uploadInvoice(files[i]);
+        for (const run of runs) {
+          runIds.push(run.id);
+          if (stpEnabled) {
+            await waitForExtraction(run.id);
+          } else {
+            await directpayService.extractInvoice(run.id);
+          }
         }
         local[i] = { ...local[i], status: "done" };
       } catch {
@@ -618,29 +622,41 @@ function DirectPayDashboard() {
     setUploading(true);
     try {
       if (tab === "invoices") {
-        const run = await directpayService.uploadInvoice(file);
+        // A single file can be several invoices — GRAHA_MEGARIA's 6-page PDF
+        // holds four, each of which becomes its own run (see uploadInvoice).
+        const runs = await directpayService.uploadInvoice(file);
         setUploading(false);
         setAutoExtracting("invoice");
         setInvoicePhase("extracting");
         try {
-          if (stpEnabled) {
-            // Auto-Process: extraction runs in the background (the upload
-            // endpoint already kicked off stp.py's cascade) — poll for it
-            // rather than re-triggering it.
-            await waitForExtraction(run.id);
-          } else {
-            // Manual: no background task runs extraction for us — call it
-            // directly. The Extraction screen would otherwise do this same
-            // call on load; doing it here just means it's already done by
-            // the time we land there.
-            await directpayService.extractInvoice(run.id);
+          for (const run of runs) {
+            if (stpEnabled) {
+              // Auto-Process: extraction runs in the background (the upload
+              // endpoint already kicked off stp.py's cascade) — poll for it
+              // rather than re-triggering it.
+              await waitForExtraction(run.id);
+            } else {
+              // Manual: no background task runs extraction for us — call it
+              // directly. The Extraction screen would otherwise do this same
+              // call on load; doing it here just means it's already done by
+              // the time we land there.
+              await directpayService.extractInvoice(run.id);
+            }
           }
           setInvoicePhase("validating");
           await sleep(INVOICE_VALIDATING_MS);
         } finally {
           setAutoExtracting(null);
         }
-        router.push(`/directpay/invoice/${run.id}/review`);
+        // Several invoices came out of the one file — there is no single "the"
+        // invoice to land on, so reload the dashboard and say what happened,
+        // mirroring the multi-run outcome of the batch path above.
+        if (runs.length > 1) {
+          await load();
+          toast(`${runs.length} invoices found in ${file.name} — each is now processing separately`, "success");
+          return;
+        }
+        router.push(`/directpay/invoice/${runs[0].id}/review`);
         return;
       }
       const run = await directpayService.uploadContract(file);

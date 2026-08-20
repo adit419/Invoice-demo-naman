@@ -76,6 +76,31 @@ class DpDocumentEntry:
     # document that doesn't need one (the vast majority).
     supporting_document: Optional[dict] = None
     supporting_document_pdf_path: Optional[Path] = None
+    # Several real Faktur Pajak belonging to ONE invoice, each its own PDF (see
+    # documents.json's `faktur_pajak_pdfs`). KARYA_NASTARI's invoice_3 bundles
+    # three — Admin Fee / Water / Electricity — which together are the reference
+    # for its Total Amount Before VAT, so each needs to be linkable. Distinct
+    # from the single `faktur_pajak_pdf_path` above; a document has one or the
+    # other, not both.
+    faktur_pajak_pdfs: list = field(default_factory=list)
+
+
+@dataclass
+class DpCombinedUpload:
+    """ONE uploaded file that physically contains SEVERAL of a vendor's real
+    invoices, which must fan out into one processing run each.
+
+    GRAHA_MEGARIA's source arrived this way: a single 6-page PDF holding four
+    invoices, two of them followed by their own supporting-document page. The
+    per-invoice split PDFs still exist and the normal one-file-per-invoice upload
+    still works unchanged — this is an ADDITIONAL way in, for demoing the real
+    document exactly as the vendor sends it.
+
+    Declared under documents.json's optional `combined_uploads`; a folder without
+    that key has none and behaves exactly as before."""
+    match: list[str]
+    document_keys: list[str]
+    label: Optional[str] = None
 
 
 @dataclass
@@ -125,6 +150,9 @@ class DpFixtureBundle:
     # net_amount_after_wht), computed from the underlying lease's own
     # installment schedule rather than the invoice document itself.
     payment_schedule: Optional[dict] = None
+    # Filenames that stand for SEVERAL of this folder's documents at once (see
+    # DpCombinedUpload). Empty for every vendor that doesn't have one.
+    combined_uploads: list = field(default_factory=list)
 
     def display_label(self) -> str:
         vendor = self.contract_extraction.get("vendor_name") or self.invoice_extraction.get("vendor_name")
@@ -224,6 +252,22 @@ class DpFixtureLoader:
                         fp_field_meta=json.loads(fp_field_meta_path.read_text()) if fp_field_meta_path.exists() else {},
                         supporting_document=json.loads(supporting_doc_path.read_text()) if supporting_doc_path and supporting_doc_path.exists() else None,
                         supporting_document_pdf_path=supporting_doc_pdf_path if supporting_doc_pdf_path and supporting_doc_pdf_path.exists() else None,
+                        faktur_pajak_pdfs=[
+                            {"label": fpd.get("label") or fpd["file"], "path": entry / fpd["file"]}
+                            for fpd in (doc.get("faktur_pajak_pdfs") or [])
+                            if (entry / fpd["file"]).exists()
+                        ],
+                    ))
+
+                for combined in manifest.get("combined_uploads", []):
+                    keys = [k for k in combined.get("documents", [])
+                            if any(d.key == k for d in bundle.documents)]
+                    if not keys:
+                        continue
+                    bundle.combined_uploads.append(DpCombinedUpload(
+                        match=combined.get("match", []),
+                        document_keys=keys,
+                        label=combined.get("label"),
                     ))
 
             bundles[entry.name] = bundle
@@ -265,6 +309,30 @@ class DpFixtureLoader:
                 if norm_alias and norm_alias in norm and len(norm_alias) > best_len:
                     best_doc, best_len = doc, len(norm_alias)
         return bundle, best_doc
+
+    def resolve_combined_upload(self, file_name: str):
+        """(bundle, DpCombinedUpload | None) — whether this upload is a combined
+        file standing for several of the folder's documents.
+
+        A combined alias only wins when it is MORE specific (a longer match) than
+        any single-document alias, so `GRAHA_MEGARIA_INV_1.pdf` still means just
+        `invoice_1` while `GRAHA_MEGARIA_INV_1_ALL_6_PAGES.pdf` means all four.
+        Same substring/longest-wins rule resolve_document() uses."""
+        bundle = self.resolve(file_name)
+        if not bundle or not bundle.combined_uploads:
+            return bundle, None
+
+        norm = _normalise(file_name)
+        best_doc_len = max(
+            (len(a) for d in bundle.documents for a in map(_normalise, d.match) if a and a in norm),
+            default=-1,
+        )
+        best, best_len = None, -1
+        for combined in bundle.combined_uploads:
+            for alias in map(_normalise, combined.match):
+                if alias and alias in norm and len(alias) > best_len:
+                    best, best_len = combined, len(alias)
+        return bundle, (best if best and best_len > best_doc_len else None)
 
     def keys(self) -> list[str]:
         return list(self.discover().keys())

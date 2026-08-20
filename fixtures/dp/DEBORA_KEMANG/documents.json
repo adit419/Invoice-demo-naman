@@ -1,0 +1,33 @@
+{
+  "invoices": [
+    {
+      "key": "invoice_1",
+      "match": [
+        "inv_1",
+        "invoice_1",
+        "inv_rev_3",
+        "invoice_rev_3",
+        "revenue_sharing",
+        "rev_share",
+        "sales_report",
+        "supporting_doc_inv1"
+      ],
+      "pdf": "invoice_1.pdf",
+      "extraction": "invoice_1_extraction.json",
+      "supporting_document": "supporting_doc_inv1_extraction.json",
+      "supporting_document_pdf": "supporting_doc_inv1.pdf"
+    },
+    {
+      "key": "invoice_2",
+      "match": [
+        "inv_2",
+        "invoice_2",
+        "listrik",
+        "electricity_retribusi",
+        "ipl"
+      ],
+      "pdf": "invoice_2.pdf",
+      "extraction": "invoice_2_extraction.json"
+    }
+  ]
+}

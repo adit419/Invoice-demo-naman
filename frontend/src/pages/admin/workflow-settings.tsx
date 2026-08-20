@@ -660,6 +660,142 @@ function DpStpPanel({ isAdmin }: { isAdmin: boolean }) {
 // Its own learned-acknowledgement memory, isolated from P2P's — see
 // backend/src/directpay/store.py's dp_field_acknowledgement_memory docstring.
 
+// ── DirectPay Total Amount Before VAT tolerance ───────────────────────────────
+// Matching compares the invoice's Total Amount Before VAT against the contract
+// (or, for a utility billed on actuals, its supporting document) and allows the
+// invoice to run up to this percentage ABOVE that reference. One-sided by
+// design: an invoice under the reference is never a problem. The Matching page's
+// variance bar reads this setting and shows the resulting cap.
+
+function DpTotalBeforeVatThresholdPanel({ isAdmin }: { isAdmin: boolean }) {
+  const { toast } = useToast();
+  const [enabled, setEnabled] = useState(true);
+  const [value, setValue] = useState<number>(5);
+  const [inputVal, setInputVal] = useState<string>("5");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    directpayService.getTotalBeforeVatThreshold()
+      .then(d => { setEnabled(d.enabled); setValue(d.threshold_pct); setInputVal(String(d.threshold_pct)); })
+      .catch(() => { /* fall back to the enabled/5% default */ })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const parsed = parseFloat(inputVal);
+  const inputValid = !isNaN(parsed) && parsed >= 0;
+  const dirty = inputValid && parsed !== value;
+
+  const commit = async (nextEnabled: boolean, pct: number) => {
+    setSaving(true);
+    try {
+      const r = await directpayService.setTotalBeforeVatThreshold(nextEnabled, pct);
+      setEnabled(r.enabled); setValue(r.threshold_pct); setInputVal(String(r.threshold_pct));
+    } catch (err) {
+      setInputVal(String(value));
+      toast(err instanceof ApiError ? err.message : "Failed to update tolerance", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ border: "1px solid #E6E6E6", borderRadius: 8, background: "#ffffff" }}>
+      <div className="flex items-center justify-between" style={{ padding: "16px 20px" }}>
+        <div className="flex items-start gap-3 min-w-0">
+          <div
+            style={{
+              width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+              background: "#F0F4FF", border: "1px solid #C7D7FD",
+              display: "flex", alignItems: "center", justifyContent: "center", color: "#3B5BDB",
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M2 11.5h12M4.5 11.5V6M8 11.5V3.5M11.5 11.5V8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+            </svg>
+          </div>
+          <div className="min-w-0">
+            <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "#101828", fontFamily: "Inter, sans-serif" }}>
+              DirectPay Total Amount Before VAT Tolerance
+            </h3>
+            <p style={{ color: "#717680", fontSize: 12, margin: "2px 0 0", maxWidth: 560, fontFamily: "Inter, sans-serif" }}>
+              How far above the contract (or supporting-document) amount an invoice&apos;s Total Amount
+              Before VAT may run before Matching flags it. One-sided — an invoice below the reference
+              never fails. Shown, with the resulting cap, on the Matching page&apos;s variance bar.
+              Default is 5%.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3" style={{ flexShrink: 0, marginLeft: 24 }}>
+          {loading ? (
+            <div style={{ width: 56, height: 32, borderRadius: 6, background: "#F0F0F0" }} />
+          ) : (
+            <>
+              <Toggle
+                on={enabled}
+                onClick={() => void commit(!enabled, inputValid ? parsed : value)}
+                disabled={!isAdmin || saving}
+                title={
+                  !isAdmin
+                    ? "Viewers cannot edit settings"
+                    : enabled
+                    ? "Disable the tolerance — Total Amount Before VAT must then match exactly"
+                    : "Enable the tolerance"
+                }
+              />
+              <input
+                type="number"
+                min={0}
+                step={0.5}
+                value={inputVal}
+                disabled={!isAdmin || !enabled || saving}
+                onChange={e => setInputVal(e.target.value)}
+                style={{
+                  width: 56, padding: "5px 8px", borderRadius: 6,
+                  border: `1px solid ${dirty && inputValid ? "#1876FF" : "#D5D5D5"}`,
+                  background: !isAdmin || !enabled ? "#F5F5F5" : "#ffffff",
+                  color: !isAdmin || !enabled ? "#8D92A6" : "#414651",
+                  fontSize: 14, fontWeight: 500, textAlign: "center", outline: "none",
+                  fontFamily: "Inter, sans-serif",
+                  cursor: !isAdmin || !enabled ? "not-allowed" : "text",
+                }}
+              />
+              <span style={{ fontSize: 13, color: "#717680" }}>%</span>
+            </>
+          )}
+          {isAdmin && dirty && !loading && (
+            <>
+              <button
+                onClick={() => setInputVal(String(value))}
+                style={{
+                  height: 30, padding: "0 12px", fontSize: 13, fontWeight: 500,
+                  color: "#414651", background: "#ffffff", border: "1px solid #D5D5D5",
+                  borderRadius: 6, cursor: "pointer", fontFamily: "Inter, sans-serif",
+                }}
+              >
+                Discard
+              </button>
+              <button
+                onClick={() => void commit(enabled, parsed)}
+                disabled={saving || !inputValid}
+                style={{
+                  height: 30, padding: "0 14px", fontSize: 13, fontWeight: 500,
+                  background: "#1876FF", color: "#fff", border: "none", borderRadius: 6,
+                  cursor: saving || !inputValid ? "not-allowed" : "pointer",
+                  fontFamily: "Inter, sans-serif", opacity: saving || !inputValid ? 0.6 : 1,
+                }}
+              >
+                {saving ? "Saving…" : "Save"}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DpAckThresholdPanel({ isAdmin }: { isAdmin: boolean }) {
   const { toast } = useToast();
   const [value, setValue] = useState<number>(3);
@@ -1127,6 +1263,7 @@ function WorkflowSettingsPage() {
                 </div>
                 <DpStpPanel isAdmin={isAdmin} />
                 <DpAckThresholdPanel isAdmin={isAdmin} />
+                <DpTotalBeforeVatThresholdPanel isAdmin={isAdmin} />
 
                 {settings && orderedSections.map(key => (
                   <SectionPanel

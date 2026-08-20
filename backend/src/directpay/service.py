@@ -5,6 +5,7 @@ click and STP's automated equivalent always run the exact same code path.
 Mirrors the P2P split between `stages.approve_stage()` (shared core) and its
 thin HTTP wrappers in `api/v1/*.py`.
 """
+import re
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -291,6 +292,75 @@ def _is_non_rent_invoice(extracted: dict) -> bool:
 # comparison — per explicit instruction, it's shown empty instead of a
 # misleadingly specific number from an unrelated schedule category.
 _NO_SCHEDULE_CHARGE_TYPES = {"utility_electricity", "utility_water"}
+
+# A revenue-share contract has no fixed rent at all: the amount due is a
+# PERCENTAGE of the outlet's own reported sales, so the reference figure cannot
+# come from the contract alone or from a supporting document alone — it is
+# computed from one value in each.
+#   Revenue Share %  <- the matched schedule row's own `revenue_share_pct`
+#                       (contract derived fields)
+#   Net Sales        <- the supporting document's `net_sales`, i.e. the sales
+#                       report's own Sales (Ex. PB1) - Biaya Ojol - Discount
+#   Rent due         =  Revenue Share % x Net Sales
+# DEBORA_KEMANG is the first such vendor (Perjanjian Kerja Sama, 15% of Nilai
+# Penjualan Bersih). Its OTHER invoice — a flat monthly IPL fee covering
+# electricity/water plus security/cleaning — is deliberately NOT part of this:
+# it is a fixed contractual amount with its own schedule, so it carries
+# charge_type `ipl_fee` and is matched against that schedule the ordinary way.
+_REVENUE_SHARE_CHARGE_TYPES = {"revenue_share"}
+
+
+def _wht_gross_up_note(extracted: dict, contract_fields: dict, contract_value) -> Optional[str]:
+    """Flag the case where an invoice's NET-of-withholding figure equals the
+    contract amount while its GROSS exceeds it — i.e. the vendor grossed the
+    charge up so that what it actually receives after PPh matches the contract.
+
+    DEBORA_KEMANG's IPL invoice does exactly this: contract Rp15,000,000, invoice
+    Rp16,666,666 gross, Rp1,666,666 PPh withheld, Rp15,000,000 net. The +11.11%
+    gross figure fails the tolerance check, and this note explains WHY it fails
+    so an escalation says something more useful than "exceeds threshold".
+
+    Only raised when the contract itself says nothing about withholding — for a
+    vendor whose contract does state it (PT_BANGUN, RATNA_INTAN: Yes / 10%) a
+    gross-up is expected behaviour, not a discrepancy to report.
+    """
+    if contract_value is None:
+        return None
+    if contract_fields.get("wht_applicable") or contract_fields.get("wht_rate_pct"):
+        return None
+    try:
+        wht = float(extracted.get("wht"))
+        net = float(extracted.get("net_amount_after_wht"))
+        gross = float(extracted.get("total_amount_before_vat"))
+        reference = float(contract_value)
+    except (TypeError, ValueError):
+        return None
+    if wht <= 0 or gross <= reference + 0.01:
+        return None
+    # The net has to land ON the contract figure — that is what makes it a
+    # gross-up rather than simply an over-billed invoice.
+    if abs(net - reference) > 0.01:
+        return None
+    return "Invoice looks like grossed up for wht which is not mentioned in the contract."
+
+
+def _is_revenue_share_invoice(extracted: dict) -> bool:
+    line_items = extracted.get("line_items") or []
+    return any(item.get("charge_type") in _REVENUE_SHARE_CHARGE_TYPES for item in line_items)
+
+
+def _revenue_share_reference(doc: dict, installment: Optional[dict]):
+    """(amount_due, pct, net_sales) for a revenue-share invoice, or (None, ...)
+    when either input is missing — never a partial guess."""
+    supporting = doc.get("supporting_document") or {}
+    net_sales = supporting.get("net_sales")
+    pct = (installment or {}).get("revenue_share_pct")
+    if net_sales is None or pct is None:
+        return None, pct, net_sales
+    try:
+        return round(float(net_sales) * float(pct) / 100.0, 2), float(pct), float(net_sales)
+    except (TypeError, ValueError):
+        return None, pct, net_sales
 _NO_SCHEDULE_BLANK_FIELDS = {"total_amount_before_vat"}
 # This money field is mandatory-and-blocking even when there's no real
 # contract figure to compare against at all (e.g. Electricity/Water's
@@ -332,9 +402,7 @@ _RATNA_INTAN_NO_VAT_FIELDS = {"vat_gst", "tax_rate"}
 # vendor (Palladium/Pakuwon/Karya Nastari), whose own registered address
 # genuinely IS the mall the leased unit sits in — that comparison stays as-is
 # for those.
-_NO_STORE_LOCATION_MATCH_VENDORS = {"RATNA_INTAN", "PT_BANGUN"}
-
-
+_NO_STORE_LOCATION_MATCH_VENDORS = {"RATNA_INTAN", "PT_BANGUN", "DEBORA_KEMANG"}
 def _has_no_schedule_charge(extracted: dict) -> bool:
     line_items = extracted.get("line_items") or []
     return any(item.get("charge_type") in _NO_SCHEDULE_CHARGE_TYPES for item in line_items)
@@ -426,6 +494,172 @@ _INSTALLMENT_MATCH_FIELD_MAP = {
 }
 
 
+def _schedule_row_category(description: str) -> str:
+    """Group a payment-schedule row for the Matching page's installment picker.
+    Derived from the row's own description rather than a fixture field, so no
+    vendor's payment_schedule.json needs re-authoring; anything unrecognised
+    falls back to "Rent", which is what a single-schedule vendor has."""
+    d = (description or "").lower()
+    if "service charge" in d:
+        return "Service Charge"
+    if "promotion" in d:
+        return "Promotion Levy"
+    if "deposit" in d:
+        return "Deposit"
+    # DEBORA_KEMANG runs two parallel monthly schedules — a revenue-share rent
+    # and a flat IPL fee — so they need their own groups to be tellable apart in
+    # the picker (both would otherwise fall through to "Rent").
+    if "revenue share" in d:
+        return "Revenue Share"
+    if "ipl" in d:
+        return "IPL Fee"
+    return "Rent"
+
+
+# Month names as they appear on these invoices, English and Indonesian both
+# (PAKUWON prints "20 August 2025", PALLADIUM "01 Mei 2026", RATNA_INTAN
+# "10 Agustus 2026", KARYA_NASTARI plain ISO).
+_MONTH_NAMES = {
+    "january": 1, "februari": 2, "february": 2, "januari": 1, "march": 3, "maret": 3,
+    "april": 4, "may": 5, "mei": 5, "june": 6, "juni": 6, "july": 7, "juli": 7,
+    "august": 8, "agustus": 8, "september": 9, "october": 10, "oktober": 10,
+    "november": 11, "december": 12, "desember": 12,
+}
+
+
+def _parse_loose_date(value) -> Optional[datetime]:
+    """Parse the handful of date shapes these fixtures actually use. Returns None
+    for anything unrecognised (including "NA"), so callers simply skip the
+    comparison rather than guessing."""
+    if not isinstance(value, str):
+        return None
+    t = value.strip()
+    if not t or t.upper() == "NA":
+        return None
+    try:
+        return datetime.strptime(t, "%Y-%m-%d")
+    except ValueError:
+        pass
+    parts = t.replace("-", " ").replace("/", " ").split()
+    if len(parts) == 3:
+        day, month, year = parts
+        num = _MONTH_NAMES.get(month.lower())
+        if num and day.isdigit() and year.isdigit():
+            try:
+                return datetime(int(year), num, int(day))
+            except ValueError:
+                return None
+    return None
+
+
+def _due_date_tiebreak(schedule: Optional[dict], extracted: dict) -> Optional[dict]:
+    """Disambiguate rows that are equally close on amount by matching a date the
+    invoice itself prints against the schedule row's due date.
+
+    Amount alone cannot separate a schedule that repeats the same figure, e.g.
+    PAKUWON's 3 down payments (all 30,000,000) and 24 monthly instalments (all
+    15,000,000), so the automatic pick lands on the first of them regardless of
+    which period the invoice is actually for. Only ever returns a row on an EXACT
+    due-date match, so where the dates don't line up the existing pick stands."""
+    installments = (schedule or {}).get("installments") or []
+    # Two invoice-side dates can identify the period, tried in this order:
+    #   1. the invoice's own due date (PAKUWON's case — its due dates coincide
+    #      with the schedule's), then
+    #   2. the start of the billing period the invoice prints (GRAHA_MEGARIA's
+    #      case — it bills "Period From : 01-Aug-2026 to 31-Aug-2026" and each
+    #      schedule row falls due on the first day of the month it covers,
+    #      while the invoice's own due date is 3 weeks earlier).
+    # Every other vendor's invoices leave billing_period_start as "NA", so
+    # candidate 2 simply never fires for them.
+    candidates = [_parse_loose_date(extracted.get("due_date")),
+                  _parse_loose_date(extracted.get("billing_period_start"))]
+    if not any(candidates) or len(installments) < 2:
+        return None
+    try:
+        target = float(extracted.get("total_amount_before_vat"))
+    except (TypeError, ValueError):
+        return None
+
+    scored = []
+    for inst in installments:
+        try:
+            scored.append((abs(float(inst.get("amount_excl_tax")) - target), inst))
+        except (TypeError, ValueError):
+            continue
+    if not scored:
+        return None
+    best = min(d for d, _ in scored)
+    ties = [inst for d, inst in scored if abs(d - best) < 0.01]
+    if len(ties) < 2:
+        return None  # nothing ambiguous to break
+    for inv_date in candidates:
+        if not inv_date:
+            continue
+        exact = [i for i in ties if _parse_loose_date(i.get("due_date")) == inv_date]
+        if len(exact) == 1:
+            return exact[0]
+    return None
+
+
+def _matched_installment(doc: dict, schedule: Optional[dict], extracted: dict) -> Optional[dict]:
+    """The installment this invoice is being matched against.
+
+    A human's explicit pick (doc["installment_index"], set from the Matching
+    page) always wins; otherwise fall back to amount proximity. The manual path
+    matters because proximity cannot disambiguate rows that share an amount, and
+    several vendors have many identical rows (PAKUWON has 24 identical monthly
+    instalments and 3 identical down payments), so the automatic pick is often
+    the wrong period even though the figure is right."""
+    installments = (schedule or {}).get("installments") or []
+    if not installments:
+        return None
+    idx = doc.get("installment_index")
+    if isinstance(idx, int) and 0 <= idx < len(installments):
+        return installments[idx]
+    # Break an amount tie on the due date where that resolves it; otherwise the
+    # plain amount-proximity pick stands unchanged.
+    return _due_date_tiebreak(schedule, extracted) or _match_payment_installment(schedule, extracted)
+
+
+def _schedule_option_label(description: str, index: int) -> str:
+    """Just the row's own heading, for the Matching picker.
+
+    The picker is narrow, so a full description truncates to uselessness
+    ("Installment 1 of 10 (balance 80%) — ES..."). Two kinds of trailing text are
+    dropped, both of which QUALIFY a row rather than IDENTIFY it:
+      - parentheticals: "(balance 80%)", "(20%, cash upfront)", "(Year 1-2, upfront)"
+      - the "— ESTIMATED" provenance marker
+
+    What is deliberately NOT dropped is anything after an em dash generally —
+    PAKUWON's "Promotion Levy — Month 1 of 36" and PALLADIUM's "Service Charge —
+    Month 1 of 24" carry the distinguishing part there, and cutting at the dash
+    would collapse 36 and 24 rows respectively into identical labels.
+
+    The untrimmed description still shows in full in the Contract Derived Fields
+    table, so the ESTIMATED provenance is never lost — only shortened here."""
+    text = description or ""
+    text = re.sub(r"\s*[—–-]\s*ESTIMATED\b", "", text)
+    text = re.sub(r"\s*\([^)]*\)", "", text)
+    text = re.sub(r"\s+", " ", text).strip(" —–-")
+    return text or f"Installment {index + 1}"
+
+
+def _schedule_options(schedule: Optional[dict]) -> list[dict]:
+    """Installment rows offered in the Matching page's picker. One-time payments
+    (deposits, telephone charges) are deliberately excluded: they are never what
+    a recurring invoice is matched against."""
+    return [
+        {
+            "index": i,
+            "label": _schedule_option_label(inst.get("description") or "", i),
+            "category": _schedule_row_category(inst.get("description") or ""),
+            "due_date": inst.get("due_date"),
+            "amount_excl_tax": inst.get("amount_excl_tax"),
+        }
+        for i, inst in enumerate((schedule or {}).get("installments") or [])
+    ]
+
+
 def _resolve_contract_value(core, contract_fields: dict, installment: Optional[dict]):
     if installment and core.invoice_field in _INSTALLMENT_MATCH_FIELD_MAP:
         return installment.get(_INSTALLMENT_MATCH_FIELD_MAP[core.invoice_field])
@@ -472,7 +706,7 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
 
     bundle = get_dp_loader().discover().get(doc.get("fixture_key"))
     schedule = _effective_payment_schedule(bundle.payment_schedule if bundle else None, contract_doc)
-    installment = _match_payment_installment(schedule, extracted) if schedule else None
+    installment = _matched_installment(doc, schedule, extracted)
 
     core_by_field = {c.invoice_field: c for c in field_mapping.CORE_CROSS_VALIDATION_FIELDS}
 
@@ -492,6 +726,12 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
     for core in field_mapping.CORE_CROSS_VALIDATION_FIELDS:
         if core.invoice_field in covered_invoice_fields:
             continue
+        # A mandatory field that has been positively CLEARED by a real rule
+        # (rather than by being equal, or by a human acknowledging it). Lets a
+        # field stay mandatory — Total Amount Before VAT always is — while a
+        # threshold pass still lets approval through, instead of the field
+        # having to be demoted to non-mandatory to unblock. See has_open_issues.
+        satisfied = False
         ratna_no_vat = doc.get("fixture_key") == "RATNA_INTAN" and core.invoice_field in _RATNA_INTAN_NO_VAT_FIELDS
         # See _NO_STORE_LOCATION_MATCH_VENDORS above.
         no_store_match = (
@@ -518,7 +758,32 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
                 contract_value = supporting_value
                 used_supporting_document = True
             else:
+                # No contract figure and no INDEPENDENT supporting document.
+                # Deliberately NO Faktur Pajak fallback: an FP's Harga Jual is
+                # derived from the vendor's own billing calculation, so matching
+                # against it would only confirm the vendor is internally
+                # consistent with itself — not that the amount is correct. Left
+                # blank so the row fails and routes to manual review.
                 contract_value = None
+        # Revenue-share contracts (DEBORA_KEMANG): the rent due is
+        # Revenue Share % x Net Sales, so neither the schedule row's own stored
+        # amount nor the supporting document alone is the reference — see
+        # _revenue_share_reference. Computed live from both, so editing either
+        # the contract's % (Contract Postprocessing) or re-reading the sales
+        # report moves this figure. Placed BEFORE the RATNA/no-schedule
+        # overrides below and after the metered-utility branch above, so it only
+        # ever affects an invoice that actually carries a revenue_share line.
+        used_revenue_share = False
+        revenue_share_pct = revenue_share_net_sales = None
+        escalation_note = (
+            _wht_gross_up_note(extracted, contract_fields, contract_value)
+            if core.invoice_field == "total_amount_before_vat" else None
+        )
+        if core.invoice_field == "total_amount_before_vat" and _is_revenue_share_invoice(extracted):
+            rs_amount, revenue_share_pct, revenue_share_net_sales = _revenue_share_reference(doc, installment)
+            if rs_amount is not None:
+                contract_value = rs_amount
+                used_revenue_share = True
         # RATNA_INTAN's own no-VAT case (see _RATNA_INTAN_NO_VAT_FIELDS) — the
         # schedule's Amount (Excl. Tax)/VAT Amount don't apply to this vendor
         # at all, so there's genuinely nothing on the contract side either.
@@ -566,7 +831,17 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
             # resolve once the underlying data actually provides a real
             # contract figure.
             severity = "error"
-            detail = f"No contract figure to compare {core.label} against — this must be resolved before proceeding."
+            if core.invoice_field in _NO_SCHEDULE_BLANK_FIELDS and _has_no_schedule_charge(extracted):
+                # A metered/billed-on-actuals charge is never compared against a
+                # contract figure — the contract only states the billing RULE —
+                # so naming the contract here would point the reviewer at the
+                # wrong document. What's missing is the supporting document.
+                detail = (
+                    f"This utility is billed on actuals, so {core.label} is compared against a supporting "
+                    "document — none is attached, so this must be resolved before proceeding."
+                )
+            else:
+                detail = f"No contract figure to compare {core.label} against — this must be resolved before proceeding."
             mandatory = True
         elif contract_value is None:
             # Nothing to auto-verify against — not "wrong" (that's what
@@ -627,10 +902,17 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
                 # from the supporting document instead (see
                 # used_supporting_document above), so the wording shouldn't
                 # imply a "contract amount" that doesn't exist for this row.
-                reference_label = "supporting document amount" if used_supporting_document else "contract amount"
+                reference_label = (
+                    "supporting document amount" if used_supporting_document
+                    else "revenue share due" if used_revenue_share
+                    else "contract amount"
+                )
                 if within_threshold:
                     severity = "info"
-                    mandatory = False
+                    # Mandatory either way (the field is never optional) — the
+                    # threshold pass satisfies it rather than demoting it.
+                    mandatory = core.mandatory
+                    satisfied = True
                     detail = (
                         f"Within the configured {threshold_pct:g}% threshold — invoice must not exceed "
                         f"{max_allowed_formatted} ({reference_label} + {threshold_pct:g}%)."
@@ -695,8 +977,15 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
                 if invoice_value is not None else None,
             "field": core.invoice_field,
             "expected_value": contract_value,
+            # Raw (unformatted) invoice-side counterpart of expected_value —
+            # needed by anything that has to do arithmetic on the comparison
+            # rather than just display it (the Matching page's variance bar).
+            # Not simply extracted[field]: for the schedule-derived/override
+            # cases above this is the value Matching actually compared.
+            "found_value": invoice_value,
             "core": True,
             "mandatory": mandatory,
+            "satisfied": satisfied,
             # Where the Contract-column value actually came from. "contract"
             # (the default, omitted-equivalent) means the contract/its payment
             # schedule; "supporting_document" means the contract only states
@@ -704,13 +993,46 @@ async def _apply_mandatory_field_coverage(db, doc: dict, findings: list[dict], e
             # AMOUNT came from the invoice's supporting document instead —
             # surfaced as an ⓘ next to the value so that's transparent rather
             # than implicit. See used_supporting_document above.
-            "expected_source": "supporting_document" if used_supporting_document else "contract",
+            "expected_source": (
+                "supporting_document" if used_supporting_document
+                else "revenue_share" if used_revenue_share
+                else "contract"
+            ),
+            # Extra context for the escalation email, when this row's failure has
+            # a known explanation beyond "exceeds the threshold". Absent otherwise.
+            **({"escalation_note": escalation_note} if escalation_note else {}),
+            # Only present on a revenue-share row, so the Matching page can show
+            # HOW the reference was derived rather than just the result.
+            **({
+                "revenue_share": {
+                    "pct": revenue_share_pct,
+                    "net_sales": revenue_share_net_sales,
+                    "formatted_net_sales": _format_finding_invoice_value(
+                        "total_amount_before_vat", revenue_share_net_sales, currency),
+                }
+            } if used_revenue_share else {}),
         })
     return annotated
 
 
+def _effective_installment_index(doc: dict, bundle, contract_doc: Optional[dict], extracted: dict) -> Optional[int]:
+    """Index of the payment-schedule row this invoice is matched against, or None
+    when there isn't a meaningful one (no schedule, or a utility billed on
+    actuals). Mirrors _matched_installment but returns the position, so the
+    Matching page can show it as preselected."""
+    if _has_no_schedule_charge(extracted):
+        return None
+    schedule = _effective_payment_schedule(bundle.payment_schedule if bundle else None, contract_doc)
+    rows = (schedule or {}).get("installments") or []
+    if not rows:
+        return None
+    inst = _matched_installment(doc, schedule, extracted)
+    return rows.index(inst) if inst in rows else None
+
+
 async def invoice_out(db, doc: dict) -> dict:
     extracted = _merge(doc.get("base_extracted") or {}, doc.get("edited_extracted"))
+    matched_contract_doc = await _fetch_matched_contract_doc(db, doc)
     match_result = doc.get("match_result")
     findings = _refresh_findings_from_extracted((match_result or {}).get("findings") or [], extracted)
     findings = await _apply_mandatory_field_coverage(db, doc, findings, extracted)
@@ -745,7 +1067,32 @@ async def invoice_out(db, doc: dict) -> dict:
         # so the Matching page's own "back" button needs this to avoid
         # routing to a Faktur Pajak screen that never applied.
         "has_faktur_pajak": bool(faktur_pajak),
+        # Whether a supporting-document PDF exists to link to (see the
+        # /supporting-document/pdf route). Distinct from whether the run has
+        # supporting-document DATA — the extraction can exist without the PDF.
+        "has_supporting_document_pdf": bool(document and document.supporting_document_pdf_path),
+        # Individually linkable Faktur Pajak PDFs when one invoice has several
+        # (KARYA_NASTARI invoice_3's Admin Fee / Water / Electricity set).
+        "faktur_pajak_documents": [
+            {"index": i, "label": f["label"]}
+            for i, f in enumerate(document.faktur_pajak_pdfs if document else [])
+        ],
         "has_payment_schedule": bool(bundle and bundle.payment_schedule),
+        # Matching's installment picker: the rows on offer, which one is in
+        # effect, and whether that was a human's pick or the automatic
+        # amount-proximity guess (see _matched_installment).
+        "payment_schedule_options": _schedule_options(
+            _effective_payment_schedule(bundle.payment_schedule if bundle else None, matched_contract_doc)
+        ),
+        # The manual pin (None when nobody has pinned one) ...
+        "installment_index": doc.get("installment_index"),
+        "installment_is_manual": isinstance(doc.get("installment_index"), int),
+        # ... and the row actually IN EFFECT, which is what the picker shows as
+        # preselected: the pin when set, otherwise the automatic amount match.
+        # Suppressed for a utility invoice billed on actuals, where no schedule
+        # row is a meaningful counterpart and _match_payment_installment would
+        # only return the numerically nearest, misleading, row.
+        "matched_installment_index": _effective_installment_index(doc, bundle, matched_contract_doc, extracted),
         "expected": (match_result or {}).get("expected"),
         "summary": (match_result or {}).get("summary"),
         "findings": findings,
@@ -786,6 +1133,10 @@ def has_open_issues(findings: list[dict], acknowledged: list[str], system_acknow
     handled = set(acknowledged) | set(system_acknowledged)
     for f in findings:
         if not f.get("mandatory") or f.get("finding_id") in handled:
+            continue
+        # Positively cleared by a rule (e.g. inside the Total Amount Before VAT
+        # tolerance) — mandatory, but not open.
+        if f.get("satisfied"):
             continue
         if _is_finding_resolved(f, extracted):
             continue
@@ -908,10 +1259,34 @@ _CONTRACT_DERIVED_COLUMNS = [
     ("vat_amount", "Tax Amount"),
     ("total_amount_incl_tax", "Total Amount (Incl. VAT)"),
     ("wht_rate", "WHT Rate"),
-    ("wht_amount", "WHT (Withholding Tax)"),
-    ("net_payment_to_lessor", "Net Amount After WHT (Total Amount Payable)"),
+    # WHT (Withholding Tax) and Net Amount After WHT (Total Amount Payable)
+    # were removed from this review table per explicit instruction. The
+    # underlying payment_schedule.json still carries wht_amount /
+    # net_payment_to_lessor and Bill Posting still uses them (see
+    # _bill_posting_out) — this only drops them from the Contract Extraction
+    # Postprocessing display.
     ("payment_status", "Payment Status"),
 ]
+
+# Only meaningful for a revenue-share contract (DEBORA_KEMANG): the rent due is
+# Revenue Share % x Reported Net Sales rather than a stored flat amount, so both
+# inputs have to be visible and editable here — this IS the "contract derived
+# fields" the Matching page's revenue-share reference reads its % from. Appended
+# only when the vendor's own schedule carries them, so no other vendor gains two
+# permanently-NA columns.
+_REVENUE_SHARE_DERIVED_COLUMNS = [
+    ("revenue_share_pct", "Revenue Share %"),
+    ("reported_net_sales", "Reported Net Sales"),
+]
+
+
+def _contract_derived_columns(installments: list) -> list:
+    if any("revenue_share_pct" in (inst or {}) for inst in installments):
+        # Placed directly before the amount they produce, so the row reads
+        # left-to-right as the calculation: % x Net Sales = Total Before VAT.
+        i = [c[0] for c in _CONTRACT_DERIVED_COLUMNS].index("amount_excl_tax")
+        return _CONTRACT_DERIVED_COLUMNS[:i] + _REVENUE_SHARE_DERIVED_COLUMNS + _CONTRACT_DERIVED_COLUMNS[i:]
+    return _CONTRACT_DERIVED_COLUMNS
 
 
 def _format_contract_derived_value(key: str, value) -> str:
@@ -921,14 +1296,15 @@ def _format_contract_derived_value(key: str, value) -> str:
         # (driven by the raw `value` field being null, not by this string),
         # so the highlight survives showing visible text here.
         return "NA"
-    if key in ("vat_rate", "wht_rate"):
+    if key in ("vat_rate", "wht_rate", "revenue_share_pct"):
         # Stored as a whole percentage number (11, not 0.11) — same
         # convention as the contract's own flat vat_rate field.
         try:
             return f"{float(value):.0f}%"
         except (TypeError, ValueError):
             return str(value)
-    if key in ("amount_excl_tax", "vat_amount", "total_amount_incl_tax", "wht_amount", "net_payment_to_lessor"):
+    if key in ("amount_excl_tax", "vat_amount", "total_amount_incl_tax", "wht_amount",
+               "net_payment_to_lessor", "reported_net_sales"):
         try:
             return f"{float(value):,.2f}"
         except (TypeError, ValueError):
@@ -947,6 +1323,7 @@ async def get_contract_extraction_postprocessing(db, oid: ObjectId) -> dict:
     inst_overrides = overrides.get("installments") or {}
     otp_overrides = overrides.get("one_time_payments") or {}
 
+    columns = _contract_derived_columns(installments)
     rows = [
         {
             "description": (merged := {**inst, **(inst_overrides.get(str(idx)) or {})}).get("description"),
@@ -957,7 +1334,7 @@ async def get_contract_extraction_postprocessing(db, oid: ObjectId) -> dict:
                     "value": merged.get(key),
                     "formatted_value": _format_contract_derived_value(key, merged.get(key)),
                 }
-                for key, label in _CONTRACT_DERIVED_COLUMNS
+                for key, label in columns
             ],
         }
         for idx, inst in enumerate(installments)
@@ -1073,13 +1450,52 @@ async def get_invoice_doc(db, oid: ObjectId) -> dict:
     return doc
 
 
-async def upload_invoice(
+async def upload_invoice_documents(
     db, filename: str, email: Optional[str] = None, tag: Optional[str] = None, source: str = "manual"
-) -> dict:
-    bundle, document = get_dp_loader().resolve_document(filename or "")
+) -> list[dict]:
+    """Every run this upload should produce.
+
+    Normally exactly one. But a vendor's real document can be a single file that
+    physically contains SEVERAL of its invoices — GRAHA_MEGARIA's 6-page PDF holds
+    four, two of them followed by their own supporting-document page — and that
+    must fan out into one independently-processable run per invoice. Declared per
+    vendor in documents.json's `combined_uploads` (see fixtures.DpCombinedUpload),
+    so this is fixture-driven, not vendor-specific logic.
+
+    Each run is created through the same _create_or_reuse_invoice_run() a
+    single-file upload uses, so the invoice+Faktur-Pajak collapse still applies per
+    document: uploading the combined file and then its 4 separate FP files (in
+    either order) still yields exactly 4 runs."""
+    loader = get_dp_loader()
+    bundle, combined = loader.resolve_combined_upload(filename or "")
     if bundle is None:
         raise NotFoundError("No DirectPay fixture scenarios configured")
 
+    if combined:
+        by_key = {d.key: d for d in bundle.documents}
+        return [
+            await _create_or_reuse_invoice_run(db, bundle, by_key[k], filename, email, tag, source)
+            for k in combined.document_keys
+            if k in by_key
+        ]
+
+    _, document = loader.resolve_document(filename or "")
+    return [await _create_or_reuse_invoice_run(db, bundle, document, filename, email, tag, source)]
+
+
+async def upload_invoice(
+    db, filename: str, email: Optional[str] = None, tag: Optional[str] = None, source: str = "manual"
+) -> dict:
+    """Single-run upload. Kept for callers that want exactly one run back; a
+    combined file resolves to its first document here."""
+    runs = await upload_invoice_documents(db, filename, email, tag, source)
+    return runs[0]
+
+
+async def _create_or_reuse_invoice_run(
+    db, bundle, document, filename: str,
+    email: Optional[str] = None, tag: Optional[str] = None, source: str = "manual",
+) -> dict:
     # A multi-invoice vendor folder's Faktur Pajak can be its own real,
     # separately-uploaded document (documents.json's faktur_pajak_pdf) that
     # resolves to the SAME document_key as its paired invoice — e.g.
@@ -1090,13 +1506,23 @@ async def upload_invoice(
     # upload's document_key — a second upload teaches the system nothing new,
     # it would just be a duplicate dashboard row that also never resolves
     # a Faktur Pajak stage of its own).
+    #
+    # Scoped to a run that is still IN FLIGHT, newest first. A run that has
+    # finished (TERMINAL_STATUSES — posted/rejected) no longer has a Faktur
+    # Pajak stage to attach anything to, so re-uploading the pair after that
+    # legitimately means "process this document again" and starts a fresh run.
+    # Without this scope the lookup could not tell the FP partner of the run
+    # just created from a deliberate re-run, so every later upload of either
+    # file kept returning the very first run forever — even a posted one.
     if document:
-        existing = await dp_invoice_runs(db).find_one({
+        cursor = dp_invoice_runs(db).find({
             "fixture_key": bundle.key,
             "document_key": document.key,
-        })
-        if existing:
-            return await invoice_out(db, existing)
+            "status": {"$nin": list(TERMINAL_STATUSES)},
+        }).sort("created_at", -1)
+        in_flight = await cursor.to_list(length=1)
+        if in_flight:
+            return await invoice_out(db, in_flight[0])
 
     now = _now()
     doc = {
@@ -1116,6 +1542,9 @@ async def upload_invoice(
         # comparison is a stable snapshot like base_extracted/base_fields,
         # not something that could shift under an in-progress review.
         "supporting_document": None,
+        # Human override for which schedule row this invoice is matched
+        # against; None means fall back to amount proximity.
+        "installment_index": None,
         "contract_id": None,
         "match_result": None,
         "original_findings": None,
@@ -1142,6 +1571,23 @@ async def upload_invoice(
     result = await dp_invoice_runs(db).insert_one(doc)
     doc["_id"] = result.inserted_id
     return await invoice_out(db, doc)
+
+
+async def set_matched_installment(db, oid: ObjectId, installment_index: Optional[int]) -> dict:
+    """Pin (or unpin, with None) which payment-schedule row this invoice is
+    matched against. Everything downstream reads it through
+    _matched_installment, so Matching, Bill Posting and Simulate all follow."""
+    doc = await get_invoice_doc(db, oid)
+    bundle = get_dp_loader().discover().get(doc.get("fixture_key"))
+    contract_doc = await _fetch_matched_contract_doc(db, doc)
+    schedule = _effective_payment_schedule(bundle.payment_schedule if bundle else None, contract_doc)
+    rows = (schedule or {}).get("installments") or []
+    if installment_index is not None and not (0 <= installment_index < len(rows)):
+        raise InvalidStateError("That installment does not exist on this contract's payment schedule")
+    await dp_invoice_runs(db).update_one(
+        {"_id": oid}, {"$set": {"installment_index": installment_index, "updated_at": _now()}}
+    )
+    return await invoice_out(db, await get_invoice_doc(db, oid))
 
 
 async def list_invoices(db) -> list[dict]:
@@ -1172,18 +1618,30 @@ async def extract_invoice(db, oid: ObjectId) -> dict:
     # Contract extraction). None for every document that doesn't carry one.
     supporting_document = document.supporting_document if document else None
 
-    await dp_invoice_runs(db).update_one(
-        {"_id": oid},
-        {"$set": {
-            "base_extracted": extracted,
-            "supporting_document": supporting_document,
-            "status": "extracted",
-            "updated_at": _now(),
-        }},
-    )
-    doc["base_extracted"] = extracted
-    doc["supporting_document"] = supporting_document
-    doc["status"] = "extracted"
+    # One-way stage advance, exactly like confirm_extraction's own: re-extracting
+    # a run that has ALREADY moved past Extraction refreshes its extracted data
+    # but must never drag its status backwards.
+    #
+    # This is reachable in normal use. dashboard.tsx's upload paths call
+    # /extract unconditionally after an upload (review.tsx and fp-extraction.tsx
+    # both guard on status == "extraction"; the dashboard does not), and
+    # upload_invoice deliberately returns the SAME in-flight run when an
+    # invoice or its Faktur Pajak is uploaded again. Re-uploading a pair whose
+    # run had already reached Matching therefore reset it to "extracted", and
+    # because its contract_id was set by then, get_contract_recommendation
+    # short-circuited on "contract_already_set" and nothing ever put it back —
+    # leaving Matching showing every check green while review_action rejected
+    # the approval with "This invoice is not at the Matching stage".
+    set_fields = {
+        "base_extracted": extracted,
+        "supporting_document": supporting_document,
+        "updated_at": _now(),
+    }
+    if doc.get("status") == "extraction":
+        set_fields["status"] = "extracted"
+
+    await dp_invoice_runs(db).update_one({"_id": oid}, {"$set": set_fields})
+    doc.update(set_fields)
     return await invoice_out(db, doc)
 
 
@@ -1399,6 +1857,13 @@ async def get_faktur_pajak(db, oid: ObjectId) -> dict:
                 # have, on whichever PDF this stage is actually showing
                 # (has_own_pdf below decides that).
                 "bbox": (fp_field_meta.get(field_name) or {}).get("bbox"),
+                # Optional per-field note from the fixture's own `ai_reasoning`
+                # map, for a value that is DERIVED from the document rather than
+                # transcribed off it (e.g. PAKUWON FP5's VAT, exempt under PP
+                # 49/2022, so the printed figure is waived and 0.00 is charged).
+                # Rendered as the AI-derived-value treatment so the derivation
+                # is visible instead of silently replacing the printed number.
+                "ai_reasoning": (fp.get("ai_reasoning") or {}).get(field_name),
             })
 
     return {
@@ -1464,9 +1929,22 @@ async def approve_faktur_pajak(db, oid: ObjectId, force: bool = False) -> dict:
         raise InvalidStateError("This invoice is not at the Faktur Pajak stage")
 
     fp_data = await get_faktur_pajak(db, oid)
+    # MUST stay identical to fp-extraction.tsx's own `blockingFields` — when
+    # these two drift the page shows "All fields matched / good to go" while
+    # this gate still 409s, with nothing the user can click to resolve it.
+    # Both extra conditions below were once only on the frontend and caused
+    # exactly that:
+    #   - system_acknowledged: pre-blessed by the DP Acknowledge Threshold's
+    #     learned memory (the purple "Auto-approved" badge) — already handled.
+    #   - a blank invoice-side value: there is nothing to acknowledge about a
+    #     field the invoice never stated, and no ACK is offered for it.
     blocking = [
         f for f in fp_data["fields"]
-        if f["required"] and f["match_status"] == "mismatch" and not f["acknowledged"]
+        if f["required"]
+        and f["match_status"] == "mismatch"
+        and not f["acknowledged"]
+        and not f.get("system_acknowledged")
+        and f.get("invoice_value") not in (None, "")
     ]
     if blocking and not force:
         raise NeedsConfirmationError()
@@ -1624,6 +2102,19 @@ def _bill_posting_out(doc: dict, contract_doc: Optional[dict] = None) -> dict:
     # page) — no VAT Tax Code column/value applies to its line items either.
     is_ratna_intan = doc.get("fixture_key") == "RATNA_INTAN"
 
+    # Defaults are matched to a line item BY CHARGE TYPE first, falling back to
+    # the positional pairing this file has always used. Positional alone breaks
+    # for a vendor whose several invoices each carry one line item of a DIFFERENT
+    # charge type (GRAHA_MEGARIA bills Rent, Service Charge, Electricity and
+    # Water as four separate invoices): every one of them reads default_items[0]
+    # and so would post to the same G/L account. Purely additive — a fixture
+    # whose defaults don't name the charge type keeps the old behaviour exactly.
+    defaults_by_charge_type = {}
+    for d in default_items:
+        ct = d.get("charge_type")
+        if ct:
+            defaults_by_charge_type.setdefault(ct, d)
+
     line_items = []
     for idx, item in enumerate(extracted.get("line_items") or []):
         # A WHT-deduction line (e.g. RATNA_INTAN's own "Pemotongan PPH" row)
@@ -1637,10 +2128,18 @@ def _bill_posting_out(doc: dict, contract_doc: Optional[dict] = None) -> dict:
         # government duty, not a billable/GL-codeable service charge — no
         # real VAT/WHT tax code applies to it (per explicit instruction),
         # so it's excluded from Bill Posting's line items the same way.
-        if item.get("charge_type") in ("wht_deduction", "stamp_duty"):
+        # Denda (late-payment charge) is real money owed and appears on the
+        # billing statement, but it is not a taxable supply and has no Faktur
+        # Pajak counterpart — so it gets no VAT/WHT code and is excluded here,
+        # then added back by Simulate as its own dedicated debit row (exactly
+        # how stamp duty is handled) so Debit still equals Credit.
+        if item.get("charge_type") in ("wht_deduction", "stamp_duty", "late_fee"):
             continue
         row_id = str(idx)
-        item_defaults = default_items[idx] if idx < len(default_items) else {}
+        item_defaults = (
+            defaults_by_charge_type.get(item.get("charge_type"))
+            or (default_items[idx] if idx < len(default_items) else {})
+        )
         row_overrides = overrides.get(row_id) or {}
         line_items.append({
             "id": row_id,
@@ -1665,6 +2164,11 @@ def _bill_posting_out(doc: dict, contract_doc: Optional[dict] = None) -> dict:
         for item in (extracted.get("line_items") or [])
         if item.get("charge_type") == "stamp_duty"
     )
+    late_fee_amount = sum(
+        float(item.get("amount") or 0)
+        for item in (extracted.get("line_items") or [])
+        if item.get("charge_type") == "late_fee"
+    )
 
     # "Invoice Received Date" is a genuine system fact (when this run was
     # uploaded into DirectPay) rather than extracted invoice data — there is
@@ -1681,7 +2185,7 @@ def _bill_posting_out(doc: dict, contract_doc: Optional[dict] = None) -> dict:
     # simulated posting and "Payable Amount" isn't silently left as the gross
     # total instead of the true net-of-WHT figure.
     schedule = _effective_payment_schedule(bundle.payment_schedule if bundle else None, contract_doc)
-    installment = _match_payment_installment(schedule, extracted) if schedule else None
+    installment = _matched_installment(doc, schedule, extracted)
     wht_value = extracted.get("wht")
     if wht_value is None and installment:
         wht_value = installment.get("wht_amount")
@@ -1721,6 +2225,9 @@ def _bill_posting_out(doc: dict, contract_doc: Optional[dict] = None) -> dict:
         wht_value = installment.get("wht_amount")
         payable_amount = installment.get("net_payment_to_lessor")
 
+    installments = (schedule or {}).get("installments") or []
+    matched_installment_index = installments.index(installment) if installment in installments else None
+
     return {
         "id": str(doc["_id"]),
         "status": doc.get("status"),
@@ -1739,12 +2246,21 @@ def _bill_posting_out(doc: dict, contract_doc: Optional[dict] = None) -> dict:
         "grand_total": extracted.get("total_amount"),
         "payable_amount": payable_amount,
         "wht_applicable": defaults.get("wht_applicable", False),
+        # Payment-schedule row in effect, for linking WHT to the contract's own
+        # WHT Rate from the Bill Posting page.
+        "matched_installment_index": matched_installment_index,
         # Drives hiding the VAT/GST Tax Code column on the Bill Posting page —
         # RATNA_INTAN only, see is_ratna_intan above. True for every other
         # vendor (no fixture currently opts a different vendor out of VAT).
-        "vat_applicable": not is_ratna_intan,
+        # Fixture-driven, defaulting to RATNA_INTAN's long-standing hardcode.
+        # DEBORA_KEMANG is the second vendor with no VAT at all: an individual,
+        # non-PKP landlord who issues no Faktur Pajak for either invoice, so no
+        # VAT tax code applies and _validate_bill_posting_tax_codes must not
+        # demand one.
+        "vat_applicable": defaults.get("vat_applicable", not is_ratna_intan),
         "line_items": line_items,
         "stamp_duty_amount": stamp_duty_amount,
+        "late_fee_amount": late_fee_amount,
         "erp": doc.get("erp"),
         "updated_at": doc.get("updated_at"),
     }
@@ -1784,10 +2300,70 @@ async def edit_bill_posting(db, oid: ObjectId, line_item_overrides: dict) -> dic
     return await get_bill_posting(db, oid)
 
 
+# The explicit "no withholding applies" code (see bill-posting.tsx's
+# DP_WHT_OPTIONS / NO_WHT_CODE). A vendor not subject to WHT must carry THIS,
+# not a real withholding code and not a blank — the WHT column is always
+# shown, so "no withholding" has to be stated rather than implied.
+_NO_WHT_CODE = "00"
+
+
+def _validate_bill_posting_tax_codes(bp: dict) -> Optional[str]:
+    """Reject a tax code that can't apply to this vendor, before anything is
+    posted. Returns a human-readable message naming the field to fix, or None
+    when everything is coherent.
+
+    Both directions matter: a VAT code on a vendor that charges no VAT is as
+    wrong as a missing one on a vendor that does, and likewise for WHT."""
+    line_items = bp.get("line_items") or []
+    if not line_items:
+        return None
+
+    vat_applicable = bp.get("vat_applicable", True)
+    wht_applicable = bp.get("wht_applicable", False)
+
+    def label(it: dict) -> str:
+        return it.get("description") or it.get("charge_type") or f"line {it.get('id')}"
+
+    for it in line_items:
+        vat = (it.get("vat_tax_code") or "").strip()
+        if vat_applicable and not vat:
+            return (
+                f"Select a VAT/GST Tax Code for “{label(it)}” before posting — "
+                "this vendor is subject to VAT."
+            )
+        if not vat_applicable and vat:
+            return (
+                f"“{label(it)}” has VAT/GST Tax Code “{vat}”, but this vendor is not "
+                "subject to VAT. Clear the VAT code before posting."
+            )
+
+    for it in line_items:
+        wht = (it.get("wht_tax_code") or "").strip()
+        if wht_applicable and (not wht or wht == _NO_WHT_CODE):
+            return (
+                f"Select the applicable WHT Tax Code for “{label(it)}” before posting — "
+                "this vendor is subject to withholding tax."
+            )
+        if not wht_applicable and wht and wht != _NO_WHT_CODE:
+            return (
+                f"“{label(it)}” has WHT Tax Code “{wht}”, but this vendor is not subject "
+                "to withholding tax. Set it to “No Withholding” before posting."
+            )
+
+    return None
+
+
 async def post_bill(db, oid: ObjectId) -> dict:
     doc = await get_invoice_doc(db, oid)
     if doc.get("status") != "bill_posting":
         raise InvalidStateError("This invoice is not at the Bill Posting stage")
+
+    # Authoritative gate — the frontend also pre-checks so the user gets the
+    # message without a round trip, but nothing posts without passing here.
+    contract_doc = await _fetch_matched_contract_doc(db, doc)
+    tax_error = _validate_bill_posting_tax_codes(_bill_posting_out(doc, contract_doc))
+    if tax_error:
+        raise InvalidStateError(tax_error)
 
     now = _now()
     erp = {
@@ -1960,13 +2536,30 @@ async def simulate_bill_posting(db, oid: ObjectId) -> dict:
     # applies), but still real money owed to the vendor and already included
     # in grand_total/net_payable on the credit side below — needs its own
     # debit row here or Debit would no longer equal Credit.
+    late_fee_amount = float(bp.get("late_fee_amount") or 0)
+    if late_fee_amount > 0:
+        rows.append({
+            "position": pos,
+            "posting_key": "40 · Debit",
+            "account": "6500 · Late Payment Charges",
+            "description": "Late payment charge (Denda)",
+            "tax_code": "—",
+            "debit": round(late_fee_amount, 2),
+            "credit": 0,
+            "is_visible": True,
+        })
+        pos += 1
+
     stamp_duty_amount = float(bp.get("stamp_duty_amount") or 0)
     if stamp_duty_amount > 0:
         rows.append({
             "position": pos,
             "posting_key": "40 · Debit",
-            "account": "6400 · Stamp Duty",
-            "description": "Stamp duty (Materai)",
+            # Posted to the invoice's own rent/expense account as an
+            # unallocated difference, per explicit instruction, rather than to a
+            # dedicated stamp-duty account.
+            "account": f"{(line_items[0].get('gl_account_code') if line_items else None) or '6100-RENT'} · rent",
+            "description": "Unallocated difference",
             "tax_code": "—",
             "debit": round(stamp_duty_amount, 2),
             "credit": 0,
@@ -2066,6 +2659,14 @@ async def simulate_bill_posting(db, oid: ObjectId) -> dict:
                 f"Simulation failed — invalid VAT/GST Tax Code '{invalid_codes[0]}' on line item. "
                 f"This invoice requires '{required_vat_code}'."
             )
+
+    # Same applicability rules post_bill enforces, surfaced here so Simulate
+    # catches a wrong code before the user tries to post.
+    if status == "success":
+        tax_error = _validate_bill_posting_tax_codes(bp)
+        if tax_error:
+            status = "error"
+            message = f"Simulation failed — {tax_error}"
 
     return {"status": status, "message": message, "document": document}
 
