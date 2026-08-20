@@ -1,4 +1,14 @@
 {
+  "fp_number": {
+    "bbox": {
+      "page": 2,
+      "bbox_left": 0.334513,
+      "bbox_top": 0.175719,
+      "bbox_width": 0.155091,
+      "bbox_height": 0.014571,
+      "value_confidence": 0.95
+    }
+  },
   "vendor_name": {
     "bbox": {
       "page": 2,

@@ -12,11 +12,11 @@
   "invoice_date": {
     "bbox": {
       "page": 1,
-      "bbox_left": 0.64549,
-      "bbox_top": 0.476869,
-      "bbox_width": 0.117255,
-      "bbox_height": 0.011414,
-      "value_confidence": 0.824
+      "bbox_left": 0.129935,
+      "bbox_top": 0.115455,
+      "bbox_width": 0.130719,
+      "bbox_height": 0.012323,
+      "value_confidence": 0.9
     }
   },
   "vendor_name": {
@@ -56,7 +56,7 @@
       "bbox_top": 0.476869,
       "bbox_width": 0.117255,
       "bbox_height": 0.011414,
-      "value_confidence": 0.824
+      "value_confidence": 0.9
     }
   },
   "total_amount": {

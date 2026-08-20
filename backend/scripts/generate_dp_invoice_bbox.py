@@ -72,7 +72,14 @@ FIXTURES_DP = REPO_ROOT / "fixtures" / "dp"
 # Fields never worth searching for — free text/None-heavy or not meant to be
 # highlighted (line_items get no bbox here; DP invoices' own line item count
 # is usually 1-2, and no consumer currently reads a per-line-item bbox).
-SKIP_FIELDS = {"line_items", "notes"}
+# ai_reasoning (a per-field {field: explanation} dict on some Faktur Pajak
+# fixtures — see e.g. PAKUWON's faktur_pajak_5.json) is the same kind of
+# narrative-not-transcribed value as notes — never printed verbatim anywhere,
+# so leaving it unskipped let _fuzzy_word_match's str(dict) fallback (see its
+# own guard below) land it on an unrelated paragraph of real PDF text at a
+# misleadingly high ratio (verified: PAKUWON invoice_5's FP ai_reasoning once
+# landed on its own "PPN Dibebaskan" boilerplate this way).
+SKIP_FIELDS = {"line_items", "notes", "ai_reasoning"}
 
 EXACT_CONFIDENCE = 1.0
 NORMALIZED_CONFIDENCE = 0.95
@@ -102,6 +109,62 @@ MIN_PAGE_TEXT_CHARS = 250
 # an extra candidate, never a replacement for the raw value, in case some
 # future fixture's document DOES print the code literally.
 _CURRENCY_SYMBOLS = {"IDR": ["Rp"], "USD": ["$", "US$"]}
+
+# An ISO date (e.g. "2026-05-21") never appears in that format on these
+# Indonesian documents — verified: DEBORA_KEMANG's invoice prints "Jakarta,
+# 21 Mei 2026" for invoice_date="2026-05-21", never "2026-05-21" itself.
+# Mirrors generate_dp_contract_bbox.py's own _contract_value_variants (same
+# reasoning, same variant set) — duplicated rather than imported the other
+# way because this module is the one contract's script imports FROM, never
+# the reverse (see that script's own module docstring).
+_MONTH_EN = ["January", "February", "March", "April", "May", "June",
+             "July", "August", "September", "October", "November", "December"]
+_MONTH_ID = ["Januari", "Februari", "Maret", "April", "Mei", "Juni",
+             "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
+_ISO_DATE_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})$")
+
+
+def _date_variants(value: str) -> list[str]:
+    """Alternate renderings of an ISO date the way it actually appears on
+    an Indonesian invoice/Faktur Pajak. [] for anything that isn't an
+    ISO-shaped date string (the raw value alone is already tried elsewhere)."""
+    m = _ISO_DATE_RE.match(value.strip())
+    if not m:
+        return []
+    y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
+    if not (1 <= mo <= 12):
+        return []
+    return [
+        f"{d} {_MONTH_ID[mo - 1]} {y}",
+        f"{d} {_MONTH_EN[mo - 1]} {y}",
+        f"{d:02d}/{mo:02d}/{y}",
+        f"{d:02d}-{mo:02d}-{y}",
+        f"{d:02d}.{mo:02d}.{y}",
+    ]
+
+
+# A composite string field combines several distinct facts in one value
+# (e.g. PAKUWON's description = "IURAN PELAYANAN AIR MEI 26 — AIR/LISTRIK/GAS,
+# Unit PSA-000-06-000-025") — the full string never appears verbatim on the
+# document, but its leading fact alone often does (verified: the PDF prints
+# "IURAN PELAYANAN AIR MEI 26" on its own, the rest is this script's own
+# synthesized suffix). Mirrors generate_dp_contract_bbox.py's own
+# _contract_value_variants composite-splitting (same separators, same
+# minimum-length gate — a too-short leading segment carries the same
+# false-positive risk as any other bare short value, see that script's own
+# comment on _MIN_COMPOSITE_SEGMENT_CHARS).
+_COMPOSITE_SEPARATORS = (" (", " — ", " – ", " - ", ": ")
+_MIN_COMPOSITE_SEGMENT_CHARS = 15
+
+
+def _composite_leading_segment(value: str) -> list[str]:
+    for sep in _COMPOSITE_SEPARATORS:
+        if sep in value:
+            leading = value.split(sep, 1)[0].strip()
+            if len(leading) >= _MIN_COMPOSITE_SEGMENT_CHARS:
+                return [leading]
+            return []
+    return []
 
 
 def _id_number_variants(value: float) -> list[str]:
@@ -142,6 +205,8 @@ def _search_candidates(field: str, value) -> list[tuple[str, float]]:
         collapsed = re.sub(r"\s+", " ", s)
         if collapsed != s:
             out.append((collapsed, NORMALIZED_CONFIDENCE))
+        out.extend((v, NORMALIZED_CONFIDENCE) for v in _date_variants(s))
+        out.extend((v, NORMALIZED_CONFIDENCE) for v in _composite_leading_segment(s))
         # currency's symbol variant (e.g. "IDR" -> "Rp") is deliberately NOT
         # added here — page.search_for() is a raw substring search, and a
         # 2-3 character symbol matches as a substring of an unrelated word
@@ -461,11 +526,28 @@ def _fuzzy_word_match(
     # from the raw value directly rather than from _search_candidates'
     # output, and a fully scanned page (e.g. RATNA_INTAN's invoice) never
     # reaches the exact tier at all.
+    # A dict/list value (e.g. an "ai_reasoning" map) has no business being
+    # stringified and fuzzy-matched — str(some_dict) is an arbitrary blob of
+    # punctuation-mangled text that can coincidentally ratio-match a real
+    # paragraph on the page (see SKIP_FIELDS' own note on ai_reasoning).
+    # _search_candidates' exact tier already safely no-ops on these (falls
+    # through its own type checks to `return []`); this tier needs the same
+    # explicit guard since it works from the raw value, not that function.
+    if not isinstance(value, (str, int, float)):
+        return None
     is_numeric = isinstance(value, (int, float)) and not isinstance(value, bool)
     if is_numeric:
-        value_strs = [_id_number_variants(float(value))[0]]
+        # ALL variants, not just the first (whole-number) one — a
+        # non-integer value's real cents only show up in the "with_decimals"
+        # variant, and skipping straight to the whole-number one silently
+        # ROUNDS first (35242.9 -> "35.243"), which then fails the digit
+        # gate below against the real printed "35,242.90" (digits "3524290"
+        # vs the rounded candidate's "35243") even though the with_decimals
+        # variant's digits ("3524290") match exactly — verified missing on
+        # GRAHA_MEGARIA invoice_3's vat_gst/total_amount before this fix.
+        value_strs = _id_number_variants(float(value))
     else:
-        value_strs = [str(value)]
+        value_strs = [str(value), *_date_variants(str(value)), *_composite_leading_segment(str(value))]
         if field == "currency":
             value_strs += _CURRENCY_SYMBOLS.get(str(value).strip(), [])
 

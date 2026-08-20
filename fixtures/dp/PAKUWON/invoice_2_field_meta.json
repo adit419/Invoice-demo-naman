@@ -62,11 +62,11 @@
   "description": {
     "bbox": {
       "page": 1,
-      "bbox_left": 0.648938,
-      "bbox_top": 0.214594,
-      "bbox_width": 0.142217,
-      "bbox_height": 0.080774,
-      "value_confidence": 0.627
+      "bbox_left": 0.023284,
+      "bbox_top": 0.394367,
+      "bbox_width": 0.133849,
+      "bbox_height": 0.022848,
+      "value_confidence": 0.95
     }
   },
   "due_date": {

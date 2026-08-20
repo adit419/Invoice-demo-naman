@@ -64,9 +64,9 @@
       "page": 1,
       "bbox_left": 0.031206,
       "bbox_top": 0.405337,
-      "bbox_width": 0.286003,
+      "bbox_width": 0.200124,
       "bbox_height": 0.013055,
-      "value_confidence": 0.943
+      "value_confidence": 0.95
     }
   },
   "due_date": {
@@ -77,16 +77,6 @@
       "bbox_width": 0.073946,
       "bbox_height": 0.013055,
       "value_confidence": 1.0
-    }
-  },
-  "total_amount_before_vat": {
-    "bbox": {
-      "page": 1,
-      "bbox_left": 0.438815,
-      "bbox_top": 0.422185,
-      "bbox_width": 0.05977,
-      "bbox_height": 0.013055,
-      "value_confidence": 0.95
     }
   },
   "vat_gst": {

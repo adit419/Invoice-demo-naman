@@ -12,11 +12,11 @@
   "invoice_date": {
     "bbox": {
       "page": 1,
-      "bbox_left": 0.444878,
-      "bbox_top": 0.66952,
-      "bbox_width": 0.045248,
-      "bbox_height": 0.023312,
-      "value_confidence": 0.667
+      "bbox_left": 0.775772,
+      "bbox_top": 0.064944,
+      "bbox_width": 0.08819,
+      "bbox_height": 0.012607,
+      "value_confidence": 0.95
     }
   },
   "customer_legal_entity": {
@@ -42,21 +42,21 @@
   "description": {
     "bbox": {
       "page": 1,
-      "bbox_left": 0.343135,
-      "bbox_top": 0.126923,
-      "bbox_width": 0.257861,
-      "bbox_height": 0.073398,
-      "value_confidence": 0.79
+      "bbox_left": 0.406911,
+      "bbox_top": 0.156786,
+      "bbox_width": 0.18264,
+      "bbox_height": 0.012325,
+      "value_confidence": 0.95
     }
   },
   "due_date": {
     "bbox": {
       "page": 1,
-      "bbox_left": 0.547401,
-      "bbox_top": 0.470075,
-      "bbox_width": 0.148888,
-      "bbox_height": 0.011536,
-      "value_confidence": 0.75
+      "bbox_left": 0.529996,
+      "bbox_top": 0.550277,
+      "bbox_width": 0.079815,
+      "bbox_height": 0.011409,
+      "value_confidence": 0.95
     }
   },
   "total_amount_before_vat": {

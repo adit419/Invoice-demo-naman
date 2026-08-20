@@ -9,6 +9,16 @@
       "value_confidence": 0.9
     }
   },
+  "invoice_date": {
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.214723,
+      "bbox_top": 0.084941,
+      "bbox_width": 0.088739,
+      "bbox_height": 0.010261,
+      "value_confidence": 0.9
+    }
+  },
   "vendor_name": {
     "bbox": {
       "page": 1,
@@ -37,6 +47,26 @@
       "bbox_width": 0.355361,
       "bbox_height": 0.043895,
       "value_confidence": 0.9
+    }
+  },
+  "description": {
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.229109,
+      "bbox_top": 0.307838,
+      "bbox_width": 0.210555,
+      "bbox_height": 0.058052,
+      "value_confidence": 0.882
+    }
+  },
+  "due_date": {
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.214723,
+      "bbox_top": 0.084941,
+      "bbox_width": 0.088739,
+      "bbox_height": 0.010261,
+      "value_confidence": 0.87
     }
   },
   "net_amount_after_wht": {

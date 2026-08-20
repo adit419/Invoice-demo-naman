@@ -12,11 +12,11 @@
   "invoice_date": {
     "bbox": {
       "page": 1,
-      "bbox_left": 0.171374,
-      "bbox_top": 0.324896,
-      "bbox_width": 0.258421,
-      "bbox_height": 0.033143,
-      "value_confidence": 0.7
+      "bbox_left": 0.049757,
+      "bbox_top": 0.389671,
+      "bbox_width": 0.0855,
+      "bbox_height": 0.015536,
+      "value_confidence": 0.824
     }
   },
   "vendor_name": {
@@ -72,31 +72,31 @@
   "billing_period_start": {
     "bbox": {
       "page": 1,
-      "bbox_left": 0.171374,
-      "bbox_top": 0.324896,
-      "bbox_width": 0.258421,
-      "bbox_height": 0.033143,
-      "value_confidence": 0.7
+      "bbox_left": 0.159226,
+      "bbox_top": 0.443669,
+      "bbox_width": 0.101126,
+      "bbox_height": 0.015536,
+      "value_confidence": 0.833
     }
   },
   "billing_period_end": {
     "bbox": {
       "page": 1,
-      "bbox_left": 0.159226,
+      "bbox_left": 0.277613,
       "bbox_top": 0.443669,
-      "bbox_width": 0.219513,
+      "bbox_width": 0.101126,
       "bbox_height": 0.015536,
-      "value_confidence": 0.8
+      "value_confidence": 0.88
     }
   },
   "due_date": {
     "bbox": {
       "page": 1,
-      "bbox_left": 0.171374,
-      "bbox_top": 0.324896,
-      "bbox_width": 0.258421,
-      "bbox_height": 0.033143,
-      "value_confidence": 0.7
+      "bbox_left": 0.49963,
+      "bbox_top": 0.389671,
+      "bbox_width": 0.0855,
+      "bbox_height": 0.015536,
+      "value_confidence": 0.824
     }
   },
   "total_amount_before_vat": {
