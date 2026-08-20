@@ -11,7 +11,15 @@
     "section": "PROPERTY & PARTIES",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "Invoice prints \"PT GRAHA MEGARIA RAYA\" and the Faktur Pajak \"GRAHA MEGARIA RAYA\" — both shortened variants of this, so both compare as a fuzzy match rather than exact."
+    "ai_match_reasoning": "Invoice prints \"PT GRAHA MEGARIA RAYA\" and the Faktur Pajak \"GRAHA MEGARIA RAYA\" \u2014 both shortened variants of this, so both compare as a fuzzy match rather than exact.",
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.310588,
+      "bbox_top": 0.448909,
+      "bbox_width": 0.166588,
+      "bbox_height": 0.011818,
+      "value_confidence": 0.9
+    }
   },
   "lessor_phone": {
     "label": "Vendor Phone",
@@ -39,21 +47,45 @@
     "section": "PROPERTY & PARTIES",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "Invoice prints \"PT. BUMI BERKAH BOGA, KOPI KENANGAN\" and the FP \"BUMI BERKAH BOGA\" — both variants of this same entity."
+    "ai_match_reasoning": "Invoice prints \"PT. BUMI BERKAH BOGA, KOPI KENANGAN\" and the FP \"BUMI BERKAH BOGA\" \u2014 both variants of this same entity.",
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.152941,
+      "bbox_top": 0.212545,
+      "bbox_width": 0.167529,
+      "bbox_height": 0.029818,
+      "value_confidence": 0.857
+    }
   },
   "actual_start": {
     "label": "Lease Commencement Date",
     "section": "AGREEMENT DATES & TERM",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "16-Oct-2024, defined in the source as the first date of commercial opening rather than a separately stated handover date."
+    "ai_match_reasoning": "16-Oct-2024, defined in the source as the first date of commercial opening rather than a separately stated handover date.",
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.389412,
+      "bbox_top": 0.706909,
+      "bbox_width": 0.112706,
+      "bbox_height": 0.009091,
+      "value_confidence": 0.9
+    }
   },
   "lease_expiry_date": {
     "label": "Lease Expiry Date",
     "section": "AGREEMENT DATES & TERM",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.429647,
+      "bbox_top": 0.722,
+      "bbox_width": 0.116706,
+      "bbox_height": 0.009273,
+      "value_confidence": 0.9
+    }
   },
   "lock_in_period_months": {
     "label": "Lock-in Period (Months)",
@@ -81,7 +113,15 @@
     "section": "RENT & DEPOSIT",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.346588,
+      "bbox_top": 0.770727,
+      "bbox_width": 0.024706,
+      "bbox_height": 0.011818,
+      "value_confidence": 0.9
+    }
   },
   "vat_included": {
     "label": "VAT Incl/Excl",
@@ -102,7 +142,7 @@
     "section": "RENT & DEPOSIT",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": "Rp630,000/m²/month x 19.46 m² = Rp12,259,800/month excl. VAT."
+    "ai_match_reasoning": "Rp630,000/m\u00b2/month x 19.46 m\u00b2 = Rp12,259,800/month excl. VAT."
   },
   "monthly_rent_incl_tax": {
     "label": "Monthly Rent incl. Tax (Cond.)",
@@ -165,7 +205,7 @@
     "section": "ESCALATION",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "Not specified — the Rp630,000/m²/month rate appears fixed for the full 3-year term."
+    "ai_match_reasoning": "Not specified \u2014 the Rp630,000/m\u00b2/month rate appears fixed for the full 3-year term."
   },
   "escalation_frequency": {
     "label": "Escalation Frequency",
@@ -207,14 +247,14 @@
     "section": "UTILITIES & TAX",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": "Recorded as \"Not stated\" in the source tracker — the offer letter says nothing about withholding tax either way. Shown as NA. Bill Posting treats this vendor as not subject to WHT (bill_posting.json's own wht_applicable is false), so the WHT column preselects \"00 · NO WITHHOLDING\"."
+    "ai_match_reasoning": "Recorded as \"Not stated\" in the source tracker \u2014 the offer letter says nothing about withholding tax either way. Shown as NA. Bill Posting treats this vendor as not subject to WHT (bill_posting.json's own wht_applicable is false), so the WHT column preselects \"00 \u00b7 NO WITHHOLDING\"."
   },
   "wht_rate_pct": {
     "label": "WHT Rate (%)",
     "section": "UTILITIES & TAX",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": "Recorded as \"Not stated\" in the source tracker — no WHT rate appears anywhere in the offer letter. Shown as NA rather than 0%, which would assert a rate the document does not state."
+    "ai_match_reasoning": "Recorded as \"Not stated\" in the source tracker \u2014 no WHT rate appears anywhere in the offer letter. Shown as NA rather than 0%, which would assert a rate the document does not state."
   },
   "stamp_duty_registered": {
     "label": "Stamp Duty / Registered",
@@ -228,14 +268,14 @@
     "section": "LEGAL & COMPLIANCE",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": "Offer stage — no number issued yet. The prior/expiring contract No. 0000002433 is referenced."
+    "ai_match_reasoning": "Offer stage \u2014 no number issued yet. The prior/expiring contract No. 0000002433 is referenced."
   },
   "notice_period_days": {
     "label": "Notice Period (Days)",
     "section": "LEGAL & COMPLIANCE",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "Source cell is empty — no standalone termination-notice period is stated in this offer letter."
+    "ai_match_reasoning": "Source cell is empty \u2014 no standalone termination-notice period is stated in this offer letter."
   },
   "renewal_option": {
     "label": "Renewal Option",
@@ -270,7 +310,15 @@
     "section": "STATUS & TRACKING",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.389412,
+      "bbox_top": 0.706909,
+      "bbox_width": 0.112706,
+      "bbox_height": 0.009091,
+      "value_confidence": 0.9
+    }
   },
   "rent_free_months": {
     "label": "Rent Free Months",

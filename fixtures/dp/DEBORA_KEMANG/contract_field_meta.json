@@ -11,21 +11,45 @@
     "section": "PROPERTY & PARTIES",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "Debora Debby Wage is an individual property owner, not a company — the agreement calls her \"the PARTNER\" (MITRA), not a Lessor. Both invoices are issued in her personal name, which is why they carry no Faktur Pajak."
+    "ai_match_reasoning": "Debora Debby Wage is an individual property owner, not a company \u2014 the agreement calls her \"the PARTNER\" (MITRA), not a Lessor. Both invoices are issued in her personal name, which is why they carry no Faktur Pajak.",
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.156532,
+      "bbox_top": 0.236441,
+      "bbox_width": 0.160645,
+      "bbox_height": 0.011463,
+      "value_confidence": 0.9
+    }
   },
   "lessor_phone": {
     "label": "Vendor Phone",
     "section": "PROPERTY & PARTIES",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 14,
+      "bbox_left": 0.303145,
+      "bbox_top": 0.173995,
+      "bbox_width": 0.118065,
+      "bbox_height": 0.008725,
+      "value_confidence": 0.9
+    }
   },
   "vendor_email": {
     "label": "Vendor Email",
     "section": "PROPERTY & PARTIES",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 4,
+      "bbox_left": 0.192339,
+      "bbox_top": 0.301967,
+      "bbox_width": 0.242419,
+      "bbox_height": 0.011292,
+      "value_confidence": 0.9
+    }
   },
   "lessor_npwp": {
     "label": "Vendor NPWP",
@@ -39,21 +63,45 @@
     "section": "PROPERTY & PARTIES",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.695081,
+      "bbox_top": 0.059196,
+      "bbox_width": 0.19379,
+      "bbox_height": 0.008896,
+      "value_confidence": 0.9
+    }
   },
   "actual_start": {
     "label": "Lease Commencement Date",
     "section": "AGREEMENT DATES & TERM",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 4,
+      "bbox_left": 0.364113,
+      "bbox_top": 0.849615,
+      "bbox_width": 0.109113,
+      "bbox_height": 0.008554,
+      "value_confidence": 0.9
+    }
   },
   "lease_expiry_date": {
     "label": "Lease Expiry Date",
     "section": "AGREEMENT DATES & TERM",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 5,
+      "bbox_left": 0.544597,
+      "bbox_top": 0.285714,
+      "bbox_width": 0.120484,
+      "bbox_height": 0.011292,
+      "value_confidence": 0.9
+    }
   },
   "lock_in_period_months": {
     "label": "Lock-in Period (Months)",
@@ -95,28 +143,36 @@
     "section": "RENT & DEPOSIT",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 4,
+      "bbox_left": 0.554032,
+      "bbox_top": 0.849615,
+      "bbox_width": 0.016452,
+      "bbox_height": 0.008212,
+      "value_confidence": 0.9
+    }
   },
   "base_rent_monthly_excl_tax": {
     "label": "Base Rent (Excl Tax) Monthly",
     "section": "RENT & DEPOSIT",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": "No fixed rent exists under a revenue-share agreement — blank in the source by design."
+    "ai_match_reasoning": "No fixed rent exists under a revenue-share agreement \u2014 blank in the source by design."
   },
   "monthly_rent_incl_tax": {
     "label": "Monthly Rent incl. Tax (Cond.)",
     "section": "RENT & DEPOSIT",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": "No fixed rent exists under a revenue-share agreement — blank in the source by design."
+    "ai_match_reasoning": "No fixed rent exists under a revenue-share agreement \u2014 blank in the source by design."
   },
   "total_contract_value": {
     "label": "Total Contract Value, Lumpsum",
     "section": "RENT & DEPOSIT",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "Not computable: the total depends on 5 years of future sales. Do not enter the Rp211,670,000 Investment Cost here — that is paid by the PARTNER TO BBB for outlet assets, the opposite direction, and is tracked as a one-time payment instead."
+    "ai_match_reasoning": "Not computable: the total depends on 5 years of future sales. Do not enter the Rp211,670,000 Investment Cost here \u2014 that is paid by the PARTNER TO BBB for outlet assets, the opposite direction, and is tracked as a one-time payment instead."
   },
   "no_of_installments": {
     "label": "No. of Installments",
@@ -130,7 +186,7 @@
     "section": "RENT & DEPOSIT",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": "No fixed monthly rent to fall back on — the reference amount is computed as Revenue Share % x Net Sales instead."
+    "ai_match_reasoning": "No fixed monthly rent to fall back on \u2014 the reference amount is computed as Revenue Share % x Net Sales instead."
   },
   "revenue_share_pct": {
     "label": "Revenue Share (%)",
@@ -144,7 +200,7 @@
     "section": "RENT & DEPOSIT",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": "No minimum threshold — 15% applies from Rp0 of Net Sales Value."
+    "ai_match_reasoning": "No minimum threshold \u2014 15% applies from Rp0 of Net Sales Value."
   },
   "rent_billing_day": {
     "label": "Rent Billing Day",
@@ -207,7 +263,7 @@
     "section": "UTILITIES & TAX",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": "Recorded as \"Not stated\" in the source tracker; shown as NA. In practice PPh IS withheld — the utility invoice deducts 10% (\"Pemotongan PPH\") on both of its lines."
+    "ai_match_reasoning": "Recorded as \"Not stated\" in the source tracker; shown as NA. In practice PPh IS withheld \u2014 the utility invoice deducts 10% (\"Pemotongan PPH\") on both of its lines."
   },
   "wht_rate_pct": {
     "label": "WHT Rate (%)",
@@ -263,14 +319,22 @@
     "section": "STATUS & TRACKING",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": "Active — signed 3-Mar-2026, term 12-Mar-2026 to 11-Mar-2031, both signature blocks executed."
+    "ai_match_reasoning": "Active \u2014 signed 3-Mar-2026, term 12-Mar-2026 to 11-Mar-2031, both signature blocks executed."
   },
   "rent_commencement_date": {
     "label": "Rent Commencement Date",
     "section": "STATUS & TRACKING",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 4,
+      "bbox_left": 0.364113,
+      "bbox_top": 0.849615,
+      "bbox_width": 0.109113,
+      "bbox_height": 0.008554,
+      "value_confidence": 0.9
+    }
   },
   "rent_free_months": {
     "label": "Rent Free Months",
@@ -305,14 +369,30 @@
     "section": "PAYMENT STRUCTURE",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "Not in the tracker's own Field 46, but printed identically on both invoices and in the agreement's payment article: MANDIRI 1270000055283, DEBORA DEBBY WAGE."
+    "ai_match_reasoning": "Not in the tracker's own Field 46, but printed identically on both invoices and in the agreement's payment article: MANDIRI 1270000055283, DEBORA DEBBY WAGE.",
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.156532,
+      "bbox_top": 0.236441,
+      "bbox_width": 0.160645,
+      "bbox_height": 0.011463,
+      "value_confidence": 0.9
+    }
   },
   "lessor_bank_account_number": {
     "label": "Bank Account Number",
     "section": "PAYMENT STRUCTURE",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "Not in the tracker's own Field 46, but printed identically on both invoices and in the agreement's payment article: MANDIRI 1270000055283."
+    "ai_match_reasoning": "Not in the tracker's own Field 46, but printed identically on both invoices and in the agreement's payment article: MANDIRI 1270000055283.",
+    "bbox": {
+      "page": 5,
+      "bbox_left": 0.423387,
+      "bbox_top": 0.680582,
+      "bbox_width": 0.115645,
+      "bbox_height": 0.008725,
+      "value_confidence": 0.9
+    }
   },
   "split_check": {
     "label": "Split Check",

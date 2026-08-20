@@ -1,0 +1,172 @@
+{
+  "invoice_number": {
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.171374,
+      "bbox_top": 0.324896,
+      "bbox_width": 0.258421,
+      "bbox_height": 0.033143,
+      "value_confidence": 1.0
+    }
+  },
+  "invoice_date": {
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.171374,
+      "bbox_top": 0.324896,
+      "bbox_width": 0.258421,
+      "bbox_height": 0.033143,
+      "value_confidence": 0.7
+    }
+  },
+  "vendor_name": {
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.754701,
+      "bbox_top": 0.04509,
+      "bbox_width": 0.194715,
+      "bbox_height": 0.015536,
+      "value_confidence": 1.0
+    }
+  },
+  "vendor_address": {
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.544832,
+      "bbox_top": 0.061822,
+      "bbox_width": 0.405123,
+      "bbox_height": 0.048999,
+      "value_confidence": 0.95
+    }
+  },
+  "customer_legal_entity": {
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.576044,
+      "bbox_top": 0.172158,
+      "bbox_width": 0.319513,
+      "bbox_height": 0.015536,
+      "value_confidence": 1.0
+    }
+  },
+  "customer_address": {
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.576044,
+      "bbox_top": 0.187369,
+      "bbox_width": 0.363225,
+      "bbox_height": 0.083984,
+      "value_confidence": 0.95
+    }
+  },
+  "description": {
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.05372,
+      "bbox_top": 0.443669,
+      "bbox_width": 0.32502,
+      "bbox_height": 0.039112,
+      "value_confidence": 0.814
+    }
+  },
+  "billing_period_start": {
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.171374,
+      "bbox_top": 0.324896,
+      "bbox_width": 0.258421,
+      "bbox_height": 0.033143,
+      "value_confidence": 0.7
+    }
+  },
+  "billing_period_end": {
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.159226,
+      "bbox_top": 0.443669,
+      "bbox_width": 0.219513,
+      "bbox_height": 0.015536,
+      "value_confidence": 0.8
+    }
+  },
+  "due_date": {
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.171374,
+      "bbox_top": 0.324896,
+      "bbox_width": 0.258421,
+      "bbox_height": 0.033143,
+      "value_confidence": 0.7
+    }
+  },
+  "total_amount_before_vat": {
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.849781,
+      "bbox_top": 0.527327,
+      "bbox_width": 0.095069,
+      "bbox_height": 0.015536,
+      "value_confidence": 0.95
+    }
+  },
+  "vat_gst": {
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.849781,
+      "bbox_top": 0.550904,
+      "bbox_width": 0.095069,
+      "bbox_height": 0.015536,
+      "value_confidence": 0.95
+    }
+  },
+  "total_amount": {
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.841171,
+      "bbox_top": 0.57448,
+      "bbox_width": 0.104284,
+      "bbox_height": 0.015536,
+      "value_confidence": 0.95
+    }
+  },
+  "currency": {
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.825734,
+      "bbox_top": 0.527327,
+      "bbox_width": 0.019788,
+      "bbox_height": 0.015536,
+      "value_confidence": 0.95
+    }
+  },
+  "vendor_bank_name": {
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.185365,
+      "bbox_top": 0.576001,
+      "bbox_width": 0.068815,
+      "bbox_height": 0.015536,
+      "value_confidence": 1.0
+    }
+  },
+  "vendor_bank_account_name": {
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.372599,
+      "bbox_top": 0.576001,
+      "bbox_width": 0.138398,
+      "bbox_height": 0.015536,
+      "value_confidence": 1.0
+    }
+  },
+  "vendor_bank_account_number": {
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.266891,
+      "bbox_top": 0.576001,
+      "bbox_width": 0.092092,
+      "bbox_height": 0.015536,
+      "value_confidence": 1.0
+    }
+  }
+}

@@ -4,21 +4,37 @@
     "section": "PROPERTY & PARTIES",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "Source has a floor-number inconsistency (Lease Application body text says \"Fourth Floor\", Booking Form/payment schedule/floor plan say \"6th Floor\") — 6th Floor treated as authoritative per majority usage, not resolved by assumption"
+    "ai_match_reasoning": "Source has a floor-number inconsistency (Lease Application body text says \"Fourth Floor\", Booking Form/payment schedule/floor plan say \"6th Floor\") \u2014 6th Floor treated as authoritative per majority usage, not resolved by assumption"
   },
   "vendor_name": {
     "label": "Vendor Name",
     "section": "PROPERTY & PARTIES",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "Invoice's own vendor_name (\"PT. Pakuwon Sentosa Abadi\") and FP's (\"PT PAKUWON SENTOSA ABADI\") are both exact/near-exact matches"
+    "ai_match_reasoning": "Invoice's own vendor_name (\"PT. Pakuwon Sentosa Abadi\") and FP's (\"PT PAKUWON SENTOSA ABADI\") are both exact/near-exact matches",
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.672551,
+      "bbox_top": 0.130256,
+      "bbox_width": 0.222491,
+      "bbox_height": 0.01094,
+      "value_confidence": 0.9
+    }
   },
   "lessor_phone": {
     "label": "Vendor Phone",
     "section": "PROPERTY & PARTIES",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.698186,
+      "bbox_top": 0.169744,
+      "bbox_width": 0.089722,
+      "bbox_height": 0.006154,
+      "value_confidence": 0.9
+    }
   },
   "vendor_email": {
     "label": "Vendor Email",
@@ -39,21 +55,45 @@
     "section": "PROPERTY & PARTIES",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.365901,
+      "bbox_top": 0.270256,
+      "bbox_width": 0.195889,
+      "bbox_height": 0.009744,
+      "value_confidence": 0.9
+    }
   },
   "actual_start": {
     "label": "Lease Commencement Date",
     "section": "AGREEMENT DATES & TERM",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.364208,
+      "bbox_top": 0.452991,
+      "bbox_width": 0.126723,
+      "bbox_height": 0.009231,
+      "value_confidence": 0.9
+    }
   },
   "lease_expiry_date": {
     "label": "Lease Expiry Date",
     "section": "AGREEMENT DATES & TERM",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.523337,
+      "bbox_top": 0.453333,
+      "bbox_width": 0.118259,
+      "bbox_height": 0.009231,
+      "value_confidence": 0.9
+    }
   },
   "lock_in_period_months": {
     "label": "Lock-in Period (Months)",
@@ -81,7 +121,15 @@
     "section": "RENT & DEPOSIT",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": "MATCH"
+    "ai_match_reasoning": "MATCH",
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.363482,
+      "bbox_top": 0.480342,
+      "bbox_width": 0.023458,
+      "bbox_height": 0.011453,
+      "value_confidence": 0.9
+    }
   },
   "vat_included": {
     "label": "VAT Incl/Excl",
@@ -102,7 +150,15 @@
     "section": "RENT & DEPOSIT",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": "Rp 12,500,000/month excl. VAT, flat rate per unit — this vendor DOES have a true monthly-rent concept, unlike PT_BANGUN/RATNA_INTAN/Palladium's lumpsum-only structure"
+    "ai_match_reasoning": "Rp 12,500,000/month excl. VAT, flat rate per unit \u2014 this vendor DOES have a true monthly-rent concept, unlike PT_BANGUN/RATNA_INTAN/Palladium's lumpsum-only structure",
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.394921,
+      "bbox_top": 0.480513,
+      "bbox_width": 0.109553,
+      "bbox_height": 0.009231,
+      "value_confidence": 0.9
+    }
   },
   "monthly_rent_incl_tax": {
     "label": "Monthly Rent incl. Tax (Cond.)",
@@ -116,21 +172,37 @@
     "section": "RENT & DEPOSIT",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "Rent-only figure (Rp12,500,000 x 36 months) — deliberately EXCLUDES Service Charge and Building Promotion Levy per the source's own annotation, same scope caveat as Palladium's total"
+    "ai_match_reasoning": "Rent-only figure (Rp12,500,000 x 36 months) \u2014 deliberately EXCLUDES Service Charge and Building Promotion Levy per the source's own annotation, same scope caveat as Palladium's total",
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.391778,
+      "bbox_top": 0.576923,
+      "bbox_width": 0.09214,
+      "bbox_height": 0.00906,
+      "value_confidence": 0.9
+    }
   },
   "no_of_installments": {
     "label": "No. of Installments",
     "section": "RENT & DEPOSIT",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": "Counts only the Rent schedule (3 Down Payment + 24 monthly) — the separate Service Charge (12 quarterly) and Building Promotion Levy (36 monthly) schedules are tracked independently (see payment_schedule.json)"
+    "ai_match_reasoning": "Counts only the Rent schedule (3 Down Payment + 24 monthly) \u2014 the separate Service Charge (12 quarterly) and Building Promotion Levy (36 monthly) schedules are tracked independently (see payment_schedule.json)"
   },
   "base_fee": {
     "label": "Monthly Rent",
     "section": "RENT & DEPOSIT",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": "Same Rp12,500,000/month figure as base_rent_monthly_excl_tax — this vendor has a real flat monthly rent, unlike prior lumpsum-only vendors"
+    "ai_match_reasoning": "Same Rp12,500,000/month figure as base_rent_monthly_excl_tax \u2014 this vendor has a real flat monthly rent, unlike prior lumpsum-only vendors",
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.394921,
+      "bbox_top": 0.480513,
+      "bbox_width": 0.109553,
+      "bbox_height": 0.009231,
+      "value_confidence": 0.9
+    }
   },
   "revenue_share_pct": {
     "label": "Revenue Share (%)",
@@ -165,7 +237,7 @@
     "section": "ESCALATION",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "Not specified — rent appears fixed for the full 3-year term, unlike Palladium's real Year-2 step"
+    "ai_match_reasoning": "Not specified \u2014 rent appears fixed for the full 3-year term, unlike Palladium's real Year-2 step"
   },
   "escalation_frequency": {
     "label": "Escalation Frequency",
@@ -200,14 +272,14 @@
     "section": "UTILITIES & TAX",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "Electricity and water are metered/consumption-based per this text — no fixed recurring amount, so no installment schedule exists for them (see payment_schedule.json, which only covers Rent + Service Charge + Building Promotion Levy)"
+    "ai_match_reasoning": "Electricity and water are metered/consumption-based per this text \u2014 no fixed recurring amount, so no installment schedule exists for them (see payment_schedule.json, which only covers Rent + Service Charge + Building Promotion Levy)"
   },
   "wht_applicable": {
     "label": "WHT Applicable",
     "section": "UTILITIES & TAX",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": "Not stated in the source — no WHT is deducted anywhere in the payment schedule (rate left at 0%), same as Palladium"
+    "ai_match_reasoning": "Not stated in the source \u2014 no WHT is deducted anywhere in the payment schedule (rate left at 0%), same as Palladium"
   },
   "wht_rate_pct": {
     "label": "WHT Rate (%)",
@@ -228,14 +300,22 @@
     "section": "LEGAL & COMPLIANCE",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": "Booking Form number — this is a Booking Form + Lease Application stage document, not yet a registered definitive Lease Agreement"
+    "ai_match_reasoning": "Booking Form number \u2014 this is a Booking Form + Lease Application stage document, not yet a registered definitive Lease Agreement",
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.391052,
+      "bbox_top": 0.188376,
+      "bbox_width": 0.255623,
+      "bbox_height": 0.022735,
+      "value_confidence": 0.824
+    }
   },
   "notice_period_days": {
     "label": "Notice Period (Days)",
     "section": "LEGAL & COMPLIANCE",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "No standalone notice period stated — instead, 3 late payments or unremedied fit-out delays are deemed a self-cancellation by the Tenant, preserved verbatim rather than reduced to a day-count"
+    "ai_match_reasoning": "No standalone notice period stated \u2014 instead, 3 late payments or unremedied fit-out delays are deemed a self-cancellation by the Tenant, preserved verbatim rather than reduced to a day-count"
   },
   "renewal_option": {
     "label": "Renewal Option",
@@ -270,7 +350,15 @@
     "section": "STATUS & TRACKING",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.364208,
+      "bbox_top": 0.452991,
+      "bbox_width": 0.126723,
+      "bbox_height": 0.009231,
+      "value_confidence": 0.9
+    }
   },
   "rent_free_months": {
     "label": "Rent Free Months",
@@ -298,21 +386,21 @@
     "section": "PAYMENT STRUCTURE",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": "Blank in the tracker for Pakuwon — no bank-share cell populated, unlike Palladium's (leaked) or Ratna Intan's own values"
+    "ai_match_reasoning": "Blank in the tracker for Pakuwon \u2014 no bank-share cell populated, unlike Palladium's (leaked) or Ratna Intan's own values"
   },
   "lessor_bank_account_name": {
     "label": "Bank Account Name",
     "section": "PAYMENT STRUCTURE",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "No reliable source — the tracker's Lessor Payment Share cell is blank, and the invoice's own 'vendor bank account name' field is a Virtual Account labeled under the CUSTOMER's name (\"BUMI BERKAH BOGA, PT\"), a real but non-substitutable Indonesian VA banking convention, not the lessor's own account name"
+    "ai_match_reasoning": "No reliable source \u2014 the tracker's Lessor Payment Share cell is blank, and the invoice's own 'vendor bank account name' field is a Virtual Account labeled under the CUSTOMER's name (\"BUMI BERKAH BOGA, PT\"), a real but non-substitutable Indonesian VA banking convention, not the lessor's own account name"
   },
   "lessor_bank_account_number": {
     "label": "Bank Account Number",
     "section": "PAYMENT STRUCTURE",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "No reliable source — same Virtual Account naming convention described above; the VA numbers themselves are real (see invoice extractions) but aren't a literal lessor bank account number"
+    "ai_match_reasoning": "No reliable source \u2014 same Virtual Account naming convention described above; the VA numbers themselves are real (see invoice extractions) but aren't a literal lessor bank account number"
   },
   "split_check": {
     "label": "Split Check",

@@ -701,7 +701,7 @@ def process_vendor(vendor_dir: Path) -> None:
             if not extraction_path.exists() or not pdf_path or not pdf_path.exists():
                 continue
             extraction = json.loads(extraction_path.read_text())
-            _, non_fp_pages = _partition_fp_pages(pdf_path)
+            fp_pages, non_fp_pages = _partition_fp_pages(pdf_path)
             field_meta = build_field_meta(pdf_path, extraction, restrict_pages=non_fp_pages)
             out_name = f"{entry['key']}_field_meta.json"
             out_path = vendor_dir / out_name
@@ -710,9 +710,30 @@ def process_vendor(vendor_dir: Path) -> None:
 
             fp_path = vendor_dir / entry["faktur_pajak"] if entry.get("faktur_pajak") else None
             fp_pdf_path = vendor_dir / entry["faktur_pajak_pdf"] if entry.get("faktur_pajak_pdf") else None
-            if fp_path and fp_path.exists() and fp_pdf_path and fp_pdf_path.exists():
+            fp_field_meta = None
+            if fp_path and fp_path.exists():
                 fp_data = json.loads(fp_path.read_text())
-                fp_field_meta = build_field_meta(fp_pdf_path, fp_data)
+                if fp_pdf_path and fp_pdf_path.exists():
+                    # Dedicated separate FP PDF (documents.json's singular
+                    # faktur_pajak_pdf) — most vendors' case.
+                    fp_field_meta = build_field_meta(fp_pdf_path, fp_data)
+                elif fp_pages:
+                    # No dedicated FP PDF, but this entry's own invoice PDF
+                    # has page(s) titled "Faktur Pajak" — e.g. KARYA_NASTARI's
+                    # invoice_3.pdf, whose pages 2-4 ARE the three real Faktur
+                    # Pajak (only additionally split out into their own PDFs
+                    # via documents.json's faktur_pajak_pdfs list — see
+                    # fixtures.py). Restricted to those page(s) ONLY, mirroring
+                    # the single-invoice-folder branch above and this same
+                    # entry's own non_fp_pages restriction: the invoice's own
+                    # field_meta must never point at an FP page and vice
+                    # versa. fp_number/taxable_amount here are a
+                    # cross-document rollup (see faktur_pajak_3.json's own
+                    # "notes") that plainly isn't printed verbatim anywhere,
+                    # so those two are expected to come up missing — safe,
+                    # per build_field_meta's own omit-don't-guess rule.
+                    fp_field_meta = build_field_meta(pdf_path, fp_data, restrict_pages=fp_pages)
+            if fp_field_meta is not None:
                 fp_out_name = f"{entry['key']}_fp_field_meta.json"
                 fp_out_path = vendor_dir / fp_out_name
                 fp_out_path.write_text(json.dumps(fp_field_meta, indent=2) + "\n")
