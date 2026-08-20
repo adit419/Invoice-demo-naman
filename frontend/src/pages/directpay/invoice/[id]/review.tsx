@@ -189,6 +189,14 @@ function InvoiceReviewPage() {
       const updated = await directpayService.confirmExtraction(id, payload);
       setSaving(false);
 
+      // Auto-Process on: confirming extraction resumes the cascade server-side,
+      // so hand the reviewer back to the dashboard instead of walking them
+      // through the stages it is about to drive itself.
+      try {
+        const stp = await directpayService.getStp();
+        if (stp.stp_enabled) { router.push("/directpay/dashboard"); return; }
+      } catch { /* fall through to normal stage navigation */ }
+
       // Mirrors P2P's own IDR-only Faktur Pajak gate: confirming extraction
       // moves the invoice on to fp_extraction if this vendor has a real
       // Faktur Pajak document (see service.py's confirm_extraction), which

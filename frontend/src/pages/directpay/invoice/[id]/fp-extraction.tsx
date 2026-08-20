@@ -130,6 +130,16 @@ function FpExtractionPage() {
     try {
       await directpayService.approveFakturPajak(id, false);
       setBusy(false);
+      // With Auto-Process on, this approval hands the invoice straight back to
+      // the cascade (the router calls resume_dp_stp_if_enabled) — so return the
+      // reviewer to the dashboard and let processing continue there, rather than
+      // walking them onto a stage automation is about to pass through. It stops
+      // again only if a later stage needs a person. Same behaviour as P2P's own
+      // fp-extraction page.
+      try {
+        const stp = await directpayService.getStp();
+        if (stp.stp_enabled) { router.push("/directpay/dashboard"); return; }
+      } catch { /* fall through to normal stage navigation */ }
       setTransitioning(true);
       await sleep(MATCHING_PHASE_MS);
       // Matching comes next now — Extraction Postprocessing was a separate

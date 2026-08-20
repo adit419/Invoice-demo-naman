@@ -1057,6 +1057,37 @@ it existed only to block the uploader for work that is now server-side.
 > (§10a) is bypassed. P2P behaves identically (approving `line_item_matching` auto-posts). Turn
 > Auto-Process off to work the Bill Posting screen by hand.
 
+### Clearing a hold sends the reviewer back to the dashboard
+
+The backend resume was only half the loop: a reviewer who cleared a hold was still walked forward
+through the stages by the frontend, landing on a screen the cascade was already completing behind
+them.
+
+All three DirectPay stage pages now do what P2P's own already do — check the toggle after a
+successful approve and, with Auto-Process on, `router.push("/directpay/dashboard")` instead of
+advancing:
+
+| Page | Action | With Auto-Process on |
+|---|---|---|
+| `review.tsx` | Confirm Extraction | → dashboard (cascade continues from Faktur Pajak) |
+| `fp-extraction.tsx` | Approve & Continue | → dashboard (cascade continues to contract match + Matching) |
+| `match.tsx` | Approve | → dashboard (cascade posts the bill itself) |
+
+Each wraps the check in its own `try/catch` and falls through to the normal stage navigation if the
+settings call fails, so a flaky read can never strand the reviewer. With Auto-Process off, every page
+navigates exactly as before.
+
+Verified as one continuous loop, GRAHA_MEGARIA invoice 1 with Auto-Process on:
+
+```
+upload (reviewer stays on the dashboard)
+  -> fp_extraction        HOLD faktur_pajak_mismatch
+reviewer acks + Approve & Continue   (page redirects to the dashboard)
+  -> matching             HOLD matching_open_issues      [resumed unattended]
+reviewer acks + Approve              (page redirects to the dashboard)
+  -> bill_posting -> posted   stp_state=done, ERP bill DP-BILL-FEDCC9   [resumed unattended]
+```
+
 ### Open limitation: learned acks can't clear a blocking Matching finding
 
 `_apply_dp_ack_memory()` skips any finding with `severity == "error"`. Everything that actually

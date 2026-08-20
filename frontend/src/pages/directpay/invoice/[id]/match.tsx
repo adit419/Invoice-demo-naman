@@ -166,10 +166,19 @@ function InvoiceMatchPage() {
         setRun(updated);
         setRejectOpen(false);
       } else {
+        setBusy(false);
+        // Auto-Process on: approving here hands the invoice back to the cascade
+        // (the router calls resume_dp_stp_if_enabled), which posts the bill
+        // itself. Return the reviewer to the dashboard and let it finish there —
+        // walking them to Bill Posting would land them on a stage automation is
+        // completing behind them. Same behaviour as P2P's own matching page.
+        try {
+          const stp = await directpayService.getStp();
+          if (stp.stp_enabled) { router.push("/directpay/dashboard"); return; }
+        } catch { /* fall through to normal stage navigation */ }
         // The approve call itself only spun the button above — the visible
         // "processing" moment is this hand-off to Bill Posting, shown via
         // the same StageTransitionOverlay P2P uses between its own stages.
-        setBusy(false);
         setTransitionPhase("matching");
         setTransitioning(true);
         await sleep(MATCHING_PHASE_DELAY_MS);
