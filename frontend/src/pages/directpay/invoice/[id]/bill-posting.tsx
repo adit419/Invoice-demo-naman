@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import {
   CalendarOutlined,
@@ -57,6 +57,11 @@ const DP_WHT_OPTIONS = [
   },
 ];
 
+// Rate behind each WHT code. MUST stay in sync with service.py's own
+// _WHT_CODE_RATES. Deliberately not parsed out of the option label above — that
+// text is for display and must never become a calculation input.
+const WHT_RATES: Record<string, number> = { "PPH4(2)-SEWA": 10, [NO_WHT_CODE]: 0, "": 0 };
+
 /**
  * Mirrors the backend's own _validate_bill_posting_tax_codes (service.py).
  * Purely for immediate feedback — the server re-checks and is the real gate,
@@ -91,9 +96,11 @@ function validateTaxCodes(
     if (whtApplicable && (!wht || wht === NO_WHT_CODE)) {
       return `Select the applicable WHT Tax Code for \u201C${label(li)}\u201D before posting — this vendor is subject to withholding tax.`;
     }
-    if (!whtApplicable && wht && wht !== NO_WHT_CODE) {
-      return `\u201C${label(li)}\u201D has WHT Tax Code \u201C${wht}\u201D, but this vendor is not subject to withholding tax. Set it to \u201CNo Withholding\u201D before posting.`;
-    }
+    // No "selected but not applicable" WHT check any more: applying a
+    // withholding by hand where the contract states none is now an explicit,
+    // supported action (see WHT_RATES / service.py's _selected_wht_rate). The VAT
+    // checks keep both directions, and "subject to WHT but nothing selected"
+    // above still stands.
   }
   return null;
 }
@@ -193,11 +200,17 @@ function InvoiceBillPostingPage() {
     });
   };
 
-  const handleWhtChange = (itemId: string, whtCode: string) => {
+  // Per explicit instruction the WHT rate is ONE rate for the whole invoice even
+  // though the control sits on each row, so a change is propagated to every line
+  // — otherwise the rows would show different codes while a single rate was
+  // actually being applied.
+  const handleWhtChange = (_itemId: string, whtCode: string) => {
     setLineEdits((prev) => {
       const next = new Map(prev);
-      const curr = next.get(itemId) ?? { vat_tax_code: "", wht_tax_code: "" };
-      next.set(itemId, { ...curr, wht_tax_code: whtCode });
+      for (const li of data?.line_items ?? []) {
+        const curr = next.get(li.id) ?? { vat_tax_code: li.vat_tax_code, wht_tax_code: li.wht_tax_code };
+        next.set(li.id, { ...curr, wht_tax_code: whtCode });
+      }
       return next;
     });
   };
@@ -230,18 +243,46 @@ function InvoiceBillPostingPage() {
     }
   };
 
-  // Persist current line-item VAT/WHT edits to the backend before running
-  // simulate, so the server computes against the user's latest inputs —
-  // same ordering as P2P's own persistEditsForSimulate.
-  const persistLineEdits = async () => {
-    if (!id || !data) return;
-    const overrides: Record<string, Partial<DpBillPostingLineItem>> = {};
-    for (const li of data.line_items) {
+  // The reviewer's current, UNSAVED line-item selections. Sent with Simulate so
+  // the server previews against them without storing anything: a WHT selection
+  // may be changed several times, and reverting it must leave no trace, so
+  // nothing reaches the database until "Post to ERP".
+  const pendingLineItems = useMemo(() => {
+    const out: Record<string, { vat_tax_code: string; wht_tax_code: string }> = {};
+    for (const li of data?.line_items ?? []) {
       const edit = lineEdits.get(li.id) ?? { vat_tax_code: li.vat_tax_code, wht_tax_code: li.wht_tax_code };
-      overrides[li.id] = { vat_tax_code: edit.vat_tax_code, wht_tax_code: edit.wht_tax_code };
+      out[li.id] = { vat_tax_code: edit.vat_tax_code ?? "", wht_tax_code: edit.wht_tax_code ?? "" };
     }
-    await directpayService.editBillPosting(id, overrides);
-  };
+    return out;
+  }, [data, lineEdits]);
+
+  // Live preview of the WHT-driven figures. `data` is the untouched server
+  // response and is never mutated, so it IS the in-memory original: reverting the
+  // dropdown to "No Withholding" recomputes straight off it and Taxable Amount
+  // lands back on its starting value with no trace of the intermediate rate.
+  // Applies the same three-way rule as service.py's own selection block, using
+  // the document-stated withholding the backend sends alongside.
+  const previewData = useMemo(() => {
+    if (!data) return data;
+    const code = (pendingLineItems[data.line_items[0]?.id ?? ""]?.wht_tax_code ?? "").trim();
+    if (!code) return data;
+    const rate = WHT_RATES[code] ?? 0;
+    const base = data.subtotal ?? 0;
+    // Mirrors service.py exactly, including that a document-stated ZERO counts as
+    // "nothing stated" — a contract with no WHT clause still reports 0.00 here,
+    // and that is the population this manual override exists for.
+    const documentWht = Number(data.wht_from_document ?? 0);
+    const wht = rate === 0 ? 0 : documentWht || Math.round(base * rate) / 100;
+    return {
+      ...data,
+      wht_amount: wht,
+      // Taxable Amount, shown net of the withholding in effect. Payable Amount is
+      // deliberately left alone: it is the cash figure the documents establish and
+      // must not move when the reviewer changes the rate.
+      subtotal: Math.round((base - wht) * 100) / 100,
+      wht_applicable: data.wht_applicable || rate > 0,
+    };
+  }, [data, pendingLineItems]);
 
   const handleReject = async (reason: string) => {
     if (!id) return;
@@ -372,9 +413,9 @@ function InvoiceBillPostingPage() {
         <div className="px-6 py-5">
           <div className="rounded-lg border border-gray-200 overflow-hidden">
             <DpBillPostingMetadataGrid
-              data={data}
+              data={previewData ?? data}
               invoiceId={id ?? ""}
-              persistEdits={persistLineEdits}
+              pendingLineItems={pendingLineItems}
             />
 
             <div className="mx-5 border-t border-gray-200" />

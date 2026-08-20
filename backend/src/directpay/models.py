@@ -19,8 +19,13 @@ class DpContractTriggerUploadRequest(BaseModel):
     when the real file is large enough that sending its bytes through the
     dev proxy isn't worth it — DirectPay's fixture resolution and the PDF
     preview (read back from the fixture's own on-disk file, never from
-    whatever the browser sent) work off the file name alone regardless."""
-    file_name: str
+    whatever the browser sent) work off the file name alone regardless.
+
+    `file_names` uploads SEVERAL contracts in one call, one run each — same
+    single-or-batch shape DpTriggerUploadRequest already has on the invoice
+    side. Exactly one of the two fields is required."""
+    file_name: Optional[str] = None
+    file_names: Optional[list[str]] = None
 
 
 class DpContractEditRequest(BaseModel):
@@ -77,6 +82,12 @@ class DpFpApproveRequest(BaseModel):
 
 class DpBillPostingEditRequest(BaseModel):
     line_items: dict[str, dict[str, Any]]  # row_id -> {gl_account_code?, vat_tax_code?, wht_tax_code?}
+
+
+class DpBillPostingSimulateRequest(BaseModel):
+    """Unsaved line-item tax-code selections to preview against. Optional — an
+    empty body simulates the run exactly as stored."""
+    line_items: Optional[dict[str, dict[str, Any]]] = None
 
 
 class DpStpRequest(BaseModel):

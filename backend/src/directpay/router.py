@@ -35,6 +35,7 @@ from .models import (
     DpAckThresholdRequest,
     DpAcknowledgeRequest,
     DpBillPostingEditRequest,
+    DpBillPostingSimulateRequest,
     DpContractApproveRequest,
     DpContractEditRequest,
     DpContractPostprocessingEditRequest,
@@ -55,6 +56,7 @@ from .stp import (
     get_dp_ack_threshold,
     get_dp_total_before_vat_threshold,
     get_global_dp_stp,
+    resume_dp_stp_if_enabled,
     run_dp_stp_for_invoice,
     set_dp_ack_threshold,
     set_dp_total_before_vat_threshold,
@@ -145,13 +147,31 @@ async def update_total_before_vat_threshold_setting(body: DpTotalBeforeVatThresh
 
 # ── Contracts ──────────────────────────────────────────────────────────────────
 
-@router.post("/contracts/upload")
-async def upload_contract(file: UploadFile = File(...)):
+async def _upload_contracts_by_filename(file_names: list[str]) -> list[dict]:
+    """One contract run per file — each is resolved to its own fixture and
+    extracted separately. Several contracts can be uploaded in one go (a vendor
+    set is usually onboarded together), and unlike the invoice side there is no
+    dedupe: two files always mean two runs."""
     db = get_db()
-    try:
-        return _envelope(data=await service.upload_contract(db, file.filename or ""))
-    except service.NotFoundError as exc:
-        _not_found(exc)
+    results: list[dict] = []
+    for name in file_names:
+        try:
+            results.append(await service.upload_contract(db, name))
+        except service.NotFoundError as exc:
+            # Only when NO scenarios are configured at all — a name that matches
+            # nothing still resolves to some bundle (see DpFixtureLoader.resolve).
+            _not_found(exc)
+    return results
+
+
+@router.post("/contracts/upload")
+async def upload_contract(files: list[UploadFile] = File(..., alias="file")):
+    """Accepts one or many files under the `file` field — the browser repeats the
+    field name per file, so a single-file client is unchanged."""
+    names = [f.filename or "" for f in files if (f.filename or "").strip()]
+    if not names:
+        raise HTTPException(status_code=422, detail="At least one file is required")
+    return _envelope(data=_upload_payload(await _upload_contracts_by_filename(names)))
 
 
 # Mirrors /ingestion/trigger-upload on the invoice side: same effect as the
@@ -161,13 +181,18 @@ async def upload_contract(file: UploadFile = File(...)):
 # resolution and the PDF preview both work off the file name alone anyway).
 @router.post("/contracts/trigger-upload")
 async def trigger_upload_contract(body: DpContractTriggerUploadRequest):
-    if not body.file_name.strip():
-        raise HTTPException(status_code=422, detail="file_name is required")
-    db = get_db()
-    try:
-        return _envelope(data=await service.upload_contract(db, body.file_name.strip()))
-    except service.NotFoundError as exc:
-        _not_found(exc)
+    # Either a single file_name (unchanged) or a batch via file_names — same
+    # single-vs-many response shape the invoice endpoints use, so a client can
+    # normalise both with one `items` check.
+    if body.file_names is not None:
+        names = [n.strip() for n in body.file_names if n and n.strip()]
+        if not names:
+            raise HTTPException(status_code=422, detail="file_names must contain at least one non-empty file name")
+        return _envelope(data=_upload_payload(await _upload_contracts_by_filename(names)))
+
+    if not (body.file_name or "").strip():
+        raise HTTPException(status_code=422, detail="file_name or file_names is required")
+    return _envelope(data=_upload_payload(await _upload_contracts_by_filename([body.file_name.strip()])))
 
 
 @router.get("/contracts")
@@ -455,10 +480,15 @@ async def edit_invoice(run_id: str, body: DpInvoiceEditRequest, current_user: Cu
 @router.post("/invoices/{run_id}/confirm-extraction")
 async def confirm_extraction(run_id: str, body: DpInvoiceConfirmExtractionRequest, current_user: CurrentUser):
     db = get_db()
+    oid = _oid(run_id, "invoice ID")
     try:
-        return _envelope(data=await service.confirm_extraction(db, _oid(run_id, "invoice ID"), body.extracted, current_user.email))
+        result = await service.confirm_extraction(db, oid, body.extracted, current_user.email)
     except service.NotFoundError as exc:
         _not_found(exc)
+        return
+    # Auto-Process picks the invoice back up from here (no-op when it's off).
+    await resume_dp_stp_if_enabled(db, oid)
+    return _envelope(data=result)
 
 
 # Which payment-schedule row this invoice is matched against. Amount proximity
@@ -522,6 +552,8 @@ async def approve_faktur_pajak(run_id: str, body: DpFpApproveRequest):
             status_code=409,
             media_type="application/json",
         )
+    # A human just cleared this stage — let Auto-Process carry on if it's on.
+    await resume_dp_stp_if_enabled(db, oid)
     return _envelope(data=result)
 
 
@@ -580,6 +612,8 @@ async def review_action(body: DpReviewActionRequest):
             status_code=409,
             media_type="application/json",
         )
+    # A human just cleared this stage — let Auto-Process carry on if it's on.
+    await resume_dp_stp_if_enabled(db, oid)
     return _envelope(data=result)
 
 
@@ -619,10 +653,12 @@ async def post_bill(run_id: str):
 
 
 @router.post("/invoices/{run_id}/bill-posting/simulate")
-async def simulate_bill_posting(run_id: str):
+async def simulate_bill_posting(run_id: str, body: DpBillPostingSimulateRequest | None = None):
     db = get_db()
     try:
-        return _envelope(data=await service.simulate_bill_posting(db, _oid(run_id, "invoice ID")))
+        return _envelope(data=await service.simulate_bill_posting(
+            db, _oid(run_id, "invoice ID"), body.line_items if body else None,
+        ))
     except service.NotFoundError as exc:
         _not_found(exc)
     except service.InvalidStateError as exc:

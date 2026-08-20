@@ -42,7 +42,9 @@ interface DpBillPostingMetadataGridProps {
    * so the server computes against the latest VAT/WHT selections. If
    * undefined or if it throws, simulate still proceeds.
    */
-  persistEdits?: () => Promise<void>;
+  /** The reviewer's UNSAVED line-item tax-code selections, previewed by Simulate
+   *  without being stored — nothing persists until "Post to ERP". */
+  pendingLineItems?: Record<string, { vat_tax_code: string; wht_tax_code: string }>;
 }
 
 interface SimulateResponse {
@@ -61,7 +63,7 @@ type FieldConfig = {
 export function DpBillPostingMetadataGrid({
   data,
   invoiceId,
-  persistEdits,
+  pendingLineItems,
 }: DpBillPostingMetadataGridProps) {
   const [simulateLoading, setSimulateLoading] = useState(false);
   const [simulateOpen, setSimulateOpen] = useState(false);
@@ -71,15 +73,9 @@ export function DpBillPostingMetadataGrid({
 
   const handleSimulate = async () => {
     setSimulateLoading(true);
-    if (persistEdits) {
-      try {
-        await persistEdits();
-      } catch (err) {
-        console.warn("[DpBillPostingMetadataGrid] persistEdits failed before simulate:", err);
-      }
-    }
+
     try {
-      const res = await directpayService.simulateBillPosting<SimulateResponse>(invoiceId);
+      const res = await directpayService.simulateBillPosting<SimulateResponse>(invoiceId, pendingLineItems);
       setSimulateStatus(res.status ?? "error");
       setSimulateMessage(res.message ?? "Simulation completed.");
       setSimulateDoc(res.document ?? null);

@@ -16,14 +16,6 @@ import { invoiceRoute } from "@/utils/directpayRoutes";
 // for a manual invoice there's no background task, so the dashboard calls
 // /extract directly. Poll instead of guessing a fixed delay so this holds
 // even if the simulated extraction latency changes.
-async function waitForExtraction(invoiceId: string, maxWaitMs = 10000, intervalMs = 500): Promise<void> {
-  const start = Date.now();
-  while (Date.now() - start < maxWaitMs) {
-    const inv = await directpayService.getInvoice(invoiceId);
-    if (inv.status !== "extraction") return;
-    await new Promise((resolve) => setTimeout(resolve, intervalMs));
-  }
-}
 
 // Contracts have no separate extract/validate API steps — base_fields are
 // already populated at upload — so this is a simulated two-phase pacing
@@ -32,7 +24,7 @@ async function waitForExtraction(invoiceId: string, maxWaitMs = 10000, intervalM
 const CONTRACT_EXTRACTING_MS = 3000;
 const CONTRACT_VALIDATING_MS = 2000;
 
-// Invoices do have a real extract step (waited on above), but no separate
+// Invoices do have a real extract step, but no separate
 // validate step of their own at upload time — this is a simulated pacing
 // delay for that phase, same idea as the contract side.
 const INVOICE_VALIDATING_MS = 2000;
@@ -175,12 +167,20 @@ function contractRoute(c: DpContractRun): string {
   return `/directpay/contract/${c.id}/review`;
 }
 
-function invoiceAction(inv: DpInvoiceRun): { label: string; primary: boolean; disabled: boolean } {
-  // A fresh upload never lingers on the dashboard long enough to see this in
-  // the tab that triggered it — the upload flow's own full-page loader
-  // covers that. This still matters for another tab/session polling the
-  // dashboard while this invoice's Auto-Process extraction is in flight.
-  if (inv.stp_state === "processing") return { label: "Processing", primary: false, disabled: true };
+// Statuses at which an Auto-Process run is definitely no longer mid-cascade —
+// the fallback for releasing the local lock when no stp_state was published.
+const STP_TERMINAL = new Set(["bill_posting", "posted", "rejected"]);
+
+function invoiceAction(
+  inv: DpInvoiceRun,
+  locallyProcessing = false,
+): { label: string; primary: boolean; disabled: boolean } {
+  // With Auto-Process on, the upload stays on this page, so the row itself is
+  // what reports progress — from the server's stp_state, or from this tab's own
+  // lock during the moment before the first state is published.
+  if (locallyProcessing || inv.stp_state === "processing") {
+    return { label: "Processing", primary: false, disabled: true };
+  }
   if (inv.status === "extraction") return { label: "Review", primary: true, disabled: false };
   if (INVOICE_CLOSED_STATUSES.has(inv.status)) return { label: "View", primary: false, disabled: false };
   return { label: "Continue", primary: false, disabled: false };
@@ -459,6 +459,12 @@ function DirectPayDashboard() {
   // review screen — "the user should not be taken through individual
   // processing stages" applies regardless of Auto-Process being on or off.
   const [autoExtracting, setAutoExtracting] = useState<"invoice" | "contract" | null>(null);
+  // Runs this tab just handed to Auto-Process. Holds the row disabled from the
+  // instant of upload, covering the gap before the server publishes its first
+  // stp_state — without it the row is briefly clickable as "Review" while the
+  // cascade is already running. Same mechanism, and same auto-clear, as P2P's
+  // own dashboard (stpProcessingIds / STP_TERMINAL).
+  const [stpProcessingIds, setStpProcessingIds] = useState<Set<string>>(new Set());
   const [contractPhase, setContractPhase] = useState<"extracting" | "validating">("extracting");
   const [invoicePhase, setInvoicePhase] = useState<"extracting" | "validating">("extracting");
   const fileRef = useRef<HTMLInputElement>(null);
@@ -520,6 +526,18 @@ function DirectPayDashboard() {
       const [inv, con] = await Promise.all([directpayService.listInvoices(), directpayService.listContracts()]);
       setInvoices(inv.items);
       setContracts(con.items);
+      // Release the local lock as soon as the server publishes a settled state:
+      // "done" (the cascade posted the bill) or "waiting_review" (it stopped for
+      // a person). A terminal status is the fallback for a run with no state.
+      setStpProcessingIds((prev) => {
+        if (prev.size === 0) return prev;
+        const next = new Set(prev);
+        for (const i of inv.items) {
+          const settled = !!i.stp_state && i.stp_state !== "processing";
+          if (next.has(i.id) && (settled || STP_TERMINAL.has(i.status))) next.delete(i.id);
+        }
+        return next.size === prev.size ? prev : next;
+      });
     } catch {
       toast("Could not load DirectPay dashboard", "error");
     } finally {
@@ -574,15 +592,15 @@ function DirectPayDashboard() {
       setBatchFiles([...local]);
       try {
         // One file can resolve to SEVERAL runs (a combined multi-invoice PDF —
-        // see uploadInvoice), so extract each of them.
+        // see uploadInvoice), so handle each of them.
         const runs = await directpayService.uploadInvoice(files[i]);
         for (const run of runs) {
           runIds.push(run.id);
-          if (stpEnabled) {
-            await waitForExtraction(run.id);
-          } else {
-            await directpayService.extractInvoice(run.id);
-          }
+          // With Auto-Process on, the server-side cascade owns the whole
+          // pipeline — extraction included. Waiting on it here would just stall
+          // the uploader for something already in hand.
+          if (stpEnabled) setStpProcessingIds((prev) => new Set([...prev, run.id]));
+          else await directpayService.extractInvoice(run.id);
         }
         local[i] = { ...local[i], status: "done" };
       } catch {
@@ -599,7 +617,7 @@ function DirectPayDashboard() {
     // as the one-file upload path below, so it gets the same "resolve
     // straight to Extraction" treatment instead of leaving the user on the
     // dashboard to go find and click the row themselves.
-    if (uniqueRunIds.length === 1 && failed === 0) {
+    if (uniqueRunIds.length === 1 && failed === 0 && !stpEnabled) {
       setBatchFiles(null);
       setAutoExtracting("invoice");
       setInvoicePhase("validating");
@@ -618,30 +636,48 @@ function DirectPayDashboard() {
     }
   };
 
-  const handleUpload = async (file: File) => {
+  const handleUpload = async (file: File | File[]) => {
     setUploading(true);
     try {
       if (tab === "invoices") {
         // A single file can be several invoices — GRAHA_MEGARIA's 6-page PDF
         // holds four, each of which becomes its own run (see uploadInvoice).
-        const runs = await directpayService.uploadInvoice(file);
+        // Multi-file invoice selections go through handleUploadInvoices instead,
+        // so this branch always has exactly one.
+        const single = Array.isArray(file) ? file[0] : file;
+        const runs = await directpayService.uploadInvoice(single);
         setUploading(false);
+
+        // Auto-Process on: the whole pipeline is driven server-side, so there is
+        // nothing for the uploader to wait on and nowhere to hand the user off
+        // to. Stay on the dashboard — no extraction loader, no jump to the
+        // Extraction screen — and let the row report progress from its own
+        // stp_state while the 8s poll follows it. Mirrors P2P's own dashboard,
+        // which likewise never navigates on upload while STP is on. The cascade
+        // runs until it either posts the bill or stops at something that
+        // genuinely needs a person (an unacknowledged mismatch, an unmatched
+        // contract), which the row then shows.
+        if (stpEnabled) {
+          setStpProcessingIds((prev) => new Set([...prev, ...runs.map((r) => r.id)]));
+          await load();
+          toast(
+            runs.length > 1
+              ? `${runs.length} invoices uploaded — Auto-Process is running them`
+              : "Invoice uploaded — Auto-Process is running it",
+            "success",
+          );
+          return;
+        }
+
         setAutoExtracting("invoice");
         setInvoicePhase("extracting");
         try {
           for (const run of runs) {
-            if (stpEnabled) {
-              // Auto-Process: extraction runs in the background (the upload
-              // endpoint already kicked off stp.py's cascade) — poll for it
-              // rather than re-triggering it.
-              await waitForExtraction(run.id);
-            } else {
-              // Manual: no background task runs extraction for us — call it
-              // directly. The Extraction screen would otherwise do this same
-              // call on load; doing it here just means it's already done by
-              // the time we land there.
-              await directpayService.extractInvoice(run.id);
-            }
+            // Manual: no background task runs extraction for us — call it
+            // directly. The Extraction screen would otherwise do this same
+            // call on load; doing it here just means it's already done by
+            // the time we land there.
+            await directpayService.extractInvoice(run.id);
           }
           setInvoicePhase("validating");
           await sleep(INVOICE_VALIDATING_MS);
@@ -653,13 +689,13 @@ function DirectPayDashboard() {
         // mirroring the multi-run outcome of the batch path above.
         if (runs.length > 1) {
           await load();
-          toast(`${runs.length} invoices found in ${file.name} — each is now processing separately`, "success");
+          toast(`${runs.length} invoices found in ${single.name} — each is now processing separately`, "success");
           return;
         }
         router.push(`/directpay/invoice/${runs[0].id}/review`);
         return;
       }
-      const run = await directpayService.uploadContract(file);
+      const runs = await directpayService.uploadContract(file);
       setUploading(false);
       setAutoExtracting("contract");
       setContractPhase("extracting");
@@ -667,7 +703,15 @@ function DirectPayDashboard() {
       setContractPhase("validating");
       await sleep(CONTRACT_VALIDATING_MS);
       setAutoExtracting(null);
-      router.push(`/directpay/contract/${run.id}/review`);
+      // Several contracts came in at once — each is its own run, so there is no
+      // single "the" contract to land on. Same treatment as the invoice batch
+      // path: reload the list and say what happened.
+      if (runs.length > 1) {
+        await load();
+        toast(`${runs.length} contracts uploaded — each extracted separately`, "success");
+        return;
+      }
+      router.push(`/directpay/contract/${runs[0].id}/review`);
     } catch {
       toast(tab === "invoices" ? "Invoice upload failed" : "Contract upload failed", "error");
       setUploading(false);
@@ -867,14 +911,19 @@ function DirectPayDashboard() {
                 ref={fileRef}
                 type="file"
                 accept="application/pdf"
-                multiple={tab === "invoices"}
+                multiple
                 style={{ display: "none" }}
                 onChange={(e) => {
                   const files = Array.from(e.target.files ?? []);
-                  if (files.length > 1 && tab === "invoices") {
-                    handleUploadInvoices(files);
-                  } else if (files[0]) {
-                    handleUpload(files[0]);
+                  if (!files.length) return;
+                  if (tab === "invoices") {
+                    // Invoices keep their own per-file progress list, because one
+                    // file can itself fan out into several runs.
+                    if (files.length > 1) handleUploadInvoices(files);
+                    else handleUpload(files[0]);
+                  } else {
+                    // Contracts: one run per file, uploaded in a single call.
+                    handleUpload(files);
                   }
                   e.target.value = "";
                 }}
@@ -1055,7 +1104,7 @@ function DirectPayDashboard() {
                         />
                       ) : (
                         pagedInvoices.map((inv) => {
-                          const action = invoiceAction(inv);
+                          const action = invoiceAction(inv, stpProcessingIds.has(inv.id));
                           const sourceType = getInvoiceSourceType(inv);
                           return (
                             <tr

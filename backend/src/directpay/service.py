@@ -2225,6 +2225,49 @@ def _bill_posting_out(doc: dict, contract_doc: Optional[dict] = None) -> dict:
         wht_value = installment.get("wht_amount")
         payable_amount = installment.get("net_payment_to_lessor")
 
+    # ── Reviewer-selected WHT, from the line-item dropdown ─────────────────
+    # VAT is derived from the invoice; WHT is normally derived from the contract.
+    # Where the contract states no withholding at all there is nothing to derive
+    # from, so the reviewer applies it by hand — and everything downstream
+    # (metadata Taxable Amount, Simulate's credit line, Payable Amount) has to
+    # follow that selection immediately. Nothing here is stored: the selection
+    # lives in bill_posting_overrides, which the frontend only writes at "Post to
+    # ERP", so these figures stay fully re-computable until then.
+    # The withholding the DOCUMENTS themselves state, before any selection is
+    # applied — None when neither the invoice nor the contract mentions one. Sent
+    # to the frontend so its live preview can apply exactly the same rule as the
+    # block below instead of trying to infer the baseline from an already-adjusted
+    # figure.
+    wht_from_document = wht_value
+    selected_wht_rate = _selected_wht_rate(line_items)
+    if selected_wht_rate is not None:
+        if selected_wht_rate == 0:
+            # "No Withholding" is an explicit answer, not a missing one, so it
+            # zeroes whatever WHT the data would otherwise imply. This is what
+            # makes reverting a 10% selection put Taxable Amount back exactly
+            # where it started, with no trace of the intermediate state.
+            wht_value = 0.0
+        elif not wht_value and subtotal is not None:
+            # The case this control exists for: nothing on the contract or the
+            # invoice states a withholding, so the selected rate supplies it. A
+            # figure the document itself prints (PT_BANGUN, RATNA_INTAN and
+            # DEBORA_KEMANG all do) is left alone rather than replaced by a
+            # recomputation of itself.
+            #
+            # "Nothing stated" has to include an explicit ZERO, not just a missing
+            # value: a contract with no WHT clause still yields wht_amount 0.0 on
+            # every payment-schedule row (GRAHA_MEGARIA, PALLADIUM, PAKUWON,
+            # KARYA_NASTARI), and those are exactly the vendors this manual
+            # override exists for. Testing `is None` alone made the dropdown a
+            # silent no-op for all four.
+            wht_value = round(float(subtotal) * selected_wht_rate / 100.0, 2)
+        # Payable Amount is deliberately NOT touched here. It is the cash figure
+        # the documents themselves establish (extracted net_amount_after_wht, or
+        # the matched installment's net_payment_to_lessor — see above), and per
+        # explicit instruction it must stay put when the reviewer changes the WHT
+        # rate. Simulate stays balanced regardless: it derives its own AP credit
+        # as grand_total - wht_amount rather than reading payable_amount.
+
     installments = (schedule or {}).get("installments") or []
     matched_installment_index = installments.index(installment) if installment in installments else None
 
@@ -2243,9 +2286,14 @@ def _bill_posting_out(doc: dict, contract_doc: Optional[dict] = None) -> dict:
         "subtotal": subtotal,
         "tax_amount": tax_amount,
         "wht_amount": wht_value,
+        "wht_from_document": wht_from_document,
+        "wht_rate_selected": selected_wht_rate,
         "grand_total": extracted.get("total_amount"),
         "payable_amount": payable_amount,
-        "wht_applicable": defaults.get("wht_applicable", False),
+        # A deliberate selection makes WHT applicable even for a vendor whose
+        # contract says nothing about it — that is the whole point of the manual
+        # override. Drives both Simulate's credit row and the metadata display.
+        "wht_applicable": bool(defaults.get("wht_applicable", False)) or bool(selected_wht_rate),
         # Payment-schedule row in effect, for linking WHT to the contract's own
         # WHT Rate from the Bill Posting page.
         "matched_installment_index": matched_installment_index,
@@ -2306,6 +2354,32 @@ async def edit_bill_posting(db, oid: ObjectId, line_item_overrides: dict) -> dic
 # shown, so "no withholding" has to be stated rather than implied.
 _NO_WHT_CODE = "00"
 
+# Rate behind each WHT code. MUST stay in sync with bill-posting.tsx's own
+# WHT_RATES — same mirroring convention validateTaxCodes already follows for
+# _validate_bill_posting_tax_codes. The rate lives here rather than being parsed
+# out of the option label ("… SEWA TANAH DAN/ATAU BANGUNAN 10%"), which is
+# display text and must not become a calculation input.
+_WHT_CODE_RATES = {
+    "PPH4(2)-SEWA": 10.0,
+    _NO_WHT_CODE: 0.0,
+    "": 0.0,
+}
+
+
+def _selected_wht_rate(line_items: list) -> Optional[float]:
+    """The WHT rate the reviewer has selected for this invoice, or None when no
+    line carries a code at all.
+
+    Deliberately ONE rate per invoice, not per line: per explicit instruction the
+    dropdown sets an invoice-level rate even though the control sits on each row
+    (the frontend propagates a change to every line so what is displayed matches
+    what is computed). The first coded line therefore decides it."""
+    for it in line_items or []:
+        code = (it.get("wht_tax_code") or "").strip()
+        if code:
+            return _WHT_CODE_RATES.get(code, 0.0)
+    return None
+
 
 def _validate_bill_posting_tax_codes(bp: dict) -> Optional[str]:
     """Reject a tax code that can't apply to this vendor, before anything is
@@ -2344,11 +2418,13 @@ def _validate_bill_posting_tax_codes(bp: dict) -> Optional[str]:
                 f"Select the applicable WHT Tax Code for “{label(it)}” before posting — "
                 "this vendor is subject to withholding tax."
             )
-        if not wht_applicable and wht and wht != _NO_WHT_CODE:
-            return (
-                f"“{label(it)}” has WHT Tax Code “{wht}”, but this vendor is not subject "
-                "to withholding tax. Set it to “No Withholding” before posting."
-            )
+        # NOTE: there is deliberately no "selected but not applicable" rejection
+        # for WHT any more. Applying a withholding by hand where the contract
+        # states none is now an explicit, supported reviewer action (see
+        # _selected_wht_rate), and bp["wht_applicable"] already reflects the
+        # selection, so such a code can never reach here as "not applicable".
+        # The VAT checks above keep both directions, and the "subject to WHT but
+        # nothing selected" error above still stands.
 
     return None
 
@@ -2465,10 +2541,29 @@ _COUNTRY_BY_CCY = {
 }
 
 
-async def simulate_bill_posting(db, oid: ObjectId) -> dict:
+async def simulate_bill_posting(db, oid: ObjectId, pending_line_items: Optional[dict] = None) -> dict:
+    """Preview the posting. `pending_line_items` carries the reviewer's UNSAVED
+    line-item tax-code selections (row_id -> {vat_tax_code?, wht_tax_code?}),
+    applied to an in-memory copy of the run only.
+
+    Nothing about a WHT selection is written until "Post to ERP": the reviewer may
+    switch the rate several times, and reverting to "No Withholding" has to leave
+    no trace of the intermediate state. Simulate used to require the frontend to
+    save the codes first, which broke exactly that guarantee."""
     doc = await get_invoice_doc(db, oid)
     if doc.get("status") not in ("bill_posting", "posted"):
         raise InvalidStateError("This invoice has not reached the Bill Posting stage")
+
+    if pending_line_items:
+        # Shallow-copy the run and deep-copy just the overrides map, so the
+        # preview can never mutate the stored document (the in-memory DB hands
+        # out live object references — see the store's own notes).
+        merged = {k: dict(v) for k, v in (doc.get("bill_posting_overrides") or {}).items()}
+        for row_id, patch in pending_line_items.items():
+            merged.setdefault(str(row_id), {}).update(
+                {k: v for k, v in (patch or {}).items() if v is not None}
+            )
+        doc = {**doc, "bill_posting_overrides": merged}
 
     extracted = _strip_na(_merge(doc.get("base_extracted") or {}, doc.get("edited_extracted")))
     bundle = get_dp_loader().discover().get(doc["fixture_key"])

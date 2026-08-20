@@ -329,6 +329,11 @@ export interface DpBillPostingData {
   subtotal?: number | null;
   tax_amount?: number | null;
   wht_amount?: number | null;
+  /** Withholding the DOCUMENTS state, before any dropdown selection is applied —
+   *  null when neither invoice nor contract mentions one. */
+  wht_from_document?: number | null;
+  /** Rate behind the currently selected WHT code, null when no code is set. */
+  wht_rate_selected?: number | null;
   grand_total?: number | null;
   // Actual cash owed to the vendor — net_amount_after_wht when WHT applies,
   // else the same as grand_total.
@@ -456,13 +461,26 @@ export const directpayService = {
   // large file's bytes are never actually used anyway (fixture resolution
   // and the PDF preview both work off the file name alone), so above the
   // threshold this sends just the name instead of the real upload.
-  uploadContract: (file: File) => {
-    if (file.size > LARGE_FILE_THRESHOLD_BYTES) {
-      return api.post<DpContractRun>("/dp-api/contracts/trigger-upload", { file_name: file.name });
-    }
-    const fd = new FormData();
-    fd.append("file", file);
-    return api.postForm<DpContractRun>("/dp-api/contracts/upload", fd);
+  /**
+   * Uploads one or MANY contracts, returning a run per file — each resolved to its
+   * own fixture and extracted separately.
+   *
+   * Sends FILE NAMES ONLY, never bytes. This is a fixture-driven demo: the backend
+   * resolves the scenario from the filename (DpFixtureLoader.resolve) and every PDF
+   * preview is read back from the fixture's own file on disk, so the uploaded bytes
+   * are never looked at — service.upload_contract(db, filename) doesn't even
+   * receive them. An earlier version posted the real bytes as one combined
+   * multipart body, which for the 7-contract set is over 22MB through the dev proxy
+   * and simply failed. One small JSON request works for any number of files, at any
+   * size.
+   */
+  uploadContract: async (files: File | File[]): Promise<DpContractRun[]> => {
+    type Result = DpContractRun | { items: DpContractRun[] };
+    const list = Array.isArray(files) ? files : [files];
+    const res = await api.post<Result>("/dp-api/contracts/trigger-upload",
+      { file_names: list.map((f) => f.name) });
+    const items = (res as { items?: DpContractRun[] }).items;
+    return Array.isArray(items) ? items : [res as DpContractRun];
   },
   listContracts: () => api.get<{ items: DpContractRun[] }>("/dp-api/contracts"),
   getContract: (id: string) => api.get<DpContractRun>(`/dp-api/contracts/${id}`),
@@ -549,7 +567,11 @@ export const directpayService = {
   editBillPosting: (id: string, lineItems: Record<string, Partial<DpBillPostingLineItem>>) =>
     api.patch<DpBillPostingData>(`/dp-api/invoices/${id}/bill-posting`, { line_items: lineItems }),
   postBill: (id: string) => api.post<DpBillPostingData>(`/dp-api/invoices/${id}/bill-posting/post`),
-  simulateBillPosting: <T>(id: string) => api.post<T>(`/dp-api/invoices/${id}/bill-posting/simulate`),
+  // `lineItems` carries the reviewer's unsaved tax-code selections so the server
+  // previews against them WITHOUT persisting anything — see the simulate
+  // endpoint's own note. Omit to simulate the run exactly as stored.
+  simulateBillPosting: <T>(id: string, lineItems?: Record<string, { vat_tax_code: string; wht_tax_code: string }>) =>
+    api.post<T>(`/dp-api/invoices/${id}/bill-posting/simulate`, lineItems ? { line_items: lineItems } : {}),
   // Reuses P2P's own real, currency-driven SAP VAT code reference endpoint
   // as-is (backend/src/api/v1/bill_posting.py's /vat-codes) — it's public
   // reference data (country codes from scripts/vat_codes.json), not
