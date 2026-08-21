@@ -118,5 +118,45 @@
       "bbox_height": 0.009293,
       "value_confidence": 0.9
     }
+  },
+  "total_amount_before_vat": {
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.631176,
+      "bbox_top": 0.356364,
+      "bbox_width": 0.082353,
+      "bbox_height": 0.009545,
+      "value_confidence": 0.93
+    }
+  },
+  "total_amount": {
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.631176,
+      "bbox_top": 0.356364,
+      "bbox_width": 0.082353,
+      "bbox_height": 0.009545,
+      "value_confidence": 0.93
+    }
+  },
+  "customer_address": {
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.154706,
+      "bbox_top": 0.225,
+      "bbox_width": 0.071176,
+      "bbox_height": 0.01,
+      "value_confidence": 0.93
+    }
+  },
+  "vendor_address": {
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.505882,
+      "bbox_top": 0.223636,
+      "bbox_width": 0.062353,
+      "bbox_height": 0.012273,
+      "value_confidence": 0.93
+    }
   }
 }

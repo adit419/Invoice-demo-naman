@@ -6,7 +6,7 @@
       "bbox_top": 0.051261,
       "bbox_width": 0.17232,
       "bbox_height": 0.012607,
-      "value_confidence": 1.0
+      "value_confidence": 1
     }
   },
   "invoice_date": {
@@ -26,7 +26,7 @@
       "bbox_top": 0.066898,
       "bbox_width": 0.148017,
       "bbox_height": 0.012607,
-      "value_confidence": 1.0
+      "value_confidence": 1
     }
   },
   "customer_address": {
@@ -36,7 +36,7 @@
       "bbox_top": 0.082031,
       "bbox_width": 0.505242,
       "bbox_height": 0.012607,
-      "value_confidence": 1.0
+      "value_confidence": 1
     }
   },
   "description": {
@@ -107,6 +107,26 @@
       "bbox_width": 0.164688,
       "bbox_height": 0.00986,
       "value_confidence": 0.938
+    }
+  },
+  "vendor_address": {
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.03122,
+      "bbox_top": 0.125851,
+      "bbox_width": 0.37474,
+      "bbox_height": 0.011286,
+      "value_confidence": 0.95
+    }
+  },
+  "vendor_name": {
+    "bbox": {
+      "page": 2,
+      "bbox_left": 0.544882,
+      "bbox_top": 0.117147,
+      "bbox_width": 0.250161,
+      "bbox_height": 0.01069,
+      "value_confidence": 0.95
     }
   }
 }
