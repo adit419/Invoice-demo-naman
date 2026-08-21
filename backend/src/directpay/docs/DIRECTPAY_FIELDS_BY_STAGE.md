@@ -181,39 +181,90 @@ KARYA_NASTARI 11 · GRAHA_MEGARIA 73 (37 rent + 36 service charge).
 
 ## 3. Invoice Extraction — 27 metadata fields + line items
 
-Identical field set across all three vendors and all PALLADIUM documents.
+Identical field set for every vendor and every document. **Types below are the ones actually observed
+across all 20 invoice-extraction fixtures**, not a schema declaration — there is no schema file; the
+fixture JSON is the contract.
 
-| # | Key | # | Key | # | Key |
-|---|---|---|---|---|---|
-| 1 | `invoice_number` | 10 | `billing_period_start` | 19 | `total_amount` |
-| 2 | `invoice_date` | 11 | `billing_period_end` | 20 | `currency` |
-| 3 | `vendor_name` | 12 | `payment_terms` | 21 | `vendor_bank_name` |
-| 4 | `vendor_address` | 13 | `due_date` | 22 | `vendor_bank_account_name` |
-| 5 | `vendor_vat_id` | 14 | `total_amount_before_vat` | 23 | `vendor_bank_account_number` |
-| 6 | `customer_legal_entity` | 15 | `tax_type` | 24 | `vendor_bank_swift` |
-| 7 | `customer_address` | 16 | `tax_rate` | 25 | `notes` |
-| 8 | `customer_vat_id` | 17 | `vat_gst` | | |
-| 9 | `description` | 18 | `wht` / `wht_rate` / `net_amount_after_wht` | | |
+> **Read `"NA"` as "absent".** Every field can hold the literal string `"NA"` instead of a value (the
+> convention in `DIRECTPAY_INSTALLMENT_RENT_WORKFLOW.md` §2a), so a money field's real type is
+> `number | "NA"`. `_strip_na()` converts it back to `None` before any computation, so nothing
+> downstream ever does arithmetic on the string. The "observed" column records which of the two each
+> field is actually seen as today.
 
-Full list, verbatim: `invoice_number`, `invoice_date`, `vendor_name`, `vendor_address`,
-`vendor_vat_id`, `customer_legal_entity`, `customer_address`, `customer_vat_id`, `description`,
-`billing_period_start`, `billing_period_end`, `payment_terms`, `due_date`,
-`total_amount_before_vat`, `tax_type`, `tax_rate`, `vat_gst`, `wht_rate`, `wht`,
-`net_amount_after_wht`, `total_amount`, `currency`, `vendor_bank_name`,
-`vendor_bank_account_name`, `vendor_bank_account_number`, `vendor_bank_swift`, `notes`.
+### Identity and parties
 
-**Line item keys (6):** `label`, `item_code`, `charge_type`, `quantity`, `unit_price`, `amount`.
+| Field | Type | Observed | Description |
+|---|---|---|---|
+| `invoice_number` | `string` | always set | The vendor's own invoice reference, verbatim. Used as the human label everywhere and in the Simulate AP line ("Vendor invoice …"). Not unique across vendors and never parsed. |
+| `invoice_date` | `string` (ISO `YYYY-MM-DD`, or as printed) | always set | Date of issue. Stored ISO where the printed form is ambiguous (GRAHA_MEGARIA prints US `MM/DD/YYYY`); some vendors keep the printed Indonesian form (`10 Agustus 2026`). `_parse_loose_date()` reads all of these. |
+| `vendor_name` | `string` | always set | Vendor as printed on the invoice. Compared against the contract's own `vendor_name` on Matching (mandatory row) and against the Faktur Pajak's. Shortened variants are normal and get acknowledged. |
+| `vendor_address` | `string` | 18 set, 2 `"NA"` | Vendor's printed address. Compared against the contract's `premises_address` as the **Store Location** row — meaningful only for a mall operator; see `_NO_STORE_LOCATION_MATCH_VENDORS`. |
+| `vendor_vat_id` | `string` | `"NA"` in all 20 | Vendor NPWP. No invoice in the set prints one — it exists only on the Faktur Pajak, and is deliberately not back-filled from there. |
+| `customer_legal_entity` | `string` | always set | The billed entity (always PT Bumi Berkah Boga in some form). Compared against the FP's `customer_name`. |
+| `customer_address` | `string` | 19 set, 1 `"NA"` | Billing address as printed. Display only — never compared. |
+| `customer_vat_id` | `string` | `"NA"` in all 20 | Buyer NPWP. Note DEBORA/GRAHA invoices **do** print it; the extraction CSVs record `—`, and the fixtures follow the CSV (flagged in the GRAHA vendor doc). |
+| `description` | `string` | always set | Free-text summary of what is billed, usually the charge plus its period. Display only. |
 
-**`charge_type` values in use:** `rental_fee`, `service_fee`, `stamp_duty`, `wht_deduction`,
-`utility_electricity`, `utility_water`, `late_fee`, `revenue_share`, `ipl_fee`.
-The last two are DEBORA_KEMANG's: `revenue_share` triggers the computed
-`Revenue Share % x Net Sales` reference (§6g), and `ipl_fee` is a FLAT contractual fee that must
-**not** be classified as a metered utility even though it bills electricity.
-(`stamp_duty`, `wht_deduction` and `late_fee` lines are filtered out of Bill Posting's line items and
-added back by Simulate as their own dedicated rows.)
+### Period and terms
 
-GRAHA_MEGARIA is the only vendor using all four *billable* types against a single contract — one per
-invoice — which is why Bill Posting defaults are now resolved by charge type rather than by position
+| Field | Type | Observed | Description |
+|---|---|---|---|
+| `billing_period_start` | `string` (ISO date) | 2 set, 18 `"NA"` | First day of the period billed, **only when the invoice explicitly prints a range**. A month name alone (`"Bulan April"`) is not enough and stays `"NA"`. Also the second candidate in the installment due-date tie-break (§6a). |
+| `billing_period_end` | `string` (ISO date) | 2 set, 18 `"NA"` | Last day of that period, same rule. Shown on Matching against the matched schedule row's own period. |
+| `payment_terms` | `string` | 1 set, 19 `"NA"` | Printed terms (e.g. `C.O.D`). Display only. |
+| `due_date` | `string` (ISO or as printed) | 19 set, 1 `"NA"` | When payment falls due. Drives the **primary** installment due-date tie-break (§6a) and Bill Posting's Payment Due Date. |
+
+### Amounts
+
+| Field | Type | Observed | Description |
+|---|---|---|---|
+| `total_amount_before_vat` | `number` | always set | Pre-VAT total. **The single most important field in the module**: the always-mandatory, never-acknowledgeable Matching row (`_ALWAYS_BLOCKING_FIELDS` / `NO_ACK_FIELDS`), the subject of the tolerance check and the variance bar, and Bill Posting's "Taxable Amount". For a no-VAT vendor it equals `total_amount`. |
+| `tax_type` | `string` | 1 set (`PPN`), 19 `"NA"` | Tax regime named on the invoice. Display only. |
+| `tax_rate` | `number` (whole percent) | 1 set (`11`), 19 `"NA"` | VAT rate as a **whole number** (`11`, never `0.11`). Labels Simulate's Input VAT row. Not mandatory: a mismatch here is informational. |
+| `vat_gst` | `number` | 17 set, 3 `"NA"` | VAT/PPN charged. `"NA"` means the vendor charges none at all (RATNA_INTAN, DEBORA_KEMANG) — not missing data, which is why those vendors also carry `vat_applicable: false`. |
+| `wht_rate` | `number` (whole percent) | `"NA"` in all 20 | Withholding rate, if the invoice prints one. None does — DEBORA's invoice prints the withheld *amount* but no rate, so the reviewer's dropdown supplies the rate instead (§10a). |
+| `wht` | `number` | 2 set, 18 `"NA"` | Withholding tax deducted, as printed ("Pemotongan PPH"). Feeds Simulate's WHT-Payable credit and is the `wht_from_document` baseline the manual override respects. |
+| `net_amount_after_wht` | `number` | 2 set, 18 `"NA"` | What the vendor actually receives after withholding. Becomes Bill Posting's **Payable Amount**, which the WHT dropdown deliberately never moves (§10a). |
+| `total_amount` | `number` | always set | Invoice grand total including VAT. Simulate's AP credit is derived from it (`grand_total − wht`). |
+| `currency` | `string` (ISO code) | always set | `IDR` throughout. Drives the currency symbol and the VAT code list. |
+
+### Vendor bank details
+
+| Field | Type | Observed | Description |
+|---|---|---|---|
+| `vendor_bank_name` | `string` | always set | Bank as printed. Display only. |
+| `vendor_bank_account_name` | `string` | 17 set, 3 `"NA"` | Account holder. Compared against the contract's `lessor_bank_account_name` — a core Matching row, but **not** mandatory. |
+| `vendor_bank_account_number` | `string` | always set | Account number, kept as a **string** (leading zeros and length must survive). Compared against `lessor_bank_account_number`. |
+| `vendor_bank_swift` | `string` | `"NA"` in all 20 | SWIFT/BIC. No domestic Indonesian invoice in the set prints one. |
+| `notes` | `string` | 3 set, 17 `"NA"` | Free-text provenance note carried by the fixture author, e.g. explaining a real discrepancy. Never compared; exists so an oddity is recorded next to the data rather than only in a doc. |
+
+### Line items — `line_items[]`
+
+| Field | Type | Observed | Description |
+|---|---|---|---|
+| `label` | `string` | always set | The line's printed description. Becomes the Bill Posting row description and the Simulate debit narration. |
+| `item_code` | `string \| null` | 3 set, 33 `null` | Vendor's own item/SKU code where printed. Note this one uses `null`, **not** `"NA"` — it is a structural absence inside an array, not an unfilled form field. |
+| `charge_type` | `string` (enum below) | always set | **The routing key for the whole module.** Decides the reference source on Matching, whether the installment picker is enabled, which G/L account Bill Posting uses, and whether the line is billable at all. |
+| `quantity` | `number \| null` | 34 set, 2 `null` | Quantity billed. Mostly `1`; a metered line may be fractional. |
+| `unit_price` | `number \| null` | 34 set, 2 `null` | Price per unit. Equals `amount` when quantity is 1. |
+| `amount` | `number` | always set | Line total, pre-VAT. The per-line figures must sum to `total_amount_before_vat` — asserted when the fixtures are built. |
+
+**`charge_type` values in use** (count across the 20 fixtures):
+
+| Value | Count | Billable? | Meaning and effect |
+|---|---:|---|---|
+| `rental_fee` | 13 | yes | Rent. Matched against the contract's payment schedule. |
+| `stamp_duty` | 7 | **no** | Fixed government duty (materai). Excluded from Bill Posting's line items, added back by Simulate as its own debit row so Debit still equals Credit. |
+| `utility_water` | 4 | yes | Metered water. In `_NO_SCHEDULE_CHARGE_TYPES`: no schedule counterpart, so the reference comes from a supporting document and the installment picker is locked (§6c). |
+| `utility_electricity` | 4 | yes | Metered electricity. Same treatment. |
+| `service_fee` | 3 | yes | Service charge. Schedule-backed, but in `_NON_RENT_CHARGE_TYPES` because its rate can legitimately move. |
+| `ipl_fee` | 2 | yes | DEBORA_KEMANG's flat monthly IPL fee. Bills electricity and water but is **not** metered, so deliberately *not* a `utility_*` type — it has its own schedule (§10b vendor doc). |
+| `revenue_share` | 1 | yes | DEBORA_KEMANG's revenue-share rent. Triggers the computed `Revenue Share % × Net Sales` reference (§6g). |
+| `late_fee` | 1 | **no** | Denda. Real money owed but not a taxable supply; excluded from line items and given its own Simulate row (`6500 · Late Payment Charges`). |
+| `wht_deduction` | 1 | **no** | RATNA_INTAN's printed "Pemotongan PPH" line. Excluded — the dedicated WHT figures already represent it, so keeping it would double-count. |
+
+GRAHA_MEGARIA is the only vendor using four *different* billable types against a single contract, one
+per invoice, which is why Bill Posting defaults resolve by charge type rather than by position
 (`DIRECTPAY_INSTALLMENT_RENT_WORKFLOW.md` §6d).
 
 ## 4. Faktur Pajak — 4 fields

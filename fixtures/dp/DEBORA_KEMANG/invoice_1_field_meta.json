@@ -46,7 +46,7 @@
       "bbox_top": 0.167215,
       "bbox_width": 0.258187,
       "bbox_height": 0.059695,
-      "value_confidence": 0.88
+      "value_confidence": 0.949
     }
   },
   "description": {
@@ -66,7 +66,7 @@
       "bbox_top": 0.084561,
       "bbox_width": 0.091173,
       "bbox_height": 0.012359,
-      "value_confidence": 0.696
+      "value_confidence": 0.92
     }
   },
   "total_amount_before_vat": {

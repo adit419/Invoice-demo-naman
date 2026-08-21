@@ -16,7 +16,7 @@
       "bbox_top": 0.467245,
       "bbox_width": 0.074149,
       "bbox_height": 0.015536,
-      "value_confidence": 0.857
+      "value_confidence": 0.945
     }
   },
   "vendor_name": {
@@ -66,7 +66,7 @@
       "bbox_top": 0.523525,
       "bbox_width": 0.184498,
       "bbox_height": 0.015536,
-      "value_confidence": 0.657
+      "value_confidence": 0.914
     }
   },
   "due_date": {
@@ -76,7 +76,7 @@
       "bbox_top": 0.389671,
       "bbox_width": 0.0855,
       "bbox_height": 0.015536,
-      "value_confidence": 0.824
+      "value_confidence": 0.94
     }
   },
   "total_amount_before_vat": {

@@ -629,10 +629,11 @@ function DirectPayDashboard() {
     await sleep(500);
     setBatchFiles(null);
     await load();
+    // No success toast: the uploaded rows appearing in the list IS the
+    // confirmation, so a popup on top of it is redundant. Failures still speak
+    // up, since nothing else on screen would explain a missing row.
     if (failed > 0) {
       toast(`${files.length - failed} of ${files.length} invoices uploaded — ${failed} failed`, failed === files.length ? "error" : "warning");
-    } else {
-      toast(`${files.length} invoices uploaded`, "success");
     }
   };
 
@@ -660,12 +661,7 @@ function DirectPayDashboard() {
         if (stpEnabled) {
           setStpProcessingIds((prev) => new Set([...prev, ...runs.map((r) => r.id)]));
           await load();
-          toast(
-            runs.length > 1
-              ? `${runs.length} invoices uploaded — Auto-Process is running them`
-              : "Invoice uploaded — Auto-Process is running it",
-            "success",
-          );
+          // No toast — the new row, showing "Processing", already says it.
           return;
         }
 
@@ -685,11 +681,10 @@ function DirectPayDashboard() {
           setAutoExtracting(null);
         }
         // Several invoices came out of the one file — there is no single "the"
-        // invoice to land on, so reload the dashboard and say what happened,
-        // mirroring the multi-run outcome of the batch path above.
+        // invoice to land on, so reload the dashboard and let the new rows
+        // stand as the confirmation, mirroring the batch path above.
         if (runs.length > 1) {
           await load();
-          toast(`${runs.length} invoices found in ${single.name} — each is now processing separately`, "success");
           return;
         }
         router.push(`/directpay/invoice/${runs[0].id}/review`);
@@ -705,10 +700,9 @@ function DirectPayDashboard() {
       setAutoExtracting(null);
       // Several contracts came in at once — each is its own run, so there is no
       // single "the" contract to land on. Same treatment as the invoice batch
-      // path: reload the list and say what happened.
+      // path: reload the list and let the new rows stand as the confirmation.
       if (runs.length > 1) {
         await load();
-        toast(`${runs.length} contracts uploaded — each extracted separately`, "success");
         return;
       }
       router.push(`/directpay/contract/${runs[0].id}/review`);
