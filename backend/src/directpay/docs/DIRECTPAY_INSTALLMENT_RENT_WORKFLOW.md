@@ -920,24 +920,30 @@ tested `is None` alone and the dropdown was a silent no-op for all of them.
 `wht_from_document` is returned alongside `wht_amount` so the frontend's live preview applies the
 identical rule instead of trying to infer the baseline from an already-adjusted figure.
 
-**What moves with it — and what does not.** Metadata **Taxable Amount** displays net of the WHT in
-effect, and Simulate gains/loses its **WHT credit** row with the **AP credit** shrinking to match
-(Simulate derives that itself as `grand_total - wht_amount`, so it always balances; line-item debits
-stay **gross**).
+**What moves with it — and what does not.** The selection shows up in **Simulate only**: it gains or
+loses the **WHT credit** row, with the **AP credit** reduced to match (Simulate derives that itself as
+`grand_total - wht_amount`, so it always balances; line-item debits stay **gross**).
 
-**Payable Amount is deliberately invariant.** It is the cash figure the *documents* establish
-(`extracted.net_amount_after_wht`, else the matched installment's `net_payment_to_lessor`), and per
-explicit instruction it must not move when the reviewer changes the rate. An earlier version
-recomputed it from the selection, which was wrong. Nothing about the balance depended on it.
+**Neither metadata amount is derived from the WHT rate.** Both were wrong at some point and both are
+now fixed:
 
-Two visible consequences, both accepted deliberately:
+- **Taxable Amount is the invoice's own pre-VAT total, never netted by the withholding.** WHT is
+  withheld from the *payment*; it does not reduce the taxable base. PT_BANGUN reads **675,675,676**
+  at any rate — an earlier version showed 608,108,108 (675,675,676 − 67,567,568), which was the same
+  netting the user had already rejected once and it was reintroduced by accident while building this
+  control. Do not net it.
+- **Payable Amount follows the rate ONLY when the invoice states no net figure of its own.** Where
+  the invoice prints one it is authoritative and never moves: DEBORA_KEMANG invoice 2 = 15,000,000,
+  RATNA_INTAN = 770,000,000. Where it does not (`net_amount_after_wht` is `"NA"` — PT_BANGUN,
+  GRAHA_MEGARIA, DEBORA_KEMANG invoice 1), payable is gross minus the WHT in effect. The payload
+  carries `payable_from_document` so the frontend preview applies the same rule rather than guessing.
 
-- Taxable Amount no longer equals the sum of the line items listed beneath it, nor satisfies
-  `Taxable + Tax = Total`, on the same screen.
-- Where the documents state no withholding, metadata Payable Amount and Simulate's AP credit can
-  differ while a manual rate is applied (GRAHA_MEGARIA inv 1 at 10%: Payable stays 10,886,702.40
-  while AP is credited 9,905,918.40). Payable reports what the invoice says is owed; the AP line
-  reports what this posting would settle after withholding.
+  This ordering matters: the pre-existing payable computation earlier in `_bill_posting_out`
+  subtracts the *pre-selection* `wht_value`, which is 0 for a revenue-share row, so on its own it
+  left DEBORA invoice 1 at the gross 21,759,425 instead of 19,583,482.50.
+
+Because payable now follows, metadata Payable Amount and Simulate's AP credit agree in every case —
+GRAHA_MEGARIA invoice 1 with 10% applied reads 9,905,918.40 on both sides.
 
 **Nothing persists until Post to ERP.** The selection lives in React state (`lineEdits`); `data` is
 the untouched server response and is never mutated, so it *is* the in-memory original. Reverting to
@@ -955,11 +961,13 @@ a deliberate selection makes WHT applicable and posting succeeds. Both VAT direc
 
 Verified end to end (rate 10% -> 0% -> 10%, then Post):
 
-| Vendor | Documents state WHT? | 10% selected | Reverted to 0% | Payable |
-|---|---|---|---|---|
-| GRAHA_MEGARIA inv 1 | no (0.0) | WHT **980,784** computed, taxable 8,827,056, AP 9,905,918.40 | WHT gone, taxable back to 9,807,840 | 10,886,702.40 throughout |
-| DEBORA_KEMANG inv 2 | yes (1,666,666) | document figure kept, taxable 15,000,000 | WHT gone, taxable back to 16,666,666 | 15,000,000 throughout |
-| PT_BANGUN | yes (67,567,568) | document figure kept, taxable 608,108,108 | WHT gone, taxable back to 675,675,676 | 682,432,432 throughout |
+| Vendor | Documents state WHT? | 10% selected | Reverted to 0% | Taxable Amount | Payable |
+|---|---|---|---|---|---|
+| GRAHA_MEGARIA inv 1 | no (0.0) | WHT **980,784** computed | WHT row gone | 9,807,840 throughout | 10,886,702.40 → **9,905,918.40** (derived) |
+| DEBORA_KEMANG inv 1 | no (revenue share) | WHT **2,175,942.50** computed | WHT row gone | 21,759,425 throughout | **19,583,482.50** (derived) |
+| DEBORA_KEMANG inv 2 | yes (1,666,666) | document figure kept | WHT row gone | 16,666,666 throughout | 15,000,000 fixed by the document |
+| PT_BANGUN | yes via installment (67,567,568) | document figure kept | WHT row gone | **675,675,676 throughout** | 682,432,432 (derived) |
+| RATNA_INTAN | yes (85,555,556) | document figure kept | WHT row gone | 855,555,556 throughout | 770,000,000 fixed by the document |
 
 Every posting balanced, and posting a manual 10% on GRAHA_MEGARIA (a `wht_applicable: false` vendor)
 persisted 340,550 on a 3,405,500 base and succeeded.

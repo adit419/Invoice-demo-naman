@@ -334,6 +334,9 @@ export interface DpBillPostingData {
   wht_from_document?: number | null;
   /** Rate behind the currently selected WHT code, null when no code is set. */
   wht_rate_selected?: number | null;
+  /** True when the invoice prints its own net-of-WHT figure, so Payable Amount is
+   *  fixed by the document rather than derived from the selected rate. */
+  payable_from_document?: boolean;
   grand_total?: number | null;
   // Actual cash owed to the vendor — net_amount_after_wht when WHT applies,
   // else the same as grand_total.

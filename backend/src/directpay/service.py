@@ -2261,12 +2261,25 @@ def _bill_posting_out(doc: dict, contract_doc: Optional[dict] = None) -> dict:
             # override exists for. Testing `is None` alone made the dropdown a
             # silent no-op for all four.
             wht_value = round(float(subtotal) * selected_wht_rate / 100.0, 2)
-        # Payable Amount is deliberately NOT touched here. It is the cash figure
-        # the documents themselves establish (extracted net_amount_after_wht, or
-        # the matched installment's net_payment_to_lessor — see above), and per
-        # explicit instruction it must stay put when the reviewer changes the WHT
-        # rate. Simulate stays balanced regardless: it derives its own AP credit
-        # as grand_total - wht_amount rather than reading payable_amount.
+        # Payable Amount follows the selection ONLY when the invoice does not state
+        # a net-of-withholding figure of its own.
+        #
+        # Where it does, that printed figure is authoritative and must not move —
+        # DEBORA_KEMANG invoice 2 prints 15,000,000 and RATNA_INTAN 770,000,000.
+        # Where it does not (PT_BANGUN, GRAHA_MEGARIA, DEBORA_KEMANG invoice 1 —
+        # all "NA"), payable is gross minus whatever WHT is in effect, so a
+        # computed or manually selected rate reduces it: DEBORA invoice 1 at 10%
+        # is 21,759,425 - 2,175,942.50 = 19,583,482.50.
+        #
+        # This has to run AFTER the block above: the pre-existing computation
+        # earlier in this function subtracts the pre-selection wht_value, which is
+        # 0 for a revenue-share row, so on its own it left payable at the gross.
+        if extracted.get("net_amount_after_wht") is None:
+            gross = extracted.get("total_amount")
+            if gross is None and subtotal is not None:
+                gross = float(subtotal) + float(tax_amount or 0)
+            if gross is not None:
+                payable_amount = round(float(gross) - float(wht_value or 0), 2)
 
     installments = (schedule or {}).get("installments") or []
     matched_installment_index = installments.index(installment) if installment in installments else None
@@ -2287,6 +2300,9 @@ def _bill_posting_out(doc: dict, contract_doc: Optional[dict] = None) -> dict:
         "tax_amount": tax_amount,
         "wht_amount": wht_value,
         "wht_from_document": wht_from_document,
+        # True when the invoice prints its own net-of-WHT figure, so the live
+        # preview knows Payable Amount is fixed rather than derived.
+        "payable_from_document": extracted.get("net_amount_after_wht") is not None,
         "wht_rate_selected": selected_wht_rate,
         "grand_total": extracted.get("total_amount"),
         "payable_amount": payable_amount,

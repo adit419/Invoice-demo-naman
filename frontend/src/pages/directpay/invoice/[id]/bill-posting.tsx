@@ -262,25 +262,35 @@ function InvoiceBillPostingPage() {
   // lands back on its starting value with no trace of the intermediate rate.
   // Applies the same three-way rule as service.py's own selection block, using
   // the document-stated withholding the backend sends alongside.
+  // Live view of the WHT selection.
+  //
+  // **Taxable Amount is never netted by the withholding** — WHT is withheld from
+  // the payment, it does not reduce the taxable base, so PT_BANGUN reads
+  // 675,675,676 at any rate, not 675,675,676 - 67,567,568.
+  //
+  // **Payable Amount** does follow the rate, but only where the invoice states no
+  // net figure of its own (`payable_from_document` false): DEBORA_KEMANG invoice 1
+  // at 10% is 21,759,425 - 2,175,942.50 = 19,583,482.50. Where the invoice DOES
+  // print a net figure it is authoritative and stays put (DEBORA invoice 2 =
+  // 15,000,000, RATNA_INTAN = 770,000,000). Same rule as service.py's.
   const previewData = useMemo(() => {
     if (!data) return data;
     const code = (pendingLineItems[data.line_items[0]?.id ?? ""]?.wht_tax_code ?? "").trim();
     if (!code) return data;
     const rate = WHT_RATES[code] ?? 0;
-    const base = data.subtotal ?? 0;
-    // Mirrors service.py exactly, including that a document-stated ZERO counts as
+    const documentWht = Number(data.wht_from_document ?? 0);
+    // Mirrors service.py, including that a document-stated ZERO counts as
     // "nothing stated" — a contract with no WHT clause still reports 0.00 here,
     // and that is the population this manual override exists for.
-    const documentWht = Number(data.wht_from_document ?? 0);
-    const wht = rate === 0 ? 0 : documentWht || Math.round(base * rate) / 100;
+    const wht = rate === 0 ? 0 : documentWht || Math.round((data.subtotal ?? 0) * rate) / 100;
+    const gross = data.grand_total ?? (data.subtotal ?? 0) + (data.tax_amount ?? 0);
     return {
       ...data,
       wht_amount: wht,
-      // Taxable Amount, shown net of the withholding in effect. Payable Amount is
-      // deliberately left alone: it is the cash figure the documents establish and
-      // must not move when the reviewer changes the rate.
-      subtotal: Math.round((base - wht) * 100) / 100,
       wht_applicable: data.wht_applicable || rate > 0,
+      payable_amount: data.payable_from_document
+        ? data.payable_amount
+        : Math.round((gross - wht) * 100) / 100,
     };
   }, [data, pendingLineItems]);
 
