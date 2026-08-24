@@ -23,7 +23,7 @@
   "currency": "IDR",
   "vendor_bank_name": "BCA / Mandiri (Virtual Account)",
   "vendor_bank_account_name": "NA",
-  "vendor_bank_account_number": "20674 8105818 (BCA) / 89787 034 8105818 (Mandiri)",
+  "vendor_bank_account_number": "206748105818",
   "vendor_bank_swift": "NA",
   "notes": "The invoice's own vat_gst (2,200) reflects only the Admin Fee's VAT — the Electricity and Water lines carry no VAT in this invoice's own stated totals, even though their own Faktur Pajak (see faktur_pajak_3.json) show real, larger VAT amounts were actually charged (521,523 and 30,513 respectively). Preserved as a real, unreconciled discrepancy rather than corrected. Denda (late-payment charge) of 40,228.00 is carried as its own line item (charge_type \"late_fee\"): the statement's Denda column shows Listrik 37,928 + Air 2,220 + Admin Fee 80. It is included in the invoice's TOTAL (5,080,938.00 = 5,038,510.00 + PPN 2,200.00 + denda 40,228.00) but is NOT part of total_amount_before_vat and has no Faktur Pajak counterpart, so it is excluded from the FP reconciliation and from Bill Posting's VAT/WHT-coded line items — Simulate posts it as its own debit row instead.",
   "line_items": [

@@ -11,7 +11,7 @@
   "billing_period_start": "NA",
   "billing_period_end": "NA",
   "payment_terms": "NA",
-  "due_date": "2026-07-01",
+  "due_date": "NA",
   "total_amount_before_vat": 16666666.0,
   "tax_type": "NA",
   "tax_rate": "NA",
