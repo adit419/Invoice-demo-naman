@@ -18,7 +18,7 @@
       "bbox_top": 0.374879,
       "bbox_width": 0.223866,
       "bbox_height": 0.010432,
-      "value_confidence": 0.9
+      "value_confidence": 0.93
     }
   },
   "lessor_phone": {
@@ -54,7 +54,7 @@
       "bbox_top": 0.634147,
       "bbox_width": 0.312686,
       "bbox_height": 0.013511,
-      "value_confidence": 0.9
+      "value_confidence": 0.93
     }
   },
   "actual_start": {
@@ -69,7 +69,7 @@
       "bbox_top": 0.772846,
       "bbox_width": 0.101647,
       "bbox_height": 0.009064,
-      "value_confidence": 0.9
+      "value_confidence": 0.93
     }
   },
   "lease_expiry_date": {
@@ -84,7 +84,7 @@
       "bbox_top": 0.852029,
       "bbox_width": 0.102131,
       "bbox_height": 0.009064,
-      "value_confidence": 0.9
+      "value_confidence": 0.93
     }
   },
   "lock_in_period_months": {
@@ -99,15 +99,7 @@
     "section": "AGREEMENT DATES & TERM",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null,
-    "bbox": {
-      "page": 23,
-      "bbox_left": 0.595361,
-      "bbox_top": 0.854594,
-      "bbox_width": 0.018877,
-      "bbox_height": 0.008893,
-      "value_confidence": 0.9
-    }
+    "ai_match_reasoning": null
   },
   "rent_basis_type": {
     "label": "Rent Basis Type",
@@ -128,7 +120,7 @@
       "bbox_top": 0.511354,
       "bbox_width": 0.028074,
       "bbox_height": 0.010603,
-      "value_confidence": 0.9
+      "value_confidence": 0.93
     }
   },
   "vat_included": {
@@ -143,15 +135,7 @@
     "section": "RENT & DEPOSIT",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null,
-    "bbox": {
-      "page": 10,
-      "bbox_left": 0.395697,
-      "bbox_top": 0.153577,
-      "bbox_width": 0.105277,
-      "bbox_height": 0.010432,
-      "value_confidence": 0.9
-    }
+    "ai_match_reasoning": null
   },
   "base_rent_monthly_excl_tax": {
     "label": "Base Rent (Excl Tax) Monthly",
@@ -179,7 +163,7 @@
       "bbox_top": 0.700504,
       "bbox_width": 0.165297,
       "bbox_height": 0.011287,
-      "value_confidence": 0.9
+      "value_confidence": 0.93
     }
   },
   "no_of_installments": {
@@ -292,15 +276,7 @@
     "section": "LEGAL & COMPLIANCE",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null,
-    "bbox": {
-      "page": 1,
-      "bbox_left": 0.385143,
-      "bbox_top": 0.301969,
-      "bbox_width": 0.523739,
-      "bbox_height": 0.069024,
-      "value_confidence": 0.912
-    }
+    "ai_match_reasoning": null
   },
   "notice_period_days": {
     "label": "Notice Period (Days)",
@@ -349,7 +325,7 @@
       "bbox_top": 0.772846,
       "bbox_width": 0.101647,
       "bbox_height": 0.009064,
-      "value_confidence": 0.9
+      "value_confidence": 0.93
     }
   },
   "rent_free_months": {
@@ -392,7 +368,7 @@
       "bbox_top": 0.374879,
       "bbox_width": 0.223866,
       "bbox_height": 0.010432,
-      "value_confidence": 0.9
+      "value_confidence": 0.93
     }
   },
   "lessor_bank_account_number": {

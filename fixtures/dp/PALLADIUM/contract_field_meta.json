@@ -18,7 +18,7 @@
       "bbox_top": 0.202224,
       "bbox_width": 0.173226,
       "bbox_height": 0.00941,
-      "value_confidence": 0.9
+      "value_confidence": 0.93
     }
   },
   "lessor_phone": {
@@ -49,12 +49,12 @@
     "audit_trail": null,
     "ai_match_reasoning": null,
     "bbox": {
-      "page": 12,
-      "bbox_left": 0.268548,
-      "bbox_top": 0.158768,
-      "bbox_width": 0.264194,
-      "bbox_height": 0.009923,
-      "value_confidence": 0.9
+      "page": 1,
+      "bbox_left": 0.13621,
+      "bbox_top": 0.145081,
+      "bbox_width": 0.141532,
+      "bbox_height": 0.00941,
+      "value_confidence": 0.93
     }
   },
   "actual_start": {
@@ -69,7 +69,7 @@
       "bbox_top": 0.497861,
       "bbox_width": 0.077419,
       "bbox_height": 0.007528,
-      "value_confidence": 0.9
+      "value_confidence": 0.93
     }
   },
   "lease_expiry_date": {
@@ -84,7 +84,7 @@
       "bbox_top": 0.683661,
       "bbox_width": 0.080323,
       "bbox_height": 0.008725,
-      "value_confidence": 0.9
+      "value_confidence": 0.93
     }
   },
   "lock_in_period_months": {
@@ -106,7 +106,7 @@
       "bbox_top": 0.451839,
       "bbox_width": 0.013306,
       "bbox_height": 0.007186,
-      "value_confidence": 0.9
+      "value_confidence": 0.93
     }
   },
   "rent_basis_type": {
@@ -128,7 +128,7 @@
       "bbox_top": 0.660394,
       "bbox_width": 0.016452,
       "bbox_height": 0.009239,
-      "value_confidence": 0.9
+      "value_confidence": 0.93
     }
   },
   "vat_included": {
@@ -150,7 +150,7 @@
       "bbox_top": 0.672027,
       "bbox_width": 0.023226,
       "bbox_height": 0.007015,
-      "value_confidence": 0.9
+      "value_confidence": 0.93
     }
   },
   "base_rent_monthly_excl_tax": {
@@ -242,7 +242,7 @@
       "bbox_top": 0.834217,
       "bbox_width": 0.013065,
       "bbox_height": 0.007015,
-      "value_confidence": 0.9
+      "value_confidence": 0.93
     }
   },
   "next_escalation_date": {
@@ -257,7 +257,7 @@
       "bbox_top": 0.684003,
       "bbox_width": 0.077177,
       "bbox_height": 0.008725,
-      "value_confidence": 0.9
+      "value_confidence": 0.93
     }
   },
   "first_escalation_date": {
@@ -272,7 +272,7 @@
       "bbox_top": 0.684003,
       "bbox_width": 0.077177,
       "bbox_height": 0.008725,
-      "value_confidence": 0.9
+      "value_confidence": 0.93
     }
   },
   "utilities_billing": {
@@ -357,7 +357,7 @@
       "bbox_top": 0.497861,
       "bbox_width": 0.077419,
       "bbox_height": 0.007528,
-      "value_confidence": 0.9
+      "value_confidence": 0.93
     }
   },
   "rent_free_months": {
@@ -435,7 +435,7 @@
       "bbox_top": 0.335672,
       "bbox_width": 0.225,
       "bbox_height": 0.009239,
-      "value_confidence": 0.9
+      "value_confidence": 0.93
     }
   }
 }

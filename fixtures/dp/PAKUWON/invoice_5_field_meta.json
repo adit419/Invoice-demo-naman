@@ -6,7 +6,7 @@
       "bbox_top": 0.299821,
       "bbox_width": 0.111059,
       "bbox_height": 0.020168,
-      "value_confidence": 1
+      "value_confidence": 1.0
     }
   },
   "invoice_date": {
@@ -16,7 +16,7 @@
       "bbox_top": 0.673787,
       "bbox_width": 0.080206,
       "bbox_height": 0.022848,
-      "value_confidence": 1
+      "value_confidence": 1.0
     }
   },
   "vendor_name": {
@@ -26,7 +26,7 @@
       "bbox_top": 0.134463,
       "bbox_width": 0.268796,
       "bbox_height": 0.029617,
-      "value_confidence": 1
+      "value_confidence": 1.0
     }
   },
   "vendor_address": {
@@ -46,7 +46,7 @@
       "bbox_top": 0.08669,
       "bbox_width": 0.138934,
       "bbox_height": 0.020168,
-      "value_confidence": 1
+      "value_confidence": 1.0
     }
   },
   "customer_address": {
@@ -84,7 +84,7 @@
       "page": 1,
       "bbox_left": 0.662317,
       "bbox_top": 0.266488,
-      "bbox_width": 0.019487,
+      "bbox_width": 0.070133,
       "bbox_height": 0.020168,
       "value_confidence": 0.95
     }
@@ -106,17 +106,17 @@
       "bbox_top": 0.866993,
       "bbox_width": 0.117531,
       "bbox_height": 0.020168,
-      "value_confidence": 1
+      "value_confidence": 1.0
     }
   },
   "vendor_bank_account_name": {
     "bbox": {
       "page": 1,
-      "bbox_left": 0.579003,
-      "bbox_top": 0.08669,
+      "bbox_left": 0.696487,
+      "bbox_top": 0.843634,
       "bbox_width": 0.138934,
       "bbox_height": 0.020168,
-      "value_confidence": 1
+      "value_confidence": 1.0
     }
   },
   "vendor_bank_account_number": {
@@ -126,16 +126,16 @@
       "bbox_top": 0.890352,
       "bbox_width": 0.104563,
       "bbox_height": 0.020168,
-      "value_confidence": 0.905
+      "value_confidence": 0.91
     }
   },
-  "description": {
+  "currency": {
     "bbox": {
       "page": 1,
-      "bbox_left": 0.044526,
-      "bbox_top": 0.735732,
-      "bbox_width": 0.292024,
-      "bbox_height": 0.020455,
+      "bbox_left": 0.455261,
+      "bbox_top": 0.674419,
+      "bbox_width": 0.041242,
+      "bbox_height": 0.022727,
       "value_confidence": 0.95
     }
   }

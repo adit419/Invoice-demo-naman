@@ -18,7 +18,7 @@
       "bbox_top": 0.907271,
       "bbox_width": 0.150968,
       "bbox_height": 0.009068,
-      "value_confidence": 0.9
+      "value_confidence": 0.93
     }
   },
   "lessor_phone": {
@@ -54,7 +54,7 @@
       "bbox_top": 0.290334,
       "bbox_width": 0.149032,
       "bbox_height": 0.01095,
-      "value_confidence": 0.9
+      "value_confidence": 0.93
     }
   },
   "actual_start": {
@@ -104,7 +104,7 @@
       "bbox_top": 0.495295,
       "bbox_width": 0.020565,
       "bbox_height": 0.010094,
-      "value_confidence": 0.9
+      "value_confidence": 0.93
     }
   },
   "vat_included": {
@@ -147,7 +147,7 @@
       "bbox_top": 0.495295,
       "bbox_width": 0.105968,
       "bbox_height": 0.010094,
-      "value_confidence": 0.9
+      "value_confidence": 0.93
     }
   },
   "no_of_installments": {

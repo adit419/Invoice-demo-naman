@@ -34,13 +34,25 @@ def draw(pdf_path: Path, field_meta: dict, out_prefix: str) -> None:
     for page_number, entries in by_page.items():
         page = doc[page_number - 1]
         w, h = page.rect.width, page.rect.height
+        # page.rect (used above, and by every bbox this script reads — they're
+        # all fractions of it) reflects the EFFECTIVE, already-rotated page —
+        # the same space page.search_for()/get_text() work in. page.draw_rect()
+        # itself draws in the page's RAW content-stream space, which for a
+        # rotated page (see KARYA_NASTARI's invoice PDFs — rotation=270) is a
+        # different box entirely; drawing the rect as-is silently lands
+        # somewhere else on the page instead of over the real field. Transform
+        # through derotation_matrix first so the drawn box lines up with what
+        # get_pixmap() renders (also rotation-aware) — verified empirically
+        # against a known top-left-corner marker, since the naming direction
+        # you'd guess from the matrix names alone is the wrong way round.
+        mat = page.derotation_matrix
         for field, b in entries:
             rect = fitz.Rect(
                 b["bbox_left"] * w,
                 b["bbox_top"] * h,
                 (b["bbox_left"] + b["bbox_width"]) * w,
                 (b["bbox_top"] + b["bbox_height"]) * h,
-            )
+            ) * mat
             page.draw_rect(rect, color=COLOR, width=1.2)
             conf = b.get("value_confidence", 0)
             page.insert_text(
@@ -48,6 +60,7 @@ def draw(pdf_path: Path, field_meta: dict, out_prefix: str) -> None:
                 f"{field} ({conf:.2f})",
                 fontsize=6,
                 color=COLOR,
+                rotate=page.rotation,
             )
         pix = page.get_pixmap(dpi=DPI)
         out_path = OUT_DIR / f"{out_prefix}_p{page_number}.png"

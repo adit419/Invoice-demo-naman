@@ -4,7 +4,15 @@
     "section": "PROPERTY & PARTIES",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 18,
+      "bbox_left": 0.146371,
+      "bbox_top": 0.410607,
+      "bbox_width": 0.265887,
+      "bbox_height": 0.01095,
+      "value_confidence": 0.93
+    }
   },
   "vendor_name": {
     "label": "Vendor Name",
@@ -18,7 +26,7 @@
       "bbox_top": 0.236441,
       "bbox_width": 0.160645,
       "bbox_height": 0.011463,
-      "value_confidence": 0.9
+      "value_confidence": 0.93
     }
   },
   "lessor_phone": {
@@ -33,7 +41,7 @@
       "bbox_top": 0.173995,
       "bbox_width": 0.118065,
       "bbox_height": 0.008725,
-      "value_confidence": 0.9
+      "value_confidence": 0.93
     }
   },
   "vendor_email": {
@@ -48,7 +56,7 @@
       "bbox_top": 0.301967,
       "bbox_width": 0.242419,
       "bbox_height": 0.011292,
-      "value_confidence": 0.9
+      "value_confidence": 0.93
     }
   },
   "lessor_npwp": {
@@ -70,7 +78,7 @@
       "bbox_top": 0.059196,
       "bbox_width": 0.19379,
       "bbox_height": 0.008896,
-      "value_confidence": 0.9
+      "value_confidence": 0.93
     }
   },
   "actual_start": {
@@ -85,7 +93,7 @@
       "bbox_top": 0.849615,
       "bbox_width": 0.109113,
       "bbox_height": 0.008554,
-      "value_confidence": 0.9
+      "value_confidence": 0.93
     }
   },
   "lease_expiry_date": {
@@ -100,7 +108,7 @@
       "bbox_top": 0.285714,
       "bbox_width": 0.120484,
       "bbox_height": 0.011292,
-      "value_confidence": 0.9
+      "value_confidence": 0.93
     }
   },
   "lock_in_period_months": {
@@ -150,7 +158,7 @@
       "bbox_top": 0.849615,
       "bbox_width": 0.016452,
       "bbox_height": 0.008212,
-      "value_confidence": 0.9
+      "value_confidence": 0.93
     }
   },
   "base_rent_monthly_excl_tax": {
@@ -333,7 +341,7 @@
       "bbox_top": 0.849615,
       "bbox_width": 0.109113,
       "bbox_height": 0.008554,
-      "value_confidence": 0.9
+      "value_confidence": 0.93
     }
   },
   "rent_free_months": {
@@ -376,7 +384,7 @@
       "bbox_top": 0.236441,
       "bbox_width": 0.160645,
       "bbox_height": 0.011463,
-      "value_confidence": 0.9
+      "value_confidence": 0.93
     }
   },
   "lessor_bank_account_number": {
@@ -391,7 +399,7 @@
       "bbox_top": 0.680582,
       "bbox_width": 0.115645,
       "bbox_height": 0.008725,
-      "value_confidence": 0.9
+      "value_confidence": 0.93
     }
   },
   "split_check": {
