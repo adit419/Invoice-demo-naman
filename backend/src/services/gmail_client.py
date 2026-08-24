@@ -87,21 +87,72 @@ async def mark_as_read(message_id: str) -> None:
         )
 
 
-async def send_html_email(to: str, subject: str, html_body: str) -> None:
+async def send_html_email(
+    to: str,
+    subject: str,
+    html_body: str,
+    thread_id: Optional[str] = None,
+    in_reply_to: Optional[str] = None,
+) -> dict:
+    """Send an HTML mail; returns Gmail's own {"id", "threadId"}.
+
+    `thread_id` + `in_reply_to` keep a follow-up in the SAME conversation as an
+    earlier message. Gmail needs both halves to thread reliably: `threadId` in
+    the request body, and RFC 5322 In-Reply-To/References headers naming the
+    earlier message's Message-ID. Pass the ids a previous call returned.
+
+    Both are optional and default to today's behaviour, so existing callers
+    (api/v1/bill_posting.py, api/v1/stp.py, directpay/service.py) are unaffected
+    — they simply ignore the return value.
+    """
     token = await _get_access_token()
     msg = MIMEMultipart("alternative")
     msg["From"] = settings.gmail_target_email
     msg["To"] = to
     msg["Subject"] = subject
+    if in_reply_to:
+        msg["In-Reply-To"] = in_reply_to
+        msg["References"] = in_reply_to
     msg.attach(MIMEText(html_body, "html"))
     raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+    payload: dict = {"raw": raw}
+    if thread_id:
+        payload["threadId"] = thread_id
     async with httpx.AsyncClient() as client:
         resp = await client.post(
             f"{_GMAIL_BASE}/messages/send",
             headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-            json={"raw": raw},
+            json=payload,
         )
         resp.raise_for_status()
+        sent = resp.json()
+
+    # The RFC Message-ID (what a later In-Reply-To must name) isn't in the send
+    # response — only Gmail's own opaque id is. Fetch the header once so a
+    # follow-up can thread against it.
+    rfc_message_id = None
+    try:
+        async with httpx.AsyncClient() as client:
+            meta = await client.get(
+                f"{_GMAIL_BASE}/messages/{sent['id']}",
+                params={"format": "metadata", "metadataHeaders": "Message-ID"},
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            meta.raise_for_status()
+            for h in meta.json().get("payload", {}).get("headers", []):
+                if h.get("name", "").lower() == "message-id":
+                    rfc_message_id = h.get("value")
+                    break
+    except Exception:
+        # Threading is a nicety; a failed lookup must not fail the send that
+        # already succeeded.
+        pass
+
+    return {
+        "id": sent.get("id"),
+        "threadId": sent.get("threadId"),
+        "messageIdHeader": rfc_message_id,
+    }
 
 
 def extract_pdf_attachments(message: dict) -> list[dict]:

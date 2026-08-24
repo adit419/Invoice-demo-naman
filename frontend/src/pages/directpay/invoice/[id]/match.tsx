@@ -52,6 +52,9 @@ function InvoiceMatchPage() {
   const [supportingDocOpen, setSupportingDocOpen] = useState(false);
   const [fpDocIndex, setFpDocIndex] = useState<number | null>(null);
   const [escalateOpen, setEscalateOpen] = useState(false);
+  // One escalation per invoice — read off the run's own notification history so a
+  // reload, or another reviewer's tab, sees the same thing.
+  const alreadyEscalated = (run?.notifications ?? []).some((n) => n.kind === "escalation");
   // Mirrors the saved threshold so the variance bar can show the tolerance and
   // its resulting cap. Refreshed whenever the control saves.
   const [threshold, setThreshold] = useState<{ enabled: boolean; threshold_pct: number }>({ enabled: true, threshold_pct: 5 });
@@ -390,17 +393,22 @@ function InvoiceMatchPage() {
       {/* Inactive by default, becoming active only when the Total Amount Before
           VAT match isn't satisfied, since emailing an escalation is only
           meaningful once this invoice genuinely can't clear Matching on its own.
-          (No mail transport is wired into this app — see EscalateModal.) */}
+          Once escalated it stays disabled — escalating hands the decision to
+          someone else, so there is nothing to do a second time. The backend
+          enforces the same limit (service.escalate_invoice), this just stops the
+          reviewer reaching for a button that would refuse. */}
       <AntButton
         onClick={() => setEscalateOpen(true)}
-        disabled={busy || !totalBeforeVatUnsatisfied}
+        disabled={busy || !totalBeforeVatUnsatisfied || alreadyEscalated}
         title={
-          totalBeforeVatUnsatisfied
+          alreadyEscalated
+            ? "Already escalated — this invoice is awaiting an approval decision"
+            : totalBeforeVatUnsatisfied
             ? "Email this invoice to the Finance Approver for a decision"
             : "Available only when the Total Amount Before VAT match can't be satisfied"
         }
       >
-        Escalate
+        {alreadyEscalated ? "Escalated" : "Escalate"}
       </AntButton>
       <AntButton danger onClick={() => setRejectOpen(true)} disabled={busy}>
         Reject
@@ -645,6 +653,7 @@ function InvoiceMatchPage() {
         <EscalateModal
           open={escalateOpen}
           onClose={() => setEscalateOpen(false)}
+          invoiceId={id ?? ""}
           onSend={() => setEscalateOpen(false)}
           invoiceNumber={run.extracted.invoice_number}
           vendorName={run.extracted.vendor_name}

@@ -1,9 +1,16 @@
 """
 DirectPay Auto-Process (STP) — a DirectPay-scoped toggle, independent of
 P2P's `api/v1/stp.py` (own setting, own learned-ack memory, own gate logic)
-per the deliberate isolation decision for this module. Applies to invoices
-only — contracts have no validation/mismatch concept and always require a
-manual "Approve" click, Auto-Process or not.
+per the deliberate isolation decision for this module. Covers BOTH entities,
+with deliberately different shapes:
+
+    invoices   a gated cascade — extraction through to the ERP post, stopping
+               at the first stage that genuinely needs a human
+               (_cascade_dp_invoice)
+    contracts  an ungated cascade — Review through Derived Fields to Saved.
+               A contract has nothing to validate against (no PO, no Faktur
+               Pajak, no mandatory-field gate), so there is nothing that could
+               hold it and it always ends up saved (_cascade_dp_contract)
 
 Scope: a full straight-through cascade, mirroring what P2P's own STP actually
 does. Extraction, Confirm Extraction, Faktur Pajak, contract match, Matching
@@ -126,6 +133,33 @@ async def _set_stp_state(db, run_id: ObjectId, state: str, reason: str | None = 
 _EXTRACTION_PAUSE_S = 5.0
 _STAGE_PAUSE_S = 2.0
 
+# Contract extraction is paced by the DOCUMENT'S SIZE rather than a flat wait: a
+# 3-page letter of agreement plainly shouldn't take as long to "extract" as a
+# 37-page lease, and a per-contract delay makes a batch upload look like real
+# work being done at different speeds rather than a row of identical timers.
+#
+# delay = min(CONTRACT_EXTRACTION_MAX_S, FLOOR + pages x PER_PAGE)
+#
+# Across the seven fixtures (3, 4, 11, 13, 19, 34 and 37 pages) this spreads
+# them over ~1.9s .. 6.0s, every vendor visibly distinct, with only the largest
+# hitting the cap:
+#
+#   KARYA_NASTARI  3p -> 1.9s     DEBORA_KEMANG 19p -> 4.0s
+#   GRAHA_MEGARIA  4p -> 2.0s     PT_BANGUN     34p -> 5.9s
+#   PAKUWON       11p -> 2.9s     RATNA_INTAN   37p -> 6.0s (capped)
+#   PALLADIUM     13p -> 3.2s
+_CONTRACT_EXTRACTION_FLOOR_S = 1.5
+_CONTRACT_EXTRACTION_PER_PAGE_S = 0.13
+_CONTRACT_EXTRACTION_MAX_S = 6.0
+
+
+def contract_extraction_pause_s(pages: int) -> float:
+    """Extraction dwell for a contract of `pages` pages, capped at 6s."""
+    return min(
+        _CONTRACT_EXTRACTION_MAX_S,
+        _CONTRACT_EXTRACTION_FLOOR_S + max(1, pages) * _CONTRACT_EXTRACTION_PER_PAGE_S,
+    )
+
 # Recorded as the editor on any change the cascade makes, so the edit history
 # distinguishes automation from a person.
 _STP_ACTOR_EMAIL = "stp@neoflo.ai"
@@ -203,6 +237,112 @@ async def _cascade_dp_invoice(db, run_id: ObjectId) -> tuple[str, str | None]:
     return ("done", None) if await status() == "posted" else ("waiting_review", "incomplete")
 
 
+async def _set_contract_stp_state(db, run_id: ObjectId, state: str, reason: str | None = None) -> None:
+    from .store import dp_contract_runs
+    await dp_contract_runs(db).update_one(
+        {"_id": run_id},
+        {"$set": {"stp_state": state, "stp_failure_reason": reason, "updated_at": _now()}},
+    )
+
+
+async def _contract_extraction_pause(db, run_id: ObjectId) -> float:
+    """This contract's own extraction dwell, from its PDF's page count.
+
+    Falls back to the flat pause if the run's fixture or its contract PDF can't
+    be resolved — pacing must never be the thing that breaks a cascade.
+    """
+    try:
+        from .fixtures import get_dp_loader
+        doc = await service.get_contract_doc(db, run_id)
+        loader = get_dp_loader()
+        bundle = loader.discover().get(doc.get("fixture_key"))
+        pages = loader.page_count(bundle.contract_pdf_path if bundle else None)
+        pause = contract_extraction_pause_s(pages)
+        logger.info(
+            "DirectPay STP: contract %s is %d page(s) — extraction pause %.2fs",
+            run_id, pages, pause,
+        )
+        return pause
+    except Exception:
+        logger.exception("DirectPay STP: could not size the extraction pause for %s", run_id)
+        return _EXTRACTION_PAUSE_S
+
+
+async def _cascade_dp_contract(db, run_id: ObjectId) -> tuple[str, str | None]:
+    """Drive one contract from Review through to Saved.
+
+    Unlike the invoice cascade there is NO gate here — no validation, no
+    mismatch, no mandatory-field check. A contract has nothing to compare
+    against, so there is nothing that could hold it: Auto-Process simply
+    performs the same two approvals a person would click, in order, and the
+    contract ends up saved.
+
+        review          -> approve_contract                     -> postprocessing
+        postprocessing  -> approve_contract_extraction_postproc -> saved
+
+    Extraction Postprocessing (Derived Fields) only exists for a vendor with a
+    real payment_schedule.json; approve_contract sends everyone else straight to
+    "saved", so the second step is skipped by its own status guard rather than by
+    testing the fixture again.
+
+    Re-entrant on the run's current status, so it's safe to call on a contract
+    that a human already moved part-way.
+    """
+    async def status() -> str:
+        return (await service.get_contract_doc(db, run_id)).get("status") or ""
+
+    # 1. Contract Review ────────────────────────────────────────────────────
+    if await status() == "review":
+        await service.approve_contract(db, run_id, None, _STP_ACTOR_EMAIL)
+        logger.info("DirectPay STP: approved Contract Review for %s", run_id)
+        await asyncio.sleep(_STAGE_PAUSE_S)
+
+    # 2. Extraction Postprocessing / Derived Fields ─────────────────────────
+    # The pause goes BEFORE this approval, not after it. Same total elapsed time
+    # either way — the visible "still working" delay the demo needs is preserved —
+    # but spending it here means the run visibly DWELLS on Derived Fields instead
+    # of sitting for two seconds already saved while its final state waits to be
+    # published, which showed the row as "Saved" and "Processing" at once.
+    if await status() == "postprocessing":
+        await asyncio.sleep(_STAGE_PAUSE_S)
+        await service.approve_contract_extraction_postprocessing(db, run_id)
+        logger.info("DirectPay STP: approved Derived Fields for %s", run_id)
+
+    final = await status()
+    return ("done", None) if final == "saved" else ("waiting_review", f"stopped at {final}")
+
+
+async def run_dp_stp_for_contract(run_id: ObjectId) -> None:
+    """Full Auto-Process cascade for one contract. Safe as an asyncio task —
+    every error is caught and the outcome is always published on the run."""
+    from ..database import get_db
+
+    key = f"contract:{run_id}"
+    if key in _ACTIVE_DP_STP_RUNS:
+        logger.info("DirectPay STP: cascade already running for %s — skipping duplicate trigger", key)
+        return
+    _ACTIVE_DP_STP_RUNS.add(key)
+
+    db = get_db()
+    final_state, final_reason = "waiting_review", "cascade_failed"
+    try:
+        await _set_contract_stp_state(db, run_id, "processing")
+        # Contracts have no extract step of their own — base_fields are already
+        # populated at upload — so this stands in for the extraction window the
+        # manual path shows before handing off to Review. Its length is this
+        # contract's own, scaled by page count (see contract_extraction_pause_s).
+        await asyncio.sleep(await _contract_extraction_pause(db, run_id))
+        final_state, final_reason = await _cascade_dp_contract(db, run_id)
+    except Exception:
+        logger.exception("DirectPay STP: contract cascade failed for run_id=%s", run_id)
+    finally:
+        _ACTIVE_DP_STP_RUNS.discard(key)
+        try:
+            await _set_contract_stp_state(db, run_id, final_state, final_reason)
+        except Exception:
+            logger.exception("DirectPay STP: failed to publish final state for contract %s", run_id)
+
+
 async def run_dp_stp_for_invoice(run_id: ObjectId) -> None:
     """Full Auto-Process cascade for one invoice. Safe as an asyncio task — every
     error is caught, and the outcome is always published on the run so the
@@ -231,6 +371,19 @@ async def run_dp_stp_for_invoice(run_id: ObjectId) -> None:
             await _set_stp_state(db, run_id, final_state, final_reason)
         except Exception:
             logger.exception("DirectPay STP: failed to publish final state for run %s", run_id)
+        # The ONE place a hold is known, so the "action required" email hooks
+        # here rather than at each of _cascade_dp_invoice's four return points.
+        # Only an Auto-Process hold notifies: a human rejection and an invoice
+        # simply left sitting at Matching deliberately send nothing. Sending is
+        # itself conditional on the invoice carrying a trigger-upload payload
+        # email — see service._dp_notification_email — and is idempotent per
+        # (kind, stage), which matters because this function re-runs on every
+        # resume_dp_stp_if_enabled.
+        if final_state == "waiting_review" and final_reason:
+            try:
+                await service.notify_dp_auto_process_hold(db, run_id, final_reason)
+            except Exception:
+                logger.exception("DirectPay STP: hold notification failed for run %s", run_id)
 
 
 async def resume_dp_stp_if_enabled(db, run_id: ObjectId) -> None:

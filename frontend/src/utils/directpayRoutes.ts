@@ -4,7 +4,13 @@
 // about where an invoice at a given status actually belongs.
 import { DpInvoiceRun } from "@/services/directpay";
 
-export function invoiceRoute(inv: DpInvoiceRun): string {
+// Structural, not the whole run: the Tracker's rows (DpTrackerRow) are a
+// different, narrower shape than DpInvoiceRun but must land on exactly the same
+// page the dashboard would send you to, so both go through this one function
+// rather than each having its own idea of where an invoice belongs.
+type RoutableInvoice = Pick<DpInvoiceRun, "id" | "status" | "extraction_confirmed">;
+
+export function invoiceRoute(inv: RoutableInvoice): string {
   // "extracted" is reused for two different moments: freshly extracted but
   // not yet confirmed (belongs on Extraction Review, same as "extraction"),
   // and post-Postprocessing, ready for Matching. Status alone can't tell
