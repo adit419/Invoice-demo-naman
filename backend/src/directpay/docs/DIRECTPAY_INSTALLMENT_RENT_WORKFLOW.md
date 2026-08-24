@@ -733,6 +733,55 @@ Two supporting changes came with it, both additive:
 See `DIRECTPAY_VENDOR_RULES_DEBORA_KEMANG.md` for the vendor's own numbers, including the IPL
 gross-up that deliberately fails Matching.
 
+### 6h. Contract recommendation: the date criterion measured the wrong thing
+
+**Symptom:** uploaded on its own, GRAHA_MEGARIA invoice 2 matched its own contract. Uploaded in a
+batch alongside every other vendor's contract, it matched **PALLADIUM's**.
+
+The scorer only misbehaves when several contracts are saved, which is why single-vendor testing never
+caught it. With all 7 saved:
+
+| Candidate | vendor_name | billing_date | amount | composite |
+|---|---:|---:|---:|---:|
+| PALLADIUM (wrong) | 0.390 | **0.997** | *skipped* | **0.698** |
+| GRAHA_MEGARIA (right) | **0.950** | **0.000** | 0.308 | 0.652 |
+
+Two defects combined:
+
+1. **`_score_date` was backwards.** It scored the DISTANCE between the invoice's billing start and the
+   contract's `actual_start`, decaying to zero over a year. For a multi-year lease that is exactly
+   wrong — an invoice for month 23 of 36 is *supposed* to be far from the start. GRAHA's lease began
+   2024-10-16, so its own Aug-2026 invoice scored **0.000**, while PALLADIUM's contract start
+   (2026-07-31) happened to land one day from that invoice's billing period and scored **0.997** on
+   pure coincidence.
+2. **A candidate is rewarded for missing data.** Weights renormalise over whichever criteria apply, so
+   PALLADIUM — which has no `base_fee` — skipped the `amount` criterion entirely and renormalised over
+   0.75, while GRAHA carried a genuine but low amount score (a monthly rent compared against a
+   service-charge total) over the full 1.00.
+
+**Fix:** the date criterion now asks *does the invoice fall inside the contract's term?* using
+`actual_start`..`lease_expiry_date`. Inside scores 1.0; outside decays by the distance to the nearest
+end. It also falls back to `invoice_date` when the invoice states no billing period — most do not, so
+the criterion previously never applied to them at all and the weakest signals decided the match.
+
+Defect 2 is left as-is: with the date criterion no longer inverted, vendor name dominates as it
+should, and every invoice now matches correctly. It remains a latent weakness — a candidate with
+sparse fields can still out-average a fully-populated one — worth revisiting if another mismatch
+appears.
+
+Verified across the full matrix, all 20 invoices scored against all 7 saved contracts:
+**before 19/20, now 20/20** pick their own vendor's contract. The batch upload that reproduced the
+bug (`all_in_one_go/`: the 6-page invoice PDF + 4 FP files, with all 7 contracts saved) now yields
+4 runs, all matched to GRAHA_MEGARIA, with invoice 2 on `Service Charge — Month 23 of 36`.
+
+> Note on that folder: its `GRAHA_MEGARIA_INV_1.pdf` is the unsplit 6-page file, but the name matches
+> the `inv_1` alias, so it resolves to invoice_1 alone rather than fanning out (§2c). The other three
+> runs get created by the FP uploads instead, so the end state is the same 4 runs. Rename it to
+> `GRAHA_MEGARIA_INV_1_ALL_6_PAGES.pdf` (or any `combined_uploads` alias) if you want the fan-out
+> itself to create them.
+
+---
+
 ## 7. The "no back-populate" rule
 
 **Nothing computed or copied is ever written into an invoice's own extraction record

@@ -84,20 +84,49 @@ def _score_currency(inv: dict, contract: dict):
 
 
 def _score_date(inv: dict, contract: dict):
-    start = contract.get("actual_start")
-    anchor = inv.get("billing_period_start")
+    """Does the invoice's period fall INSIDE the contract's term?
+
+    The previous version scored the DISTANCE from the contract's start date,
+    decaying to zero over a year. That is backwards for a multi-year lease: an
+    invoice for month 23 of 36 is *expected* to be far from the start, so the
+    correct contract scored 0.000 while an unrelated one whose start happened to
+    fall a day from the invoice's period scored 0.997 — which is exactly how
+    GRAHA_MEGARIA's service-charge invoice came to prefer PALLADIUM's contract.
+
+    Being inside the term is the signal; distance from either end is only used to
+    rank candidates that are all outside it.
+    """
+    from datetime import date
+
+    def _d(v):
+        try:
+            return date.fromisoformat(str(v)[:10])
+        except (ValueError, TypeError):
+            return None
+
+    start, end = _d(contract.get("actual_start")), _d(contract.get("lease_expiry_date"))
+    # Most invoices state no billing period (it is "NA"), so fall back to the
+    # invoice's own date — without this the criterion simply never applied to
+    # them and the weakest signals decided the match.
+    anchor = _d(inv.get("billing_period_start")) or _d(inv.get("invoice_date"))
     if not start or not anchor:
         return None
-    try:
-        from datetime import date
-        s = date.fromisoformat(str(start)[:10])
-        a = date.fromisoformat(str(anchor)[:10])
-    except ValueError:
-        return None
-    days = abs((a - s).days)
-    # 1.0 at exact match, 0 once the gap reaches a year.
-    score = max(0.0, 1.0 - days / 365.0)
-    return score, f"contract start {s.isoformat()} vs invoice billing start {a.isoformat()} ({days}d apart)"
+
+    if end is None:
+        # Open-ended contract: anything on or after the start is plausible.
+        inside = anchor >= start
+        gap = 0 if inside else (start - anchor).days
+    elif start <= anchor <= end:
+        inside, gap = True, 0
+    else:
+        inside = False
+        gap = (start - anchor).days if anchor < start else (anchor - end).days
+
+    if inside:
+        return 1.0, f"invoice {anchor.isoformat()} falls within the contract term"
+    score = max(0.0, 1.0 - gap / 365.0)
+    term = f"{start.isoformat()}..{end.isoformat()}" if end else f"from {start.isoformat()}"
+    return score, f"invoice {anchor.isoformat()} is {gap}d outside the term ({term})"
 
 
 # (name, weight, scorer) — weights renormalize over applicable scorers, so a
@@ -118,6 +147,7 @@ def _invoice_fields(extracted: dict) -> dict:
         "grand_total": _to_float(extracted.get("total_amount")),
         "currency": extracted.get("currency"),
         "billing_period_start": extracted.get("billing_period_start"),
+        "invoice_date": extracted.get("invoice_date"),
     }
 
 
@@ -128,6 +158,8 @@ def _contract_fields(fields: dict) -> dict:
         "base_fee": _to_float(fields.get("base_fee")),
         "currency": fields.get("currency"),
         "actual_start": fields.get("actual_start"),
+        # Needed by _score_date's term-containment test.
+        "lease_expiry_date": fields.get("lease_expiry_date"),
     }
 
 
