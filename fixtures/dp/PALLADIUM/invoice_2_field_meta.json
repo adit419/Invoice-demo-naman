@@ -54,19 +54,19 @@
       "page": 1,
       "bbox_left": 0.031206,
       "bbox_top": 0.129968,
-      "bbox_width": 0.389226,
-      "bbox_height": 0.016319,
-      "value_confidence": 1.0
+      "bbox_width": 0.434041,
+      "bbox_height": 0.042831,
+      "value_confidence": 0.95
     }
   },
   "description": {
     "bbox": {
       "page": 1,
-      "bbox_left": 0.070878,
-      "bbox_top": 0.422185,
-      "bbox_width": 0.323373,
-      "bbox_height": 0.013055,
-      "value_confidence": 1.0
+      "bbox_left": 0.070875,
+      "bbox_top": 0.422181,
+      "bbox_width": 0.323379,
+      "bbox_height": 0.023744,
+      "value_confidence": 0.95
     }
   },
   "due_date": {
@@ -132,10 +132,10 @@
   "vendor_bank_account_name": {
     "bbox": {
       "page": 1,
-      "bbox_left": 0.570048,
-      "bbox_top": 0.100779,
-      "bbox_width": 0.227771,
-      "bbox_height": 0.016354,
+      "bbox_left": 0.233559,
+      "bbox_top": 0.577424,
+      "bbox_width": 0.179135,
+      "bbox_height": 0.009501,
       "value_confidence": 1.0
     }
   },

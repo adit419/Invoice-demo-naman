@@ -121,13 +121,23 @@ _MONTH_EN = ["January", "February", "March", "April", "May", "June",
              "July", "August", "September", "October", "November", "December"]
 _MONTH_ID = ["Januari", "Februari", "Maret", "April", "Mei", "Juni",
              "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
+_MONTH_EN_ABBR = [m[:3] for m in _MONTH_EN]
 _ISO_DATE_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})$")
 
 
 def _date_variants(value: str) -> list[str]:
     """Alternate renderings of an ISO date the way it actually appears on
     an Indonesian invoice/Faktur Pajak. [] for anything that isn't an
-    ISO-shaped date string (the raw value alone is already tried elsewhere)."""
+    ISO-shaped date string (the raw value alone is already tried elsewhere).
+
+    Includes MM/DD/YYYY alongside DD/MM/YYYY — GRAHA_MEGARIA's own template
+    ("Invoice Date: 07/01/2026" for 2026-07-01) prints American month-first
+    order, not the DD/MM order every other vendor here uses. Without it,
+    invoice_date/billing_period_start on that template went missing outright
+    (the DD/MM candidate's digit string never matches the real MM/DD text,
+    and the digit-consistency gate correctly refuses a mismatched-order
+    guess rather than risk a wrong box) — verified on GRAHA_MEGARIA
+    invoice_1's invoice_date."""
     m = _ISO_DATE_RE.match(value.strip())
     if not m:
         return []
@@ -140,6 +150,10 @@ def _date_variants(value: str) -> list[str]:
         f"{d:02d}/{mo:02d}/{y}",
         f"{d:02d}-{mo:02d}-{y}",
         f"{d:02d}.{mo:02d}.{y}",
+        f"{mo:02d}/{d:02d}/{y}",
+        f"{mo:02d}-{d:02d}-{y}",
+        f"{mo:02d}.{d:02d}.{y}",
+        f"{d:02d}-{_MONTH_EN_ABBR[mo - 1]}-{y}",
     ]
 
 
@@ -170,15 +184,30 @@ def _composite_leading_segment(value: str) -> list[str]:
 def _id_number_variants(value: float) -> list[str]:
     """Indonesian-locale renderings of a number as it actually appears on
     these documents: '.' thousands, ',' decimals — plus a no-decimals form
-    (most totals print as whole rupiah) and a bare-digits fallback."""
+    (most totals print as whole rupiah) and a bare-digits fallback.
+
+    For a non-integer value the with-decimals form is listed BEFORE the
+    whole-number one — _text_layer_match tries candidates in order and
+    returns on the first hit, and the whole-number form is always a literal
+    substring of the with-decimals form when the document DOES print cents,
+    so trying it first previously won every time and silently produced a box
+    that stopped right before ",14" — narrower than the real printed text,
+    even though the fuller/more-precise match was one candidate away
+    (verified: GRAHA_MEGARIA's faktur_pajak_4 taxable_amount, 2407870.14,
+    boxed only "2.407.870"). Listing with-decimals first still falls back to
+    whole-number correctly whenever the document only prints whole rupiah
+    (verified: PAKUWON invoice_6's total_amount, 4956647.28, has no ",28"
+    anywhere on the page — with-decimals simply doesn't match there, and the
+    whole-number candidate is tried next as before)."""
     variants = []
     is_int_valued = float(value).is_integer()
     whole = f"{value:,.0f}".replace(",", ".")
-    variants.append(whole)
     if not is_int_valued:
         with_decimals = f"{value:,.2f}".replace(",", "\0").replace(".", ",").replace("\0", ".")
         variants.append(with_decimals)
+        variants.append(whole)
     else:
+        variants.append(whole)
         variants.append(f"{whole},00")
     variants.append(str(int(value)) if is_int_valued else str(value))
     return variants
@@ -253,6 +282,78 @@ def _normalized_bbox(rect: "fitz.Rect", page_size: "fitz.Rect", page_number: int
     }
 
 
+def _group_into_occurrences(hits: list) -> list["fitz.Rect"]:
+    """page.search_for() can split ONE logical occurrence into several rects
+    when the matched text crosses a font/style run boundary mid-line —
+    verified on DEBORA_KEMANG's invoice_date: searching for "21 Mei 2026"
+    returns three separate same-line rects ("21" / " Mei" / "2026", each a
+    different text run), and treating each as its own occurrence silently
+    produced a box covering just "21" — missing "Mei 2026" entirely, a real
+    too-narrow box, not a wrong-location one. Groups consecutive hits that
+    continue the same line (y-ranges overlap, x-gap small relative to line
+    height) into one unioned rect per genuine occurrence — a separate later
+    occurrence elsewhere on the page starts a new group instead of being
+    folded in."""
+    groups = [[hits[0]]]
+    for r in hits[1:]:
+        prev = groups[-1][-1]
+        same_line = min(prev.y1, r.y1) - max(prev.y0, r.y0) > 0
+        gap = r.x0 - prev.x1
+        # Must be a small POSITIVE gap (r continues immediately after prev) —
+        # not just a small gap in absolute terms. A same-line occurrence far
+        # to prev's LEFT (e.g. the same amount appearing again earlier in a
+        # line-item's own description sentence, before its real right-aligned
+        # column value) makes `gap` a large negative number, which used to
+        # satisfy "gap < threshold" trivially and silently unioned two
+        # unrelated same-line occurrences into one box spanning the entire
+        # line — verified: PAKUWON's faktur_pajak taxable_amount (30.000.000)
+        # appearing both inside "Rp 30.000.000 x 1,00 ..." and again in the
+        # row's own right-hand amount column produced a box stretching
+        # across ~79% of the page width instead of a tight box on just the
+        # right-hand figure. A small negative allowance (-1pt) still permits
+        # the rare hairline sub-pixel overlap between two genuinely adjacent
+        # font runs.
+        close_x = -1 <= gap < max(prev.height, r.height, 1) * 2
+        if same_line and close_x:
+            groups[-1].append(r)
+        else:
+            groups.append([r])
+    return [fitz.Rect(
+        min(r.x0 for r in g), min(r.y0 for r in g),
+        max(r.x1 for r in g), max(r.y1 for r in g),
+    ) for g in groups]
+
+
+# Fields whose value routinely duplicates OTHER text on the same page — a
+# bank account HOLDER name is very often just the vendor's own name again
+# (or, on a few Indonesian templates, the CUSTOMER's), so the literal string
+# also matches the letterhead/"Kepada Yth" block near the top of the page.
+# The genuine occurrence — the one actually inside the payment/bank-details
+# block — is consistently the LAST (bottom-most) one on these invoice
+# templates, never the first. Verified as a real, non-hypothetical bug: all
+# 6 PAKUWON invoices, all 3 PALLADIUM invoices, and RATNA_INTAN's invoice all
+# had vendor_bank_account_name landing on the header occurrence (matching
+# vendor_name's own position almost exactly) while vendor_bank_name /
+# vendor_bank_account_number correctly resolved to the real bank-details
+# block far below. Scoped to just this one field — the sibling bank fields
+# (bank name, account number) are near-unique strings with no such ambiguity,
+# and generalizing "prefer the last occurrence" to every field would be a
+# guess with no verified failure to justify it.
+_PREFER_LAST_OCCURRENCE_FIELDS = {"vendor_bank_account_name"}
+
+# How close a fuzzy-match ratio has to be to the best one seen so far to
+# still count as "the same real occurrence, just read back with slightly
+# different OCR noise" for _PREFER_LAST_OCCURRENCE_FIELDS purposes (see its
+# own comment above and _fuzzy_word_match's use of this).
+_NEAR_TIE_TOLERANCE = 0.05
+
+
+def _select_occurrence(field: str, occurrences: list["fitz.Rect"]) -> "fitz.Rect":
+    if field in _PREFER_LAST_OCCURRENCE_FIELDS and len(occurrences) > 1:
+        return max(occurrences, key=lambda r: r.y0)
+    return occurrences[0]
+
+
 def _text_layer_match(doc: "fitz.Document", field: str, value, allowed_pages: set[int] | None = None) -> dict | None:
     for candidate, confidence in _search_candidates(field, value):
         for page_number, page in enumerate(doc, start=1):
@@ -260,7 +361,9 @@ def _text_layer_match(doc: "fitz.Document", field: str, value, allowed_pages: se
                 continue
             hits = page.search_for(candidate)
             if hits:
-                return _normalized_bbox(hits[0], page.rect, page_number, confidence)
+                occurrences = _group_into_occurrences(hits)
+                rect = _select_occurrence(field, occurrences)
+                return _normalized_bbox(rect, page.rect, page_number, confidence)
     return None
 
 
@@ -508,12 +611,35 @@ def _is_spatially_coherent(ws: list[tuple]) -> bool:
     return True
 
 
+# Common OCR digit/letter confusions — 'O'/'o' for '0', 'l'/'I'/'i' for '1',
+# etc. Applied ONLY within a token that already contains a real digit (never
+# to a purely-alphabetic word like "Agustus"), and ONLY for OCR-sourced word
+# lists — a native PDF text layer has no character-recognition noise to
+# correct for, so the digit gate stays fully strict there.
+_OCR_DIGIT_LOOKALIKES = str.maketrans({
+    "o": "0", "O": "0", "l": "1", "I": "1", "i": "1",
+    "s": "5", "S": "5", "b": "8", "B": "8", "z": "2", "Z": "2", "g": "9", "G": "9",
+})
+
+
+def _window_digits(window_text: str, ocr: bool) -> str:
+    if not ocr:
+        return "".join(ch for ch in window_text if ch.isdigit())
+    out = []
+    for tok in window_text.split(" "):
+        if any(ch.isdigit() for ch in tok):
+            tok = tok.translate(_OCR_DIGIT_LOOKALIKES)
+        out.append("".join(ch for ch in tok if ch.isdigit()))
+    return "".join(out)
+
+
 def _fuzzy_word_match(
     words_by_page: dict[int, list[tuple]],
     page_rects: dict[int, "fitz.Rect"],
     field: str,
     value,
     threshold: float,
+    ocr: bool = False,
 ) -> tuple[float, "fitz.Rect", int] | None:
     """Slides a window over a page's *normalized-token* stream (not its raw
     word list — a single source word like "6,523,000" expands to 3 tokens
@@ -566,12 +692,27 @@ def _fuzzy_word_match(
         if field == "currency":
             value_strs += _CURRENCY_SYMBOLS.get(str(value).strip(), [])
 
-    best = None  # (ratio, page_number, rect)
+    best = None  # (ratio, page_number, rect) — the SELECTED occurrence
+    best_ratio_seen = 0.0  # highest ratio observed, never lowered by a position-preferred pick
     for value_str in value_strs:
         target_tokens = _norm_tokens(value_str)
         if not target_tokens:
             continue
-        target_digits = "".join(ch for ch in "".join(target_tokens) if ch.isdigit()) if is_numeric else None
+        # Applied to EVERY value, not just numeric-typed ones — a string
+        # value's own digits (a date's day/month/year, an invoice number's
+        # trailing sequence, an ID number) are exactly as load-bearing as a
+        # numeric field's, and difflib's ratio alone is far too forgiving to
+        # catch a wrong-but-textually-similar candidate on its own (verified:
+        # DEBORA_KEMANG's due_date "2026-06-10" once matched onto
+        # invoice_date's own "21 Mei 2026" text — same surrounding word
+        # shapes, completely different digits — and invoice_number
+        # "Invoice - 1" once matched a truncated "Invoice –" window missing
+        # its own "1"). A target with NO digits at all (candidate_text is
+        # pure text) still gates correctly: it requires the matched window to
+        # ALSO carry no digits, which every genuine text-only match already
+        # satisfies and a wrong match that drifted onto an adjacent number
+        # would not.
+        target_digits = "".join(ch for ch in "".join(target_tokens) if ch.isdigit())
         candidate_text = " ".join(target_tokens)
         n = len(target_tokens)
         # A SINGLE-token candidate of <=3 chars (a currency symbol like "Rp",
@@ -612,14 +753,34 @@ def _fuzzy_word_match(
                     window = flat[start:start + wlen]
                     window_text = " ".join(tok for tok, _ in window)
                     if target_digits is not None:
-                        window_digits = "".join(ch for ch in window_text if ch.isdigit())
+                        window_digits = _window_digits(window_text, ocr)
                         if window_digits != target_digits:
                             continue
                     ratio = difflib.SequenceMatcher(None, window_text, candidate_text).ratio()
                     if ratio < min_ratio:
                         continue
-                    if best is not None and ratio <= best[0]:
-                        continue
+                    # A strict ratio improvement always wins outright for
+                    # every field. For _PREFER_LAST_OCCURRENCE_FIELDS, a
+                    # NEAR-tie also matters, not just an exact one — OCR
+                    # noise can cost a genuine duplicate occurrence a few
+                    # points of ratio without making it any less real
+                    # (verified: RATNA_INTAN's real bank-details occurrence
+                    # of "Mulyati G" got OCR'd as one merged "MulyatiG" token,
+                    # no space, scoring ~0.976 against the header's clean
+                    # 1.0 for the exact same name — an exact-tie check alone
+                    # missed this and kept the wrong, higher-scoring header
+                    # match). Comparing against best_ratio_seen (the highest
+                    # ratio observed all scan, never lowered by a
+                    # position-preferred pick) keeps the tolerance window
+                    # anchored to the true best instead of drifting down
+                    # across repeated near-tie replacements.
+                    prefer_last = field in _PREFER_LAST_OCCURRENCE_FIELDS
+                    if best is not None:
+                        if prefer_last:
+                            if ratio < best_ratio_seen - _NEAR_TIE_TOLERANCE:
+                                continue
+                        elif ratio <= best[0]:
+                            continue
                     word_idxs = sorted({wi for _, wi in window})
                     ws = [words[i] for i in word_idxs]
                     if not _is_spatially_coherent(ws):
@@ -628,7 +789,14 @@ def _fuzzy_word_match(
                     y0 = min(w[1] for w in ws)
                     x1 = max(w[2] for w in ws)
                     y1 = max(w[3] for w in ws)
+                    if (
+                        best is not None and prefer_last
+                        and ratio >= best_ratio_seen - _NEAR_TIE_TOLERANCE
+                        and y0 <= best[2].y0
+                    ):
+                        continue  # near-tied ratio, but no further down than the current pick
                     best = (ratio, page_number, fitz.Rect(x0, y0, x1, y1))
+                    best_ratio_seen = max(best_ratio_seen, ratio)
 
     if best is None or best[0] < threshold:
         return None
@@ -671,7 +839,7 @@ def _locate_field(
         if hit:
             candidates.append((*hit, "fuzzy-text"))
     if op:
-        hit = _fuzzy_word_match(op, page_rects, field, value, OCR_MATCH_THRESHOLD)
+        hit = _fuzzy_word_match(op, page_rects, field, value, OCR_MATCH_THRESHOLD, ocr=True)
         if hit:
             candidates.append((*hit, "ocr"))
     if not candidates:

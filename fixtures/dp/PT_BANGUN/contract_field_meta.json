@@ -4,15 +4,7 @@
     "section": "PROPERTY & PARTIES",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": null,
-    "bbox": {
-      "page": 1,
-      "bbox_left": 0.155645,
-      "bbox_top": 0.313876,
-      "bbox_width": 0.703231,
-      "bbox_height": 0.037396,
-      "value_confidence": 0.941
-    }
+    "ai_match_reasoning": null
   },
   "vendor_name": {
     "label": "Vendor Name",
@@ -23,9 +15,9 @@
     "bbox": {
       "page": 1,
       "bbox_left": 0.154839,
-      "bbox_top": 0.291632,
-      "bbox_width": 0.137906,
-      "bbox_height": 0.009374,
+      "bbox_top": 0.289969,
+      "bbox_width": 0.222826,
+      "bbox_height": 0.011038,
       "value_confidence": 1.0
     }
   },
@@ -41,7 +33,7 @@
       "bbox_top": 0.607725,
       "bbox_width": 0.121333,
       "bbox_height": 0.009048,
-      "value_confidence": 0.9
+      "value_confidence": 0.93
     }
   },
   "vendor_email": {
@@ -56,7 +48,7 @@
       "bbox_top": 0.378189,
       "bbox_width": 0.362933,
       "bbox_height": 0.012372,
-      "value_confidence": 0.9
+      "value_confidence": 0.93
     }
   },
   "lessor_npwp": {
@@ -76,8 +68,8 @@
       "page": 1,
       "bbox_left": 0.667706,
       "bbox_top": 0.058465,
-      "bbox_width": 0.133098,
-      "bbox_height": 0.010454,
+      "bbox_width": 0.183099,
+      "bbox_height": 0.01054,
       "value_confidence": 1.0
     }
   },
@@ -90,9 +82,9 @@
     "bbox": {
       "page": 4,
       "bbox_left": 0.397623,
-      "bbox_top": 0.181089,
-      "bbox_width": 0.018839,
-      "bbox_height": 0.010702,
+      "bbox_top": 0.179027,
+      "bbox_width": 0.130975,
+      "bbox_height": 0.012764,
       "value_confidence": 1.0
     }
   },
@@ -105,9 +97,9 @@
     "bbox": {
       "page": 4,
       "bbox_left": 0.720223,
-      "bbox_top": 0.17729,
-      "bbox_width": 0.018823,
-      "bbox_height": 0.010152,
+      "bbox_top": 0.17471,
+      "bbox_width": 0.128541,
+      "bbox_height": 0.012731,
       "value_confidence": 1.0
     }
   },
@@ -346,9 +338,9 @@
     "bbox": {
       "page": 4,
       "bbox_left": 0.397623,
-      "bbox_top": 0.181089,
-      "bbox_width": 0.018839,
-      "bbox_height": 0.010702,
+      "bbox_top": 0.179027,
+      "bbox_width": 0.130975,
+      "bbox_height": 0.012764,
       "value_confidence": 1.0
     }
   },
@@ -417,9 +409,9 @@
     "bbox": {
       "page": 1,
       "bbox_left": 0.378226,
-      "bbox_top": 0.136985,
-      "bbox_width": 0.094356,
-      "bbox_height": 0.011007,
+      "bbox_top": 0.136982,
+      "bbox_width": 0.236291,
+      "bbox_height": 0.01101,
       "value_confidence": 1.0
     }
   },

@@ -107,7 +107,15 @@ function getBoundingBoxCoordinates(
     height = height + 2 * LINE_ITEM_PADDING;
     top = top - LINE_ITEM_PADDING;
   } else {
-    const DEFAULT_PADDING = 50;
+    // Small cushion so a thin single-line field (most metadata bboxes) is
+    // comfortably visible/clickable — NOT a generic "make it bigger" pad.
+    // Was a flat 50px, which for a typical ~6-10px-tall OCR text line added
+    // 100px of vertical padding alone: enough to visually swallow adjacent,
+    // unrelated blocks on the page (verified: RATNA_INTAN's short single-line
+    // "Vendor Name"/"Invoice Number" fields rendered as boxes spanning both
+    // the customer AND vendor address blocks). Mirrors line-item mode's own
+    // much smaller padding just above, which never had this problem.
+    const DEFAULT_PADDING = 4;
     left = left - DEFAULT_PADDING;
     top = top - DEFAULT_PADDING;
     width = width + 2 * DEFAULT_PADDING;
@@ -140,7 +148,6 @@ function BoundingBoxOverlay({
 }) {
   const highlightRef = useRef<HTMLDivElement>(null);
   const labelRef = useRef<HTMLDivElement>(null);
-  const [labelWidth, setLabelWidth] = useState<number | null>(null);
 
   const selectionId = bbox.id ?? `${bbox.label}-${bbox.bbox_left}-${bbox.bbox_top}`;
 
@@ -155,13 +162,6 @@ function BoundingBoxOverlay({
     return () => clearTimeout(t);
   }, [selectionId, bbox.page, currentPage, pageWidth, pageHeight, rotation]);
 
-  // Measure label so the metadata highlight is at least as wide as its label.
-  useLayoutEffect(() => {
-    if (labelRef.current && !isLineItemMode) {
-      setLabelWidth(labelRef.current.offsetWidth);
-    }
-  }, [bbox.label, bbox.value, isLineItemMode]);
-
   if (bbox.page !== currentPage || !pageWidth || !pageHeight) return null;
 
   const { left, top, width, height } = getBoundingBoxCoordinates(
@@ -169,12 +169,16 @@ function BoundingBoxOverlay({
   );
   const colors = getScoreColors(bbox.confidence, bbox.confidenceThreshold ?? 0.85);
   const showLabel = Boolean(bbox.label || bbox.value);
-  const bboxWidth = !isLineItemMode && labelWidth ? labelWidth : width;
 
-  // Label above the bbox; flip below if it would clip past the top.
+  // Label below the bbox (so the caption never sits on top of, and hides,
+  // the highlighted text itself) — flip above only if there's no room below.
   const GAP = 3;
-  const labelTopAbove = top - 50 - GAP;
-  const finalLabelTop = labelTopAbove < 0 ? top + height + GAP : labelTopAbove;
+  const LABEL_HEIGHT_ESTIMATE = 50;
+  const labelTopBelow = top + height + GAP;
+  const finalLabelTop =
+    labelTopBelow + LABEL_HEIGHT_ESTIMATE > pageHeight
+      ? Math.max(0, top - LABEL_HEIGHT_ESTIMATE - GAP)
+      : labelTopBelow;
   const minLabelWidth = isLineItemMode ? 250 : width;
 
   return (
@@ -183,7 +187,7 @@ function BoundingBoxOverlay({
         ref={highlightRef}
         style={{
           position: "absolute",
-          left, top, width: bboxWidth, height,
+          left, top, width, height,
           border: `2px solid ${colors.border}`,
           backgroundColor: colors.background,
           borderRadius: 4,
@@ -327,7 +331,26 @@ export function PdfViewer({
                 bbox={activeBbox}
                 pageWidth={pageDims.w}
                 pageHeight={pageDims.h}
-                rotation={effectiveRotate}
+                // The caller's own manual rotation delta ONLY — not
+                // effectiveRotate. bbox_left/top/width/height are computed
+                // by the backend relative to the PDF page's OWN effective
+                // rect (already reflecting the page's intrinsic /Rotate,
+                // the same reference frame page.search_for()/get_text() use
+                // — see generate_dp_invoice_bbox.py), and pageDims here is
+                // react-pdf's already fully-rotated (intrinsic + manual)
+                // render of that same page. Passing effectiveRotate made
+                // getBoundingBoxCoordinates apply a SECOND rotation
+                // transform on top of a page that was already correctly
+                // oriented, silently double-rotating every box. Verified as
+                // a real, live bug: KARYA_NASTARI's invoice PDFs (page
+                // /Rotate 270) rendered every metadata highlight as a tall,
+                // page-spanning vertical strip instead of a tight box.
+                // Passing just the manual delta (0 unless the viewer has
+                // clicked rotate) keeps that transform meaningful only for
+                // rotation actually added on top of the already-correct
+                // render — P2P's own fixtures have no rotated PDFs at all,
+                // so this can't change its behavior.
+                rotation={rotate}
                 currentPage={page}
                 isLineItemMode={isLineItemMode}
               />

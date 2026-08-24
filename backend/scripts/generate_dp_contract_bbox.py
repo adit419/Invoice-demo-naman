@@ -160,20 +160,59 @@ _PAREN_CHARS = ("(", ")")
 _PAREN_WINDOW_TOKENS = 2
 
 
+def _match_word_index(words: list, rect: "fitz.Rect") -> tuple[list, int] | tuple[None, None]:
+    ws = sorted(words, key=lambda w: (round(w[1] / 5) * 5, w[0]))
+    for i, w in enumerate(ws):
+        if abs(w[0] - rect.x0) < 5 and abs(w[1] - rect.y0) < 5:
+            return ws, i
+    return None, None
+
+
 def _has_nearby_parenthetical(words_by_page: dict, page_number: int, rect: "fitz.Rect") -> bool:
     words = words_by_page.get(page_number)
     if not words:
         return False
-    ws = sorted(words, key=lambda w: (round(w[1] / 5) * 5, w[0]))
-    idx = None
-    for i, w in enumerate(ws):
-        if abs(w[0] - rect.x0) < 5 and abs(w[1] - rect.y0) < 5:
-            idx = i
-            break
+    ws, idx = _match_word_index(words, rect)
     if idx is None:
         return False
     nbrs = ws[max(0, idx - _PAREN_WINDOW_TOKENS):idx + _PAREN_WINDOW_TOKENS + 1]
     return any(c in w[4] for w in nbrs for c in _PAREN_CHARS)
+
+
+# A nearby parenthetical alone only proves "this number is spelled out in
+# words somewhere close by" — it says nothing about whether that number
+# means what THIS field claims. Verified false positives from real fixtures:
+# RATNA_INTAN's term_months(60) landed on "60 (enam puluh) HARI" — a 60-DAY
+# notice period, correctly spelled out in words, just the wrong unit; and
+# DEBORA_KEMANG's vat_rate(11) landed on "...11 Maret 2027)" — a date range's
+# own closing paren sitting next to an unrelated day-of-month "11", with no
+# percent sign or tax keyword anywhere nearby. A contract reuses the same
+# "N (spelled-out N) unit" convention for many unrelated figures (rent
+# terms, notice periods, grace periods, tax rates), so the parenthetical
+# gate alone can't tell them apart — only checking for the field's own unit
+# word can. Scoped to the two field shapes where this was actually observed;
+# other short-generic fields keep relying on the parenthetical gate alone
+# rather than guessing at a unit check with no verified failure to fix.
+_UNIT_WINDOW_TOKENS = 6
+
+
+def _nearby_text(words_by_page: dict, page_number: int, rect: "fitz.Rect") -> str:
+    words = words_by_page.get(page_number)
+    if not words:
+        return ""
+    ws, idx = _match_word_index(words, rect)
+    if idx is None:
+        return ""
+    nbrs = ws[max(0, idx - 2):idx + _UNIT_WINDOW_TOKENS + 1]
+    return " ".join(w[4].lower() for w in nbrs)
+
+
+def _field_unit_ok(field: str, nearby_text: str) -> bool:
+    if field.endswith("_months"):
+        return "bulan" in nearby_text and "hari" not in nearby_text
+    if field.endswith(("_rate", "_pct")):
+        return "%" in nearby_text or "persen" in nearby_text
+    return True
 
 
 def _is_short_generic_value(value) -> bool:
@@ -215,6 +254,8 @@ def _locate_field_best(doc, native_words, ocr_pages, page_rects, field, value):
         )
         words_by_page = native_words if bbox["page"] in native_words else ocr_pages
         if not _has_nearby_parenthetical(words_by_page, bbox["page"], rect):
+            return None
+        if not _field_unit_ok(field, _nearby_text(words_by_page, bbox["page"], rect)):
             return None
     return best
 

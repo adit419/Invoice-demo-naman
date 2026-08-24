@@ -112,8 +112,8 @@
   "vendor_bank_account_name": {
     "bbox": {
       "page": 1,
-      "bbox_left": 0.592565,
-      "bbox_top": 0.047927,
+      "bbox_left": 0.661193,
+      "bbox_top": 0.815225,
       "bbox_width": 0.138934,
       "bbox_height": 0.020168,
       "value_confidence": 1.0
@@ -126,7 +126,27 @@
       "bbox_top": 0.868256,
       "bbox_width": 0.104563,
       "bbox_height": 0.020168,
-      "value_confidence": 0.905
+      "value_confidence": 0.91
+    }
+  },
+  "currency": {
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.534967,
+      "bbox_top": 0.334394,
+      "bbox_width": 0.041928,
+      "bbox_height": 0.022854,
+      "value_confidence": 0.95
+    }
+  },
+  "total_amount_before_vat": {
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.51299,
+      "bbox_top": 0.396136,
+      "bbox_width": 0.066225,
+      "bbox_height": 0.022854,
+      "value_confidence": 0.95
     }
   }
 }

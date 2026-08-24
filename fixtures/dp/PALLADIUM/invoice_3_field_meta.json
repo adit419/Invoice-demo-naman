@@ -54,9 +54,9 @@
       "page": 1,
       "bbox_left": 0.038705,
       "bbox_top": 0.123846,
-      "bbox_width": 0.389226,
-      "bbox_height": 0.016319,
-      "value_confidence": 1.0
+      "bbox_width": 0.434041,
+      "bbox_height": 0.042831,
+      "value_confidence": 0.95
     }
   },
   "description": {
@@ -132,10 +132,10 @@
   "vendor_bank_account_name": {
     "bbox": {
       "page": 1,
-      "bbox_left": 0.577547,
-      "bbox_top": 0.094657,
-      "bbox_width": 0.227771,
-      "bbox_height": 0.016354,
+      "bbox_left": 0.241058,
+      "bbox_top": 0.567368,
+      "bbox_width": 0.179135,
+      "bbox_height": 0.009501,
       "value_confidence": 1.0
     }
   },
