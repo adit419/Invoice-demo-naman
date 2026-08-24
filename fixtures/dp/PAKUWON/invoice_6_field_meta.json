@@ -71,11 +71,11 @@
   },
   "total_amount_before_vat": {
     "bbox": {
-      "page": 3,
-      "bbox_left": 0.774736,
-      "bbox_top": 0.278265,
-      "bbox_width": 0.093961,
-      "bbox_height": 0.013892,
+      "page": 1,
+      "bbox_left": 0.569036,
+      "bbox_top": 0.462551,
+      "bbox_width": 0.155278,
+      "bbox_height": 0.022854,
       "value_confidence": 0.95
     }
   },
@@ -91,11 +91,11 @@
   },
   "total_amount": {
     "bbox": {
-      "page": 3,
-      "bbox_left": 0.770242,
-      "bbox_top": 0.366838,
-      "bbox_width": 0.093961,
-      "bbox_height": 0.013892,
+      "page": 1,
+      "bbox_left": 0.893382,
+      "bbox_top": 0.637424,
+      "bbox_width": 0.058873,
+      "bbox_height": 0.022854,
       "value_confidence": 0.95
     }
   },
@@ -136,6 +136,16 @@
       "bbox_top": 0.700177,
       "bbox_width": 0.041225,
       "bbox_height": 0.022727,
+      "value_confidence": 0.95
+    }
+  },
+  "description": {
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.044526,
+      "bbox_top": 0.737677,
+      "bbox_width": 0.32585,
+      "bbox_height": 0.022854,
       "value_confidence": 0.95
     }
   }
