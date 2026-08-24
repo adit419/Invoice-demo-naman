@@ -107,7 +107,15 @@
     "section": "AGREEMENT DATES & TERM",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 10,
+      "bbox_left": 0.35436,
+      "bbox_top": 0.166904,
+      "bbox_width": 0.067681,
+      "bbox_height": 0.007716,
+      "value_confidence": 0.93
+    }
   },
   "rent_basis_type": {
     "label": "Rent Basis Type",
@@ -230,7 +238,15 @@
     "section": "RENT & DEPOSIT",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 3,
+      "bbox_left": 0.515585,
+      "bbox_top": 0.6085,
+      "bbox_width": 0.122095,
+      "bbox_height": 0.013414,
+      "value_confidence": 0.93
+    }
   },
   "escalation_rate": {
     "label": "Escalation Clause (%)",
@@ -372,7 +388,15 @@
     "section": "PAYMENT STRUCTURE",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.672551,
+      "bbox_top": 0.130256,
+      "bbox_width": 0.222491,
+      "bbox_height": 0.01094,
+      "value_confidence": 0.93
+    }
   },
   "lessor_split_pct": {
     "label": "Vendor Split (%)",
@@ -421,7 +445,15 @@
     "section": "OTHER",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 4,
+      "bbox_left": 0.426118,
+      "bbox_top": 0.834701,
+      "bbox_width": 0.217654,
+      "bbox_height": 0.010769,
+      "value_confidence": 0.93
+    }
   },
   "floor": {
     "label": "Floor",

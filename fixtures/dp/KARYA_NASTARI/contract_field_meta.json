@@ -26,14 +26,30 @@
     "section": "PROPERTY & PARTIES",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.122648,
+      "bbox_top": 0.940975,
+      "bbox_width": 0.103495,
+      "bbox_height": 0.009386,
+      "value_confidence": 0.93
+    }
   },
   "vendor_email": {
     "label": "Vendor Email",
     "section": "PROPERTY & PARTIES",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 2,
+      "bbox_left": 0.116532,
+      "bbox_top": 0.367265,
+      "bbox_width": 0.292339,
+      "bbox_height": 0.01055,
+      "value_confidence": 0.93
+    }
   },
   "lessor_npwp": {
     "label": "Vendor NPWP",
@@ -365,7 +381,15 @@
     "section": "OTHER",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.183629,
+      "bbox_top": 0.246193,
+      "bbox_width": 0.192097,
+      "bbox_height": 0.008554,
+      "value_confidence": 0.93
+    }
   },
   "floor": {
     "label": "Floor",

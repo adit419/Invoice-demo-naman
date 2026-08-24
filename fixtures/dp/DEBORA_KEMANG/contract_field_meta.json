@@ -64,7 +64,15 @@
     "section": "PROPERTY & PARTIES",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "Not stated. The source tracker records a NIK (National Identity Number) 3276024502830010 instead, consistent with an individual rather than a registered taxable business (non-PKP)."
+    "ai_match_reasoning": "Not stated. The source tracker records a NIK (National Identity Number) 3276024502830010 instead, consistent with an individual rather than a registered taxable business (non-PKP).",
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.156048,
+      "bbox_top": 0.283433,
+      "bbox_width": 0.143952,
+      "bbox_height": 0.008839,
+      "value_confidence": 0.93
+    }
   },
   "customer_name": {
     "label": "Customer Name",
@@ -151,15 +159,7 @@
     "section": "RENT & DEPOSIT",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null,
-    "bbox": {
-      "page": 4,
-      "bbox_left": 0.554032,
-      "bbox_top": 0.849615,
-      "bbox_width": 0.016452,
-      "bbox_height": 0.008212,
-      "value_confidence": 0.93
-    }
+    "ai_match_reasoning": null
   },
   "base_rent_monthly_excl_tax": {
     "label": "Base Rent (Excl Tax) Monthly",
@@ -201,7 +201,15 @@
     "section": "RENT & DEPOSIT",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": "The only rent driver this contract has: 15% of Net Sales Value, flat across all five years. Net Sales Value is the sales report's own Sales (Ex. PB1) less Biaya Ojol and Discount."
+    "ai_match_reasoning": "The only rent driver this contract has: 15% of Net Sales Value, flat across all five years. Net Sales Value is the sales report's own Sales (Ex. PB1) less Biaya Ojol and Discount.",
+    "bbox": {
+      "page": 4,
+      "bbox_left": 0.681048,
+      "bbox_top": 0.849444,
+      "bbox_width": 0.029435,
+      "bbox_height": 0.008554,
+      "value_confidence": 0.93
+    }
   },
   "revenue_threshold": {
     "label": "Revenue Share Threshold Amount",
@@ -292,7 +300,15 @@
     "section": "LEGAL & COMPLIANCE",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.435081,
+      "bbox_top": 0.155974,
+      "bbox_width": 0.20121,
+      "bbox_height": 0.011406,
+      "value_confidence": 0.93
+    }
   },
   "notice_period_days": {
     "label": "Notice Period (Days)",
@@ -421,13 +437,29 @@
     "section": "OTHER",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": "Perjanjian Kerja Sama (Cooperation Agreement), not a lease. Structurally different from every other vendor in this set."
+    "ai_match_reasoning": "Perjanjian Kerja Sama (Cooperation Agreement), not a lease. Structurally different from every other vendor in this set.",
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.410806,
+      "bbox_top": 0.140633,
+      "bbox_width": 0.189435,
+      "bbox_height": 0.008896,
+      "value_confidence": 0.93
+    }
   },
   "floor": {
     "label": "Floor",
     "section": "OTHER",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 19,
+      "bbox_left": 0.130712,
+      "bbox_top": 0.235006,
+      "bbox_width": 0.076949,
+      "bbox_height": 0.009386,
+      "value_confidence": 0.9
+    }
   }
 }

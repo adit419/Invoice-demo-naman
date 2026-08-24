@@ -115,7 +115,15 @@
     "section": "AGREEMENT DATES & TERM",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 4,
+      "bbox_left": 0.672685,
+      "bbox_top": 0.153309,
+      "bbox_width": 0.018,
+      "bbox_height": 0.010131,
+      "value_confidence": 0.93
+    }
   },
   "rent_basis_type": {
     "label": "Rent Basis Type",
@@ -214,7 +222,15 @@
     "section": "RENT & DEPOSIT",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 4,
+      "bbox_left": 0.434678,
+      "bbox_top": 0.803564,
+      "bbox_width": 0.12747,
+      "bbox_height": 0.012905,
+      "value_confidence": 0.93
+    }
   },
   "escalation_rate": {
     "label": "Escalation Clause (%)",
@@ -349,7 +365,15 @@
     "section": "PAYMENT STRUCTURE",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 3,
+      "bbox_left": 0.36537,
+      "bbox_top": 0.13759,
+      "bbox_width": 0.192964,
+      "bbox_height": 0.013335,
+      "value_confidence": 1.0
+    }
   },
   "co_landlord": {
     "label": "Co-Landlord",
@@ -420,6 +444,14 @@
     "section": "OTHER",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 31,
+      "bbox_left": 0.362593,
+      "bbox_top": 0.247115,
+      "bbox_width": 0.405,
+      "bbox_height": 0.02039,
+      "value_confidence": 0.9
+    }
   }
 }
