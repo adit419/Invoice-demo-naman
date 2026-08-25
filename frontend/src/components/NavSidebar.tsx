@@ -426,6 +426,11 @@ const NAV_ICON: Record<string, React.ReactNode> = {
 const DIRECT_PAY_CHILDREN = [
   { label: "Invoices",  href: "/directpay/dashboard?tab=invoices",  dot: "#3b82f6" },
   { label: "Contracts", href: "/directpay/dashboard?tab=contracts", dot: "#8b5cf6" },
+  // Its own route rather than a third ?tab= on the dashboard: the Tracker lists
+  // finished invoices with a different column set, filters and export, and has
+  // no upload action — sharing the dashboard's page would mean branching almost
+  // all of it.
+  { label: "Tracker",   href: "/directpay/tracker",                 dot: "#10b981" },
 ];
 
 // Vendor Onboarding sub-sections
@@ -893,6 +898,11 @@ export function NavSidebar({ collapsed, onCollapse }: NavSidebarProps) {
                   {directPayOpen && !collapsed && (
                     <div style={{ marginLeft: 8, marginRight: 8, marginBottom: 4 }}>
                       {DIRECT_PAY_CHILDREN.map(child => {
+                        // The Tracker is its own route, not a dashboard tab, so it
+                        // matches on pathname alone — and while you're on it, neither
+                        // Invoices nor Contracts should look active.
+                        const isTrackerChild = child.href === "/directpay/tracker";
+                        const isOnTracker = router.pathname === "/directpay/tracker";
                         const childTab = child.href.endsWith("tab=contracts") ? "contracts" : "invoices";
                         const currentTab = typeof router.query.tab === "string" ? router.query.tab : "invoices";
                         // Being on any invoice/contract stage page (Extraction, Matching,
@@ -901,10 +911,13 @@ export function NavSidebar({ collapsed, onCollapse }: NavSidebarProps) {
                         const isOnDashboardTab = router.pathname === "/directpay/dashboard" && currentTab === childTab;
                         const isOnInvoiceStage = router.pathname.startsWith("/directpay/invoice/");
                         const isOnContractStage = router.pathname.startsWith("/directpay/contract/");
-                        const childActive =
-                          isOnDashboardTab ||
-                          (childTab === "invoices" && isOnInvoiceStage) ||
-                          (childTab === "contracts" && isOnContractStage);
+                        const childActive = isTrackerChild
+                          ? isOnTracker
+                          : !isOnTracker && (
+                              isOnDashboardTab ||
+                              (childTab === "invoices" && isOnInvoiceStage) ||
+                              (childTab === "contracts" && isOnContractStage)
+                            );
                         return (
                           <Link key={child.href} href={child.href}
                             style={{

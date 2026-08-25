@@ -40,6 +40,7 @@ from .models import (
     DpContractEditRequest,
     DpContractPostprocessingEditRequest,
     DpContractTriggerUploadRequest,
+    DpEscalateRequest,
     DpFpAcknowledgeRequest,
     DpFpApproveRequest,
     DpInvoiceConfirmExtractionRequest,
@@ -57,6 +58,7 @@ from .stp import (
     get_dp_total_before_vat_threshold,
     get_global_dp_stp,
     resume_dp_stp_if_enabled,
+    run_dp_stp_for_contract,
     run_dp_stp_for_invoice,
     set_dp_ack_threshold,
     set_dp_total_before_vat_threshold,
@@ -147,20 +149,30 @@ async def update_total_before_vat_threshold_setting(body: DpTotalBeforeVatThresh
 
 # ── Contracts ──────────────────────────────────────────────────────────────────
 
-async def _upload_contracts_by_filename(file_names: list[str]) -> list[dict]:
+async def _upload_contracts_by_filename(
+    file_names: list[str], email: str | None = None, tag: str | None = None, source: str = "manual",
+) -> list[dict]:
     """One contract run per file — each is resolved to its own fixture and
     extracted separately. Several contracts can be uploaded in one go (a vendor
     set is usually onboarded together), and unlike the invoice side there is no
-    dedupe: two files always mean two runs."""
+    dedupe: two files always mean two runs.
+
+    Kicks off Auto-Process per run when the DirectPay toggle is on, exactly as
+    _upload_invoice_by_filename does for invoices — the contract cascade is
+    ungated, so each of these ends up saved (see stp._cascade_dp_contract)."""
     db = get_db()
     results: list[dict] = []
     for name in file_names:
         try:
-            results.append(await service.upload_contract(db, name))
+            results.append(await service.upload_contract(db, name, email, tag, source))
         except service.NotFoundError as exc:
             # Only when NO scenarios are configured at all — a name that matches
             # nothing still resolves to some bundle (see DpFixtureLoader.resolve).
             _not_found(exc)
+    if await get_global_dp_stp(db):
+        from bson import ObjectId
+        for result in results:
+            asyncio.create_task(run_dp_stp_for_contract(ObjectId(result["id"])))
     return results
 
 
@@ -171,7 +183,7 @@ async def upload_contract(files: list[UploadFile] = File(..., alias="file")):
     names = [f.filename or "" for f in files if (f.filename or "").strip()]
     if not names:
         raise HTTPException(status_code=422, detail="At least one file is required")
-    return _envelope(data=_upload_payload(await _upload_contracts_by_filename(names)))
+    return _envelope(data=_upload_payload(await _upload_contracts_by_filename(names, source="manual")))
 
 
 # Mirrors /ingestion/trigger-upload on the invoice side: same effect as the
@@ -179,20 +191,15 @@ async def upload_contract(files: list[UploadFile] = File(..., alias="file")):
 # The FE uses this instead of the real upload when the file is large enough
 # that pushing its bytes through the dev proxy isn't worth it (fixture
 # resolution and the PDF preview both work off the file name alone anyway).
+#
+# Payload is identical to the invoice trigger below — one mandatory `file_names`
+# (a bare string or a list) plus optional `email`/`tag`. Shape validation lives
+# on the model (DpTriggerUploadBase), so both endpoints reject the same bad
+# requests with the same 422s rather than each re-checking by hand.
 @router.post("/contracts/trigger-upload")
 async def trigger_upload_contract(body: DpContractTriggerUploadRequest):
-    # Either a single file_name (unchanged) or a batch via file_names — same
-    # single-vs-many response shape the invoice endpoints use, so a client can
-    # normalise both with one `items` check.
-    if body.file_names is not None:
-        names = [n.strip() for n in body.file_names if n and n.strip()]
-        if not names:
-            raise HTTPException(status_code=422, detail="file_names must contain at least one non-empty file name")
-        return _envelope(data=_upload_payload(await _upload_contracts_by_filename(names)))
-
-    if not (body.file_name or "").strip():
-        raise HTTPException(status_code=422, detail="file_name or file_names is required")
-    return _envelope(data=_upload_payload(await _upload_contracts_by_filename([body.file_name.strip()])))
+    results = await _upload_contracts_by_filename(body.file_names, body.email, body.tag, source="trigger")
+    return _envelope(data=_upload_payload(results))
 
 
 @router.get("/contracts")
@@ -343,27 +350,27 @@ async def upload_invoice(file: UploadFile = File(...)):
 
 @router.post("/ingestion/trigger-upload")
 async def trigger_upload_invoice(body: DpTriggerUploadRequest):
-    if body.email and "@" not in body.email:
-        raise HTTPException(status_code=422, detail="Invalid notification email address")
-
-    if body.file_names is not None:
-        names = [n.strip() for n in body.file_names if n and n.strip()]
-        if not names:
-            raise HTTPException(status_code=422, detail="file_names must contain at least one non-empty file name")
-        seen: dict[str, dict] = {}
-        files: list[dict] = []
-        for name in names:
-            results = await _upload_invoice_by_filename(name, body.email, body.tag, source="trigger")
-            for result in results:
-                files.append({"file_name": name, "invoice_id": result.get("id")})
-                seen.setdefault(result["id"], result)
-        return _envelope(data={"items": list(seen.values()), "files": files})
-
-    if not (body.file_name or "").strip():
-        raise HTTPException(status_code=422, detail="file_name or file_names is required")
-    return _envelope(data=_upload_payload(
-        await _upload_invoice_by_filename(body.file_name.strip(), body.email, body.tag, source="trigger")
-    ))
+    # Payload identical to the contract trigger above; shape validation
+    # (non-empty names, well-formed email) lives on DpTriggerUploadBase.
+    #
+    # One name can still produce several runs (a combined multi-invoice PDF), and
+    # two names can collapse onto ONE run (an invoice and its own Faktur Pajak
+    # file) — so `items` is de-duplicated by run id while `files` keeps the
+    # per-name mapping a caller needs to know which of its files went where.
+    seen: dict[str, dict] = {}
+    files: list[dict] = []
+    for name in body.file_names:
+        results = await _upload_invoice_by_filename(name, body.email, body.tag, source="trigger")
+        for result in results:
+            files.append({"file_name": name, "invoice_id": result.get("id")})
+            seen.setdefault(result["id"], result)
+    runs = list(seen.values())
+    # A single resulting run keeps the bare-run response shape both upload
+    # endpoints have always used; several return {"items": [...]}.
+    payload = _upload_payload(runs)
+    if isinstance(payload, dict) and "items" in payload:
+        payload["files"] = files
+    return _envelope(data=payload)
 
 
 @router.get("/invoices")
@@ -593,6 +600,20 @@ async def acknowledge_finding(body: DpAcknowledgeRequest):
     return _envelope(data={"ok": True, "acknowledged_findings": acked})
 
 
+@router.post("/invoices/{run_id}/escalate")
+async def escalate_invoice(run_id: str, body: DpEscalateRequest | None = None):
+    """Matching-stage Escalate. Mails the trigger-upload payload address; when the
+    invoice has none, sends nothing and says so, and the UI keeps its existing
+    local confirmation."""
+    db = get_db()
+    try:
+        return _envelope(data=await service.escalate_invoice(
+            db, _oid(run_id, "invoice ID"), body.note if body else None,
+        ))
+    except service.NotFoundError as exc:
+        _not_found(exc)
+
+
 @router.post("/validate/review-action")
 async def review_action(body: DpReviewActionRequest):
     db = get_db()
@@ -650,6 +671,18 @@ async def post_bill(run_id: str):
         _not_found(exc)
     except service.InvalidStateError as exc:
         raise HTTPException(status_code=400, detail=exc.message)
+
+
+# ── Tracker ───────────────────────────────────────────────────────────────────
+# Every invoice that has finished processing (posted or rejected), with the same
+# figures its own Bill Posting page shows. Read-only; the FE does all filtering,
+# sorting and CSV export over this one payload, exactly as the dashboard already
+# does over /invoices — DirectPay has no server-side query layer to add to, and
+# a fixture-driven demo's row count never justifies inventing one.
+@router.get("/tracker")
+async def list_tracker():
+    db = get_db()
+    return _envelope(data={"items": await service.list_tracker(db)})
 
 
 @router.post("/invoices/{run_id}/bill-posting/simulate")

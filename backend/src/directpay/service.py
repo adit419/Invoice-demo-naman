@@ -205,6 +205,16 @@ def contract_out(doc: dict) -> dict:
         # Postprocessing (edit_contract_extraction_postprocessing), since both
         # append to this same doc-level edit_history array.
         "has_edit_history": bool(doc.get("edit_history")),
+        # Auto-Process progress for this contract — "processing" while the
+        # cascade is driving it, then "done". Mirrors the invoice side's own
+        # stp_state so the dashboard row can report it the same way.
+        "stp_state": doc.get("stp_state"),
+        "stp_failure_reason": doc.get("stp_failure_reason"),
+        # "manual" (real multipart upload) vs "trigger" (/contracts/trigger-upload)
+        # — same distinction and naming the invoice side records.
+        "source": doc.get("source"),
+        "tag": doc.get("tag"),
+        "notify_email": doc.get("notify_email"),
         "pdf_url": f"/dp-api/contracts/{doc['_id']}/pdf",
         "created_at": doc.get("created_at"),
         "updated_at": doc.get("updated_at"),
@@ -1111,6 +1121,10 @@ async def invoice_out(db, doc: dict) -> dict:
         "notify_email": (doc.get("source_meta") or {}).get("sender"),
         "stp_state": doc.get("stp_state"),
         "stp_failure_reason": doc.get("stp_failure_reason"),
+        # Emails actually sent about this invoice — kind/stage/recipient/thread.
+        # Exposed so the notification history is observable (and testable)
+        # rather than write-only; see _dp_notify.
+        "notifications": doc.get("notifications") or [],
         "review": doc.get("review"),
         "pdf_url": f"/dp-api/invoices/{doc['_id']}/pdf",
         "created_at": doc.get("created_at"),
@@ -1146,7 +1160,9 @@ def has_open_issues(findings: list[dict], acknowledged: list[str], system_acknow
 
 # ── Contracts ──────────────────────────────────────────────────────────────────
 
-async def upload_contract(db, filename: str) -> dict:
+async def upload_contract(
+    db, filename: str, email: Optional[str] = None, tag: Optional[str] = None, source: str = "manual"
+) -> dict:
     bundle = get_dp_loader().resolve(filename or "")
     if bundle is None:
         raise NotFoundError("No DirectPay fixture scenarios configured")
@@ -1156,6 +1172,12 @@ async def upload_contract(db, filename: str) -> dict:
         "fixture_key": bundle.key,
         "file_name": filename,
         "status": "review",
+        # Same provenance/notification metadata the invoice side records, so both
+        # trigger-upload endpoints accept and store the same payload (see
+        # DpTriggerUploadRequest).
+        "source": source,
+        "notify_email": email,
+        "tag": tag,
         "base_fields": bundle.contract_extraction,
         "edited_fields": None,
         # Per-row edits to the Extraction Postprocessing stage's derived
@@ -2091,9 +2113,13 @@ async def review_action(db, oid: ObjectId, action: str, reason: Optional[str]) -
 # pattern) but the "Post to ERP" side effect is entirely mocked — DirectPay
 # never calls a real Zoho/QuickBooks Desktop API.
 
-def _bill_posting_out(doc: dict, contract_doc: Optional[dict] = None) -> dict:
+def _bill_posting_out(doc: dict, contract_doc: Optional[dict] = None, bundles: Optional[dict] = None) -> dict:
+    """`bundles` lets a caller listing MANY runs resolve the fixture set once and
+    pass it in — discover() re-reads the whole fixtures directory from disk on
+    every call, so per-row resolution is a per-row disk scan (see list_tracker).
+    Omit it and this resolves its own, exactly as before."""
     extracted = _strip_na(_merge(doc.get("base_extracted") or {}, doc.get("edited_extracted")))
-    bundle = get_dp_loader().discover().get(doc["fixture_key"])
+    bundle = (bundles if bundles is not None else get_dp_loader().discover()).get(doc["fixture_key"])
     defaults = (bundle.bill_posting if bundle else {}) or {}
     default_items = defaults.get("line_items") or []
     overrides = doc.get("bill_posting_overrides") or {}
@@ -2468,71 +2494,307 @@ async def post_bill(db, oid: ObjectId) -> dict:
         {"$set": {"status": "posted", "erp": erp, "review": review, "updated_at": now}},
     )
     result = await get_bill_posting(db, oid)
-    await _notify_dp_bill_posted(db, doc, erp)
+    await _notify_dp_bill_posted(db, oid, doc, erp)
     return result
 
 
-async def _resolve_dp_notification_email(db, doc: dict, extracted: dict) -> Optional[str]:
-    """Three equivalent ways to land on "the vendor's email", in order of
-    how explicit/authoritative they are:
-      1. Explicitly given at upload time (/ingestion/trigger-upload's
-         `email` field) — an operator said "notify this address", so it wins.
-      2. The vendor's own email as extracted from the invoice itself.
-      3. The vendor's own email as extracted from the matched contract —
-         falls back here only if the invoice's own extraction didn't have it.
+def _dp_notification_email(doc: dict) -> Optional[str]:
+    """The ONE address DirectPay may ever email: the `email` given in the
+    /ingestion/trigger-upload payload (stored as source_meta.sender).
+
+    There is deliberately NO fallback. This used to try the invoice's, then the
+    matched contract's, extracted `vendor_email` — but those are real addresses
+    lifted off the source documents (corporatesecretary@bangunerasejahtera.com,
+    rosauli.lumbantobing@sinarmasland.com, deborawage.perindo@gmail.com), so a
+    manual upload with no payload email could mail an outside company from
+    sales@neoflo.ai. The payload address belongs to the customer's own AP user,
+    who asked to be notified; nobody else has.
+
+    None means "send nothing" — never "find someone else to tell".
     """
-    explicit = (doc.get("source_meta") or {}).get("sender")
-    if explicit:
-        return explicit
-    extracted = _strip_na(extracted)
-    if extracted.get("vendor_email"):
-        return extracted["vendor_email"]
-    contract_id = doc.get("contract_id")
-    if contract_id:
-        contract_doc = await dp_contract_runs(db).find_one({"_id": contract_id})
-        if contract_doc:
-            contract_fields = _strip_na(_merge(contract_doc.get("base_fields") or {}, contract_doc.get("edited_fields")))
-            if contract_fields.get("vendor_email"):
-                return contract_fields["vendor_email"]
-    return None
+    return (doc.get("source_meta") or {}).get("sender") or None
 
 
-async def _notify_dp_bill_posted(db, doc: dict, erp: dict) -> None:
-    """Mirrors P2P's own post_bill_to_erp notification (see
-    backend/src/api/v1/bill_posting.py): fire-and-forget an email once
-    bill-posting completes. Unlike P2P (whose only source is the upload-time
-    sender address), DirectPay also has a real vendor email available from
-    extraction — see _resolve_dp_notification_email for the full priority
-    order. Any Gmail/config failure is caught and logged, never surfaced to
-    the caller, since a mocked ERP-post should still succeed."""
-    extracted = _merge(doc.get("base_extracted") or {}, doc.get("edited_extracted"))
-    recipient = await _resolve_dp_notification_email(db, doc, extracted)
+async def _dp_notify(db, oid: ObjectId, doc: dict, kind: str, stage: str, subject: str, html: str) -> bool:
+    """Send one notification about one invoice, at most once per (kind, stage).
+
+    Four rules live here so no caller has to remember them:
+
+    1. NO recipient, NO email. _dp_notification_email returns the trigger-upload
+       payload address or nothing at all (see its docstring) — a manually
+       uploaded invoice therefore never mails anyone.
+    2. Idempotent per (kind, stage). The Auto-Process cascade is re-entrant
+       (resume_dp_stp_if_enabled re-runs it whenever a human clears a hold), so a
+       naive send would re-mail the same hold on every resume.
+    3. Threaded. Every later notification about the same invoice continues the
+       first one's Gmail thread, so the recipient reads one conversation per
+       invoice rather than a scatter of unrelated mails. Gmail wants the original
+       threadId AND a matching subject, so follow-ups reuse the first subject
+       with an "Re:" prefix and pass In-Reply-To.
+    4. Never fatal. A mail failure is logged and swallowed — posting a bill or
+       holding a cascade must not depend on Gmail being reachable.
+    """
+    recipient = _dp_notification_email(doc)
     if not recipient:
-        return
+        return False
+
+    sent = doc.get("notifications") or []
+    # At most one notification per (kind, stage) — for every kind, including a
+    # human-initiated escalation. The cascade is re-entrant
+    # (resume_dp_stp_if_enabled re-runs it whenever a human clears a hold), so
+    # without this the same hold would re-mail on every resume.
+    if any(n.get("kind") == kind and n.get("stage") == stage for n in sent):
+        return False
+
+    first = sent[0] if sent else None
+    thread_id = first.get("thread_id") if first else None
+    in_reply_to = next(
+        (n.get("message_id_header") for n in reversed(sent) if n.get("message_id_header")), None
+    )
+    if first and first.get("subject"):
+        base = first["subject"]
+        subject = base if base.lower().startswith("re:") else f"Re: {base}"
+
+    import logging
     try:
         from ..services import gmail_client
-        from ..services.email_templates import directpay_posted_html
-
-        currency = extracted.get("currency") or ""
-        total = extracted.get("total_amount")
-        total_fmt = f"{float(total):,.2f}" if total is not None else "NA"
-        html = directpay_posted_html(
-            invoice_number=erp["bill_number"],
-            vendor_name=extracted.get("vendor_name") or "",
-            currency=currency,
-            total_amount=total_fmt,
-            posted_date=erp["posted_at"].strftime("%d %b %Y"),
-        )
-        await gmail_client.send_html_email(
-            to=recipient,
-            subject=f"Invoice {erp['bill_number']} Posted Successfully",
-            html_body=html,
+        result = await gmail_client.send_html_email(
+            to=recipient, subject=subject, html_body=html,
+            thread_id=thread_id, in_reply_to=in_reply_to,
         )
     except Exception:
-        import logging
         logging.getLogger(__name__).exception(
-            "DirectPay bill posting notification email failed to %s", recipient
+            "DirectPay %s notification failed to %s for invoice %s", kind, recipient, oid
         )
+        return False
+
+    await dp_invoice_runs(db).update_one(
+        {"_id": oid},
+        {"$push": {"notifications": {
+            "kind": kind,
+            "stage": stage,
+            "to": recipient,
+            "subject": subject,
+            "message_id": result.get("id"),
+            "thread_id": result.get("threadId"),
+            "message_id_header": result.get("messageIdHeader"),
+            "sent_at": _now(),
+        }}},
+    )
+    logging.getLogger(__name__).info(
+        "DirectPay %s notification sent to %s for invoice %s (thread %s)",
+        kind, recipient, oid, result.get("threadId"),
+    )
+    return True
+
+
+async def _notify_dp_bill_posted(db, oid: ObjectId, doc: dict, erp: dict) -> None:
+    """Complete & valid: the invoice cleared every check and was posted.
+
+    The scheduled payment date is the invoice's OWN printed due date. Where the
+    document states none it stays absent rather than being computed from a
+    payment term — `payment_terms` is the literal "NA" on 19 of 20 fixture
+    invoices, so there is nothing to compute from, and a made-up date on a
+    payment notification is worse than no date."""
+    extracted = _strip_na(_merge(doc.get("base_extracted") or {}, doc.get("edited_extracted")))
+    if not _dp_notification_email(doc):
+        return
+    from ..services.email_templates import directpay_payment_scheduled_html
+
+    contract_doc = await _fetch_matched_contract_doc(db, doc)
+    bp = _bill_posting_out(doc, contract_doc)
+    payable = bp.get("payable_amount")
+    html = directpay_payment_scheduled_html(
+        invoice_number=erp["bill_number"],
+        vendor_name=extracted.get("vendor_name") or "",
+        currency=bp.get("currency") or "",
+        payable_amount=f"{float(payable):,.2f}" if payable is not None else "NA",
+        posted_date=erp["posted_at"].strftime("%d %b %Y"),
+        scheduled_payment_date=_dp_display_date(extracted.get("due_date")),
+    )
+    await _dp_notify(
+        db, oid, doc, kind="posted", stage="bill_posting",
+        subject=f"Invoice {erp['bill_number']} posted — payment scheduled",
+        html=html,
+    )
+
+
+# What each Auto-Process hold means, in words the recipient can act on. Keys are
+# stp._cascade_dp_invoice's own reasons — keep in step with it.
+_DP_HOLD_COPY: dict[str, tuple[str, str]] = {
+    "faktur_pajak_mismatch": (
+        "Faktur Pajak",
+        "A required Faktur Pajak field does not match the invoice and needs to be acknowledged.",
+    ),
+    "no_contract_matched": (
+        "Contract Matching",
+        "No saved contract could be matched to this invoice with enough confidence. "
+        "Upload the contract, or pick one manually.",
+    ),
+    "matching_open_issues": (
+        "Matching",
+        "One or more mandatory fields do not match the contract and need to be resolved or acknowledged.",
+    ),
+    "tax_code_invalid": (
+        "Bill Posting",
+        "The VAT/WHT tax codes selected for this invoice don't apply to this vendor.",
+    ),
+    "extraction_failed": ("Extraction", "Automated extraction could not complete for this invoice."),
+    "incomplete": ("Processing", "Automated processing could not complete this invoice."),
+}
+
+
+async def notify_dp_auto_process_hold(db, oid: ObjectId, reason: str) -> None:
+    """Incomplete / mismatched: Auto-Process stopped and a person is needed.
+
+    Lists exactly the items that require a human ACKNOWLEDGEMENT — which is why
+    `system_acknowledged` is filtered out. Those were auto-approved by the
+    learned-ack memory (the DP Acknowledge Threshold), so nobody needs telling
+    about a check the system already cleared itself.
+
+    The two blocking predicates below deliberately mirror the ones that actually
+    gate approval — has_open_issues for Matching, approve_faktur_pajak's own
+    `blocking` list for Faktur Pajak — so this email can never name something
+    that wouldn't have stopped the cascade, or stay silent about something that
+    did.
+    """
+    doc = await get_invoice_doc(db, oid)
+    if not _dp_notification_email(doc):
+        return
+
+    extracted = _strip_na(_merge(doc.get("base_extracted") or {}, doc.get("edited_extracted")))
+    stage_label, reason_label = _DP_HOLD_COPY.get(reason, ("Processing", "This invoice needs review."))
+    discrepancies: list[dict] = []
+
+    if reason == "faktur_pajak_mismatch":
+        try:
+            fp = await get_faktur_pajak(db, oid)
+        except (NotFoundError, InvalidStateError):
+            fp = None
+        for f in ((fp or {}).get("fields") or []):
+            if (
+                f.get("required") and f.get("match_status") == "mismatch"
+                and not f.get("acknowledged") and not f.get("system_acknowledged")
+                and f.get("invoice_value") not in (None, "")
+            ):
+                discrepancies.append({
+                    "label": f.get("display_name") or f.get("field_name"),
+                    "found": f.get("invoice_value"),
+                    "expected": f.get("fp_value"),
+                })
+    elif reason == "matching_open_issues":
+        findings = _refresh_findings_from_extracted((doc.get("match_result") or {}).get("findings") or [], extracted)
+        findings = await _apply_mandatory_field_coverage(db, doc, findings, extracted)
+        system_acked = await _apply_dp_ack_memory(db, findings, extracted)
+        handled = set(doc.get("acknowledged_findings") or []) | set(system_acked)
+        for f in findings:
+            if not f.get("mandatory") or f.get("finding_id") in handled:
+                continue
+            if f.get("satisfied") or _is_finding_resolved(f, extracted):
+                continue
+            discrepancies.append({
+                "label": f.get("title") or f.get("field"),
+                "found": f.get("found"),
+                "expected": f.get("expected"),
+                **({"note": f["escalation_note"]} if f.get("escalation_note") else {}),
+            })
+
+    from ..services.email_templates import directpay_action_required_html
+    html = directpay_action_required_html(
+        invoice_number=extracted.get("invoice_number") or doc.get("file_name") or "—",
+        vendor_name=extracted.get("vendor_name") or "—",
+        stage_label=stage_label,
+        reason_label=reason_label,
+        discrepancies=discrepancies,
+    )
+    await _dp_notify(
+        db, oid, doc, kind="action_required", stage=reason,
+        subject=f"Action required: {extracted.get('invoice_number') or doc.get('file_name') or 'invoice'} — {stage_label}",
+        html=html,
+    )
+
+
+async def escalate_invoice(db, oid: ObjectId, note: Optional[str] = None) -> dict:
+    """The Matching-stage Escalate action, for real.
+
+    Composed entirely server-side from the run. The modal shows the reviewer the
+    same content, but its version is NOT what gets sent: this endpoint mails as
+    sales@neoflo.ai, and accepting a browser-supplied body would let any session
+    send arbitrary email from that address. `note` — the reviewer's own words —
+    is the only caller-supplied part, and it's rendered as a quoted block.
+
+    Returns {"sent", "to", "reason"}. Three ways `sent` can be false, and the UI
+    must tell them apart — reporting any of them as a success, or as each other,
+    misleads the reviewer:
+        no_payload_email   nothing to send to; the UI keeps its local confirmation
+        already_escalated  this invoice was escalated before; one is the limit
+        send_failed        we tried and Gmail refused
+    """
+    doc = await get_invoice_doc(db, oid)
+    recipient = _dp_notification_email(doc)
+    if not recipient:
+        return {"sent": False, "to": None, "reason": "no_payload_email"}
+
+    # One escalation per invoice. Escalating is a hand-off — the invoice is now
+    # awaiting someone else's decision — so a second one adds nothing and just
+    # re-mails the same request. The UI disables the button off this same record,
+    # and this is the authoritative check behind it.
+    if any(n.get("kind") == "escalation" for n in (doc.get("notifications") or [])):
+        return {"sent": False, "to": recipient, "reason": "already_escalated"}
+
+    extracted = _strip_na(_merge(doc.get("base_extracted") or {}, doc.get("edited_extracted")))
+    findings = _refresh_findings_from_extracted((doc.get("match_result") or {}).get("findings") or [], extracted)
+    findings = await _apply_mandatory_field_coverage(db, doc, findings, extracted)
+    # The same finding the Escalate button is offered for — match.tsx opens the
+    # modal off this one (see its totalBeforeVatFinding).
+    finding = next((f for f in findings if f.get("field") == "total_amount_before_vat"), None)
+
+    # Local import: stp.py imports this module, so a top-level import here would
+    # be circular.
+    from .stp import get_dp_total_before_vat_threshold
+    threshold = await get_dp_total_before_vat_threshold(db)
+
+    from ..services.email_templates import directpay_escalation_html
+    invoice_number = extracted.get("invoice_number") or doc.get("file_name") or "—"
+    html = directpay_escalation_html(
+        invoice_number=invoice_number,
+        vendor_name=extracted.get("vendor_name") or "—",
+        invoice_amount=str((finding or {}).get("found") or "—"),
+        reference_amount=str((finding or {}).get("expected") or "—"),
+        reference_label=(
+            "Supporting document" if (finding or {}).get("expected_source") == "supporting_document"
+            else "Revenue share" if (finding or {}).get("expected_source") == "revenue_share"
+            else "Contract"
+        ),
+        tolerance=(
+            f"{threshold['threshold_pct']}%" if threshold["enabled"]
+            else "disabled — exact match required"
+        ),
+        reason=(finding or {}).get("detail") or "Total Amount Before VAT does not satisfy the configured tolerance.",
+        notes=[(finding or {}).get("escalation_note")] if (finding or {}).get("escalation_note") else [],
+        reviewer_note=(note or "").strip() or None,
+    )
+    sent = await _dp_notify(
+        db, oid, doc, kind="escalation", stage="matching",
+        subject=f"Escalation: {invoice_number} — Total Amount Before VAT outside tolerance",
+        html=html,
+    )
+    # "no recipient" and "we tried and it failed" must not look the same to the
+    # UI — one is a legitimate no-op, the other is a problem the reviewer needs to
+    # know about, and reporting a failure as a quiet success is worse than either.
+    if sent:
+        return {"sent": True, "to": recipient}
+    return {"sent": False, "to": recipient, "reason": "send_failed"}
+
+
+def _dp_display_date(value) -> Optional[str]:
+    """A printed date as the emails should show it: the document's own wording
+    when it isn't parseable ("30 Juli 2026"), a tidied form when it is, and None
+    for "NA"/absent so callers can omit the line entirely."""
+    if not value or str(value).strip().upper() == "NA":
+        return None
+    parsed = _parse_loose_date(value)
+    return parsed.strftime("%d %b %Y") if parsed else str(value).strip()
 
 
 # ── Simulate (debit/credit journal preview) ───────────────────────────────────
@@ -2780,6 +3042,182 @@ async def simulate_bill_posting(db, oid: ObjectId, pending_line_items: Optional[
             message = f"Simulation failed — {tax_error}"
 
     return {"status": status, "message": message, "document": document}
+
+
+# ── Tracker ────────────────────────────────────────────────────────────────────
+# A read-only, centralized view of every invoice that has FINISHED processing —
+# the same two terminal outcomes the dashboard's own Closed tab uses
+# (dashboard.tsx's INVOICE_CLOSED_STATUSES). Nothing here computes anything of
+# its own: every money figure is taken from _bill_posting_out, so a tracker row
+# and that invoice's own Bill Posting page can never disagree about Taxable /
+# VAT / WHT / Payable. That matters because those four are NOT simply
+# extraction fields — WHT and Payable both fold in the matched installment, the
+# RATNA_INTAN schedule substitution and the reviewer's own WHT-code selection
+# (see _bill_posting_out's own notes), so reading them off `extracted` here
+# would quietly print different numbers than the posting screen did.
+
+# EVERY invoice, at every stage — a live view of the pipeline, not a ledger of
+# finished work. A row exists from the moment of upload and fills in as the
+# invoice moves; it was previously filtered to ("posted", "rejected"), which made
+# an invoice invisible for its entire working life.
+#
+# Two consequences of that widening, both handled below:
+#   - most rows now have NO extracted data yet, so the money guard that used to
+#     matter only for the rare pre-extraction rejection is now the common path;
+#   - a run can sit at any status, including `rejected` from a stage that never
+#     extracted anything (review_action's reject has no stage gate).
+
+
+def _tracker_iso_date(value) -> Optional[str]:
+    """A sortable/filterable ISO form of one of these fixtures' printed dates.
+
+    The Tracker's date-range filters and date sorting can't work off the printed
+    strings: the same column legitimately holds "2026-07-01", "25 June 2026" and
+    "30 Juli 2026" (Indonesian), which neither sort nor compare correctly as
+    text. So each date column is sent twice — the verbatim string for display,
+    this normalized form for the filtering.
+
+    _parse_loose_date is the authority (it is what Matching itself compares
+    dates with), extended here only by an abbreviated-month fallback for the one
+    shape it doesn't cover ("9 Jul 2026" — _MONTH_NAMES holds full names only).
+    That fallback lives here rather than in _MONTH_NAMES deliberately: widening
+    the shared map would make dates parseable that Matching currently treats as
+    unparseable, which can change an installment tie-break (see
+    _due_date_tiebreak). Display and matching stay exactly as they are; only the
+    tracker's own filtering gets the extra tolerance.
+    """
+    parsed = _parse_loose_date(value)
+    if parsed:
+        return parsed.date().isoformat()
+    if not isinstance(value, str):
+        return None
+    parts = value.strip().replace("-", " ").replace("/", " ").split()
+    if len(parts) != 3:
+        return None
+    day, month, year = parts
+    prefix = month.lower()[:3]
+    num = next((n for name, n in _MONTH_NAMES.items() if name.startswith(prefix)), None)
+    if not num or not day.isdigit() or not year.isdigit():
+        return None
+    try:
+        return datetime(int(year), num, int(day)).date().isoformat()
+    except ValueError:
+        return None
+
+
+async def list_tracker(db) -> list[dict]:
+    cursor = dp_invoice_runs(db).find({}).sort("created_at", -1)
+    docs = await cursor.to_list(length=500)
+
+    # Resolve the fixture set ONCE for the whole listing. _bill_posting_out
+    # otherwise calls get_dp_loader().discover() per row, and discover()
+    # re-reads every fixture JSON off disk on each call (deliberately — it's what
+    # makes live fixture edits work). At two statuses that was ~11 directory
+    # walks per request; across the whole pipeline, polled every few seconds,
+    # it's the difference between one scan and hundreds.
+    bundles = get_dp_loader().discover()
+
+    rows = []
+    for doc in docs:
+        contract_doc = await _fetch_matched_contract_doc(db, doc)
+        bp = _bill_posting_out(doc, contract_doc, bundles)
+        extracted = _strip_na(_merge(doc.get("base_extracted") or {}, doc.get("edited_extracted")))
+        review = doc.get("review") or {}
+        erp = doc.get("erp") or {}
+        contract_fields = (
+            _strip_na(_merge(contract_doc.get("base_fields") or {}, contract_doc.get("edited_fields")))
+            if contract_doc else {}
+        )
+        posted_at = erp.get("posted_at")
+        # An invoice rejected BEFORE extraction ran has no extracted data at all
+        # (base_extracted is None until extract_invoice writes it). _bill_posting_out
+        # still answers with figures in that case, because its payable/WHT fallbacks
+        # reach into the matched contract's payment schedule — which for such a run
+        # would print a schedule row's amount as though it were this invoice's own.
+        # Bill Posting never hits that path (it refuses any run before the
+        # bill_posting stage); the Tracker has to include the run, so it blanks the
+        # money columns instead. A tracker row must never show a figure the invoice
+        # itself never stated.
+        has_extraction = bool(doc.get("base_extracted"))
+        money = (lambda v: v if has_extraction else None)
+        rows.append({
+            "id": str(doc["_id"]),
+            "file_name": doc.get("file_name"),
+            "status": doc.get("status"),
+            # Routing back to this invoice's own processing record is the
+            # frontend's job (utils/directpayRoutes.ts), and its rule needs just
+            # this one beyond `status` — see invoiceRoute's own note on why
+            # "extracted" alone can't tell a pre- from a post-confirm run. It
+            # ALSO disambiguates the Status column: the pipeline parks three
+            # different moments on "extracted" (freshly extracted, confirmed,
+            # and post-Faktur-Pajak), so the label depends on this flag.
+            #
+            # A `has_faktur_pajak` key used to sit here reading
+            # doc.get("has_faktur_pajak") — but nothing ever writes that key onto
+            # an invoice doc (invoice_out COMPUTES it from the fixture bundle
+            # instead), so it was always False. Dropped rather than fixed: it had
+            # no consumer, and the comment claiming invoiceRoute needed it was
+            # wrong — invoiceRoute reads only id/status/extraction_confirmed.
+            "extraction_confirmed": bool(doc.get("extraction_confirmed")),
+            # Auto-Process progress, so an in-flight row reads as moving rather
+            # than stuck, and a held one can say what it's waiting on.
+            "stp_state": doc.get("stp_state"),
+            "stp_failure_reason": doc.get("stp_failure_reason"),
+            # Provenance — the only other thing a brand-new row knows about
+            # itself besides its file name.
+            "source": doc.get("source") or "manual",
+            # Whether extraction has produced ANY data for this run. Drives the
+            # UI's "not known yet" (—) treatment, which has to stay distinct from
+            # "NA" ("the document genuinely doesn't state this"). The frontend
+            # can't infer this from nulls: a completed invoice legitimately has
+            # null columns too (DEBORA states no due date).
+            "has_extraction": has_extraction,
+
+            # Already a real ISO timestamp (it's the run's own created_at), so
+            # unlike the two printed dates below it needs no normalized twin.
+            "invoice_received_date": bp.get("invoice_received_date"),
+            "vendor_name": bp.get("vendor_name"),
+            "invoice_number": bp.get("invoice_number"),
+            "invoice_date": bp.get("invoice_date"),
+            "invoice_date_iso": _tracker_iso_date(bp.get("invoice_date")),
+            # Invoice-LEVEL description (one of the source schema's metadata
+            # fields), not a line item's own item_description. Falls back to the
+            # first line item's label so a tracker row is never blank for a
+            # vendor whose invoice states no metadata description.
+            "description": extracted.get("description") or _first_line_item_label(extracted),
+            "currency": money(bp.get("currency")),
+            "taxable_amount": money(bp.get("subtotal")),
+            "vat_amount": money(bp.get("tax_amount")),
+            # Null rather than 0 when withholding doesn't apply at all, so the
+            # column can honestly read "NA" ("if applicable") instead of
+            # implying a real zero-rupiah withholding.
+            "wht_amount": money(bp.get("wht_amount")) if bp.get("wht_applicable") else None,
+            "wht_applicable": has_extraction and bool(bp.get("wht_applicable")),
+            "payable_amount": money(bp.get("payable_amount")),
+            "payment_due_date": bp.get("payment_due_date"),
+            "payment_due_date_iso": _tracker_iso_date(bp.get("payment_due_date")),
+            "bank_account_name": bp.get("bank_account_name"),
+            "bank_account_number": bp.get("bank_account_number"),
+
+            "contract_id": bp.get("contract_id"),
+            # What the Contract filter groups on — the contract's OWN vendor
+            # name, which is the same label the dashboard's "Matched Contract"
+            # column shows. Falls back to the file name for a contract whose
+            # extraction has no vendor name.
+            "contract_name": contract_fields.get("vendor_name") or (contract_doc or {}).get("file_name"),
+            "erp_bill_number": erp.get("bill_number"),
+            "posted_at": posted_at.isoformat() if hasattr(posted_at, "isoformat") else posted_at,
+            "rejection_reason": review.get("reason") if doc.get("status") == "rejected" else None,
+            "updated_at": doc.get("updated_at"),
+        })
+    return rows
+
+
+def _first_line_item_label(extracted: dict) -> Optional[str]:
+    for item in (extracted.get("line_items") or []):
+        if item.get("label"):
+            return item["label"]
+    return None
 
 
 # ── Acknowledge-Threshold learned memory (DirectPay-scoped) ──────────────────
