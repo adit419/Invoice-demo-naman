@@ -533,10 +533,13 @@ export interface DpEditHistoryItem {
   new_value: string | null;
 }
 
-// Next.js dev's proxy for the /dp-api/* rewrite caps request bodies at
-// ~10MB (see next.config.ts's rewrites() comment) — kept a couple MB under
-// that as margin for multipart overhead.
-const LARGE_FILE_THRESHOLD_BYTES = 8 * 1024 * 1024;
+// Same file, name only. Every upload endpoint resolves the fixture from
+// `file.filename` and never reads the bytes, so there is nothing to gain from
+// sending them — and sending only the name keeps every request under the dev
+// proxy's ~10MB body cap, whatever the file's real size.
+function nameOnly(f: File): File {
+  return new File([], f.name, { type: f.type });
+}
 
 export const directpayService = {
   fixtures: () => api.get<{ scenarios: DpFixtureChip[] }>("/dp-api/fixtures"),
@@ -562,20 +565,12 @@ export const directpayService = {
   uploadContract: async (files: File | File[], opts?: { email?: string; tag?: string }): Promise<DpContractRun[]> => {
     type Result = DpContractRun | { items: DpContractRun[] };
     const list = Array.isArray(files) ? files : [files];
-    // Route exactly as uploadInvoice does, and for the same reason: a file the
-    // user picked from disk goes up as a REAL multipart upload, so the run is
-    // recorded with source "manual"; only an oversized file (or a simulated
-    // ingestion, which carries email/tag) falls back to the trigger endpoint.
-    //
-    // This used to post everything to trigger-upload, which meant every contract
-    // — including hand-picked ones — was stored as source "trigger". The
-    // dashboard's manual-vs-email source icon could therefore never show
-    // "manual" for a contract, and Auto-Process/notification behaviour keyed off
-    // the same field saw an email ingestion where there was none.
-    const simulated = Boolean(opts?.email || opts?.tag);
-    const oversized = list.some((f) => f.size > LARGE_FILE_THRESHOLD_BYTES);
+    // A file the user picked goes to the manual endpoint (source "manual", the
+    // upload icon); only a simulated ingestion, which carries email/tag, uses
+    // trigger-upload (source "trigger", the email icon). This used to post
+    // everything to trigger-upload, so every contract showed the email icon.
     let res: Result;
-    if (simulated || oversized) {
+    if (opts?.email || opts?.tag) {
       // `file_names` mandatory (one name or many), `email` and `tag` optional —
       // the same payload the invoice trigger takes.
       res = await api.post<Result>("/dp-api/contracts/trigger-upload", {
@@ -585,10 +580,9 @@ export const directpayService = {
       });
     } else {
       // Repeat the `file` field per file — what the backend's
-      // `files: list[UploadFile] = File(..., alias="file")` expects, and what a
-      // plain multi-select <input> would send anyway.
+      // `files: list[UploadFile] = File(..., alias="file")` expects.
       const fd = new FormData();
-      for (const f of list) fd.append("file", f);
+      for (const f of list) fd.append("file", nameOnly(f));
       res = await api.postForm<Result>("/dp-api/contracts/upload", fd);
     }
     const items = (res as { items?: DpContractRun[] }).items;
@@ -622,17 +616,13 @@ export const directpayService = {
    */
   uploadInvoice: async (file: File): Promise<DpInvoiceRun[]> => {
     type UploadResult = DpInvoiceRun | { items: DpInvoiceRun[] };
-    let res: UploadResult;
-    if (file.size > LARGE_FILE_THRESHOLD_BYTES) {
-      // Unified trigger payload: `file_names` is the one mandatory field on BOTH
-      // trigger endpoints and takes a single name or many (see the backend's
-      // DpTriggerUploadBase). There is no `file_name` variant any more.
-      res = await api.post<UploadResult>("/dp-api/ingestion/trigger-upload", { file_names: [file.name] });
-    } else {
-      const fd = new FormData();
-      fd.append("file", file);
-      res = await api.postForm<UploadResult>("/dp-api/invoices/upload", fd);
-    }
+    // Always the manual endpoint: this is a file the user picked, so it must be
+    // recorded as source "manual" and show the upload icon. Size no longer
+    // diverts it to trigger-upload (which would stamp it "trigger" and show the
+    // email icon) — nameOnly keeps the request small instead.
+    const fd = new FormData();
+    fd.append("file", nameOnly(file));
+    const res = await api.postForm<UploadResult>("/dp-api/invoices/upload", fd);
     const items = (res as { items?: DpInvoiceRun[] }).items;
     return Array.isArray(items) ? items : [res as DpInvoiceRun];
   },
