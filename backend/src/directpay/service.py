@@ -1886,6 +1886,11 @@ async def confirm_extraction(db, oid: ObjectId, extracted_patch: Optional[dict],
         if has_fp:
             await dp_invoice_runs(db).update_one({"_id": oid}, {"$set": {"status": "fp_extraction", "updated_at": _now()}})
             doc["status"] = "fp_extraction"
+            # Notification, Faktur Pajak stage — on ENTERING it, so the requester
+            # hears about an FP mismatch at the point it arises rather than only
+            # if Auto-Process happens to be on. Silent when the FP matches
+            # cleanly, which is the common case.
+            await _notify_if_action_required(db, oid, "faktur_pajak_mismatch")
 
     # Drive upload, trigger 1 of 2: an invoice with NO Faktur Pajak stage has all
     # its data settled the moment extraction is confirmed, so its documents go up
@@ -2208,7 +2213,37 @@ async def match_invoice(db, oid: ObjectId, contract_oid: ObjectId) -> dict:
 
     await dp_invoice_runs(db).update_one({"_id": oid}, {"$set": update})
     doc.update(update)
+    # Notification, Matching stage. Hooked to the TRANSITION into matching, not
+    # to reading the Matching screen: findings are recomputed on every GET, so
+    # notifying from there would fire again each time somebody merely opened the
+    # invoice. _dp_notify's per-(kind, stage) idempotency makes a re-match onto a
+    # different contract silent too, which is right — it is the same stage and the
+    # same conversation, not a second thing to act on.
+    #
+    # Auto-Process runs reach the identical notification through stp.py's hold, so
+    # both modes now tell the requester the same thing at the same point.
+    await _notify_if_action_required(db, oid, "matching_open_issues")
     return await invoice_out(db, doc)
+
+
+async def _notify_if_action_required(db, oid: ObjectId, reason: str) -> None:
+    """Send the action-required notification only if something actually needs
+    acknowledging, and never let a notification failure break the caller.
+
+    notify_dp_action_required composes the message from whatever is outstanding;
+    asking it to send when nothing is outstanding would produce an email with an
+    empty list, so the emptiness check belongs here, once, rather than in each
+    stage's own hook.
+    """
+    import logging
+    try:
+        if not await _has_action_required(db, oid, reason):
+            return
+        await notify_dp_action_required(db, oid, reason)
+    except Exception:
+        logging.getLogger(__name__).exception(
+            "DirectPay: %s notification failed for run %s", reason, oid
+        )
 
 
 async def acknowledge_finding(db, oid: ObjectId, finding_id: str, acknowledged: bool) -> list[str]:
@@ -2815,8 +2850,16 @@ _DP_HOLD_COPY: dict[str, tuple[str, str]] = {
 }
 
 
-async def notify_dp_auto_process_hold(db, oid: ObjectId, reason: str) -> None:
-    """Incomplete / mismatched: Auto-Process stopped and a person is needed.
+async def notify_dp_action_required(db, oid: ObjectId, reason: str) -> None:
+    """Incomplete / mismatched: this invoice needs a person before it can move on.
+
+    Fired from BOTH modes, which is the whole point of the name change from
+    notify_dp_auto_process_hold. It used to be wired only into the Auto-Process
+    cascade's hold, so with Auto-Process off an invoice could sit at Matching with
+    unacknowledged mismatches and nobody was ever told — the notification trail
+    just stopped after the upload acknowledgement. The condition that matters is
+    "acknowledgement needed", not "the cascade stopped"; whether a human or the
+    cascade drove the invoice here is irrelevant to the person who has to act.
 
     Lists exactly the items that require a human ACKNOWLEDGEMENT — which is why
     `system_acknowledged` is filtered out. Those were auto-approved by the
@@ -2835,6 +2878,40 @@ async def notify_dp_auto_process_hold(db, oid: ObjectId, reason: str) -> None:
 
     extracted = _strip_na(_merge(doc.get("base_extracted") or {}, doc.get("edited_extracted")))
     stage_label, reason_label = _DP_HOLD_COPY.get(reason, ("Processing", "This invoice needs review."))
+    discrepancies = await _action_required_discrepancies(db, oid, doc, reason, extracted)
+
+    from ..services.email_templates import directpay_action_required_html
+    html = directpay_action_required_html(
+        invoice_number=extracted.get("invoice_number") or doc.get("file_name") or "—",
+        vendor_name=extracted.get("vendor_name") or "—",
+        stage_label=stage_label,
+        reason_label=reason_label,
+        discrepancies=discrepancies,
+    )
+    await _dp_notify(
+        db, oid, doc, kind="action_required", stage=reason,
+        html=html,
+    )
+
+
+async def _has_action_required(db, oid: ObjectId, reason: str) -> bool:
+    """Whether this stage currently has anything awaiting acknowledgement."""
+    doc = await get_invoice_doc(db, oid)
+    if not _dp_ticket_id(doc):
+        return False
+    extracted = _strip_na(_merge(doc.get("base_extracted") or {}, doc.get("edited_extracted")))
+    return bool(await _action_required_discrepancies(db, oid, doc, reason, extracted))
+
+
+async def _action_required_discrepancies(
+    db, oid: ObjectId, doc: dict, reason: str, extracted: dict,
+) -> list[dict]:
+    """The outstanding items for `reason`, as {label, found, expected[, note]}.
+
+    Shared by the notification and by the "is anything outstanding?" test, so the
+    two cannot disagree about what counts — a check that said "nothing to report"
+    while the email listed three things would be worse than either alone.
+    """
     discrepancies: list[dict] = []
 
     if reason == "faktur_pajak_mismatch":
@@ -2870,18 +2947,7 @@ async def notify_dp_auto_process_hold(db, oid: ObjectId, reason: str) -> None:
                 **({"note": f["escalation_note"]} if f.get("escalation_note") else {}),
             })
 
-    from ..services.email_templates import directpay_action_required_html
-    html = directpay_action_required_html(
-        invoice_number=extracted.get("invoice_number") or doc.get("file_name") or "—",
-        vendor_name=extracted.get("vendor_name") or "—",
-        stage_label=stage_label,
-        reason_label=reason_label,
-        discrepancies=discrepancies,
-    )
-    await _dp_notify(
-        db, oid, doc, kind="action_required", stage=reason,
-        html=html,
-    )
+    return discrepancies
 
 
 async def escalate_invoice(db, oid: ObjectId, note: Optional[str] = None) -> dict:

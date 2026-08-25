@@ -110,10 +110,16 @@ function SourceIcon({ type }: { type: InvoiceSourceType }) {
   );
 }
 
-// DP's own /ingestion/trigger-upload (single or batch) mimics email
-// ingestion the same way P2P's does — see service.upload_invoice's `source`.
-function getInvoiceSourceType(inv: DpInvoiceRun): InvoiceSourceType {
-  return inv.source === "trigger" ? "email" : "manual";
+// DP's own trigger-upload endpoints (single or batch) mimic email ingestion the
+// same way P2P's does — see the `source` both upload_invoice_documents and
+// upload_contract record.
+//
+// Takes just the field rather than a whole run, because invoices and contracts
+// are different shapes recording the SAME distinction: a contract uploaded by
+// hand and one arriving through /contracts/trigger-upload should read the same
+// way in the list as their invoice counterparts do.
+function sourceType(run: { source?: "manual" | "trigger" }): InvoiceSourceType {
+  return run.source === "trigger" ? "email" : "manual";
 }
 
 function contractRoute(c: DpContractRun): string {
@@ -1100,7 +1106,7 @@ function DirectPayDashboard() {
                       ) : (
                         pagedInvoices.map((inv) => {
                           const action = invoiceAction(inv, stpProcessingIds.has(inv.id));
-                          const sourceType = getInvoiceSourceType(inv);
+                          const invSource = sourceType(inv);
                           return (
                             <tr
                               key={inv.id}
@@ -1117,7 +1123,7 @@ function DirectPayDashboard() {
                               <td style={{ padding: "10px 16px", cursor: "pointer" }} onClick={() => router.push(invoiceRoute(inv))}>
                                 <div style={{ display: "flex", alignItems: "flex-start", gap: 8, overflow: "hidden" }}>
                                   <span style={{ marginTop: 2 }}>
-                                    <SourceIcon type={sourceType} />
+                                    <SourceIcon type={invSource} />
                                   </span>
                                   <div style={{ minWidth: 0, flex: 1 }}>
                                     <span title={inv.file_name} style={{ ...CELL_PRIMARY, fontWeight: 600, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -1218,9 +1224,16 @@ function DirectPayDashboard() {
                               }}
                             >
                               <td style={{ padding: "10px 16px", cursor: "pointer" }} onClick={() => router.push(contractRoute(c))}>
-                                <span style={{ ...CELL_PRIMARY, fontWeight: 600, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                  {c.file_name}
-                                </span>
+                                {/* Same construction as the invoice row's File Name cell — icon,
+                                    8px gap, name that ellipsises — so the two lists read alike.
+                                    alignItems centre rather than flex-start because this cell is a
+                                    single line, where the invoice's is a name over a timestamp. */}
+                                <div style={{ display: "flex", alignItems: "center", gap: 8, overflow: "hidden" }}>
+                                  <SourceIcon type={sourceType(c)} />
+                                  <span title={c.file_name} style={{ ...CELL_PRIMARY, fontWeight: 600, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                    {c.file_name}
+                                  </span>
+                                </div>
                               </td>
                               <td style={{ padding: "10px 16px", cursor: "pointer" }} onClick={() => router.push(contractRoute(c))}>
                                 <span style={CELL_PRIMARY}>{c.fields.vendor_name ?? "NA"}</span>

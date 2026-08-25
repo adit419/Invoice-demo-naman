@@ -562,13 +562,35 @@ export const directpayService = {
   uploadContract: async (files: File | File[], opts?: { email?: string; tag?: string }): Promise<DpContractRun[]> => {
     type Result = DpContractRun | { items: DpContractRun[] };
     const list = Array.isArray(files) ? files : [files];
-    // Same payload as the invoice trigger: `file_names` mandatory (one name or
-    // many), `email` and `tag` optional.
-    const res = await api.post<Result>("/dp-api/contracts/trigger-upload", {
-      file_names: list.map((f) => f.name),
-      ...(opts?.email ? { email: opts.email } : {}),
-      ...(opts?.tag ? { tag: opts.tag } : {}),
-    });
+    // Route exactly as uploadInvoice does, and for the same reason: a file the
+    // user picked from disk goes up as a REAL multipart upload, so the run is
+    // recorded with source "manual"; only an oversized file (or a simulated
+    // ingestion, which carries email/tag) falls back to the trigger endpoint.
+    //
+    // This used to post everything to trigger-upload, which meant every contract
+    // — including hand-picked ones — was stored as source "trigger". The
+    // dashboard's manual-vs-email source icon could therefore never show
+    // "manual" for a contract, and Auto-Process/notification behaviour keyed off
+    // the same field saw an email ingestion where there was none.
+    const simulated = Boolean(opts?.email || opts?.tag);
+    const oversized = list.some((f) => f.size > LARGE_FILE_THRESHOLD_BYTES);
+    let res: Result;
+    if (simulated || oversized) {
+      // `file_names` mandatory (one name or many), `email` and `tag` optional —
+      // the same payload the invoice trigger takes.
+      res = await api.post<Result>("/dp-api/contracts/trigger-upload", {
+        file_names: list.map((f) => f.name),
+        ...(opts?.email ? { email: opts.email } : {}),
+        ...(opts?.tag ? { tag: opts.tag } : {}),
+      });
+    } else {
+      // Repeat the `file` field per file — what the backend's
+      // `files: list[UploadFile] = File(..., alias="file")` expects, and what a
+      // plain multi-select <input> would send anyway.
+      const fd = new FormData();
+      for (const f of list) fd.append("file", f);
+      res = await api.postForm<Result>("/dp-api/contracts/upload", fd);
+    }
     const items = (res as { items?: DpContractRun[] }).items;
     return Array.isArray(items) ? items : [res as DpContractRun];
   },

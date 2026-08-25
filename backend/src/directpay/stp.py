@@ -381,7 +381,7 @@ async def run_dp_stp_for_invoice(run_id: ObjectId) -> None:
         # resume_dp_stp_if_enabled.
         if final_state == "waiting_review" and final_reason:
             try:
-                await service.notify_dp_auto_process_hold(db, run_id, final_reason)
+                await service.notify_dp_action_required(db, run_id, final_reason)
             except Exception:
                 logger.exception("DirectPay STP: hold notification failed for run %s", run_id)
 
