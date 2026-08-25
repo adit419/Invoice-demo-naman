@@ -6,6 +6,28 @@ import { useToast } from "@/components/ui";
 import { StageTransitionOverlay } from "@/components/StageTransitionOverlay";
 import { directpayService, DpContractRun, DpInvoiceRun } from "@/services/directpay";
 import { invoiceRoute } from "@/utils/directpayRoutes";
+// Shared with the Tracker (pages/directpay/tracker.tsx) — these were defined
+// here until that screen needed the same tone palette, cell styles, pagination
+// chrome and loading/empty rows. Definitions are unchanged by the move.
+import {
+  ANTD_TAG,
+  ButtonSpinner,
+  INVOICE_STAGE_TONE,
+  CELL_MUTED,
+  CELL_PRIMARY,
+  CheckRow,
+  EmptyRow,
+  FilterPill,
+  INPUT_S,
+  LoadingRows,
+  OpenInNewTab,
+  PaneSearch,
+  StageTag,
+  actionButtonStyle,
+  fmtMoney,
+  formatTimestamp,
+  toIsoDate,
+} from "@/components/directpay/dpTableUi";
 
 // Every upload (invoice or contract, Auto-Process on or off) shows a focused
 // extraction loader and then lands the human straight on the review screen —
@@ -35,23 +57,17 @@ function sleep(ms: number) {
 
 type Tab = "invoices" | "contracts";
 
-// ── Same tone palette as the Invoice Processing dashboard's StageTag ──────────
-const ANTD_TAG = {
-  cyan: { bg: "#E6FFFB", color: "#08979C", border: "#87E8DE" },
-  purple: { bg: "#F9F0FF", color: "#722ED1", border: "#D3ADF7" },
-  geekblue: { bg: "#F0F5FF", color: "#2F54EB", border: "#ADC6FF" },
-  green: { bg: "#F6FFED", color: "#389E0D", border: "#B7EB8F" },
-  red: { bg: "#FFF1F0", color: "#CF1322", border: "#FFA39E" },
-} as const;
-
+// Tones come from the shared INVOICE_STAGE_TONE (dpTableUi) so this list and
+// the Tracker's colour the same stage identically; the labels stay local because
+// this screen says "Posted" where the Tracker says "Bill Posted".
 const INVOICE_STAGE_TAG: Record<string, { label: string; tone: keyof typeof ANTD_TAG }> = {
-  extraction: { label: "Extraction", tone: "cyan" },
-  extracted: { label: "Extracted", tone: "cyan" },
-  fp_extraction: { label: "Faktur Pajak", tone: "geekblue" },
-  matching: { label: "Matching", tone: "purple" },
-  bill_posting: { label: "Bill Posting", tone: "geekblue" },
-  posted: { label: "Posted", tone: "green" },
-  rejected: { label: "Rejected", tone: "red" },
+  extraction: { label: "Extraction", tone: INVOICE_STAGE_TONE.extraction },
+  extracted: { label: "Extracted", tone: INVOICE_STAGE_TONE.extracted },
+  fp_extraction: { label: "Faktur Pajak", tone: INVOICE_STAGE_TONE.fp_extraction },
+  matching: { label: "Matching", tone: INVOICE_STAGE_TONE.matching },
+  bill_posting: { label: "Bill Posting", tone: INVOICE_STAGE_TONE.bill_posting },
+  posted: { label: "Posted", tone: INVOICE_STAGE_TONE.posted },
+  rejected: { label: "Rejected", tone: INVOICE_STAGE_TONE.rejected },
 };
 
 const CONTRACT_STAGE_TAG: Record<string, { label: string; tone: keyof typeof ANTD_TAG }> = {
@@ -65,31 +81,6 @@ const CONTRACT_STAGE_TAG: Record<string, { label: string; tone: keyof typeof ANT
 // (extraction/extracted/matching/bill_posting) is still Open, same as
 // Invoice Processing's own Open/Closed split.
 const INVOICE_CLOSED_STATUSES = new Set(["posted", "rejected"]);
-
-function StageTag({ tag }: { tag: { label: string; tone: keyof typeof ANTD_TAG } | undefined }) {
-  const tone = tag ? ANTD_TAG[tag.tone] : { bg: "#FAFAFA", color: "#595959", border: "#D9D9D9" };
-  return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        padding: "1px 10px",
-        borderRadius: 6,
-        fontSize: 12.5,
-        lineHeight: "20px",
-        fontWeight: 500,
-        letterSpacing: "-0.08px",
-        fontFamily: "Inter, -apple-system, BlinkMacSystemFont, sans-serif",
-        color: tone.color,
-        background: tone.bg,
-        border: `1px solid ${tone.border}`,
-        whiteSpace: "nowrap",
-      }}
-    >
-      {tag?.label ?? "—"}
-    </span>
-  );
-}
 
 // ── Source icons (mirrors pages/dashboard.tsx's own SourceIcon/getSourceTypes
 // — same inline SVGs, same email-vs-manual distinction, minus "freshdesk"
@@ -123,43 +114,6 @@ function getInvoiceSourceType(inv: DpInvoiceRun): InvoiceSourceType {
   return inv.source === "trigger" ? "email" : "manual";
 }
 
-const CELL_PRIMARY: React.CSSProperties = {
-  fontSize: 14,
-  fontWeight: 500,
-  color: "#414651",
-  fontFamily: "Inter, sans-serif",
-};
-const CELL_MUTED: React.CSSProperties = {
-  fontSize: 14,
-  fontWeight: 500,
-  color: "#8D92A6",
-  fontFamily: "Inter, sans-serif",
-};
-
-const INPUT_S: React.CSSProperties = {
-  width: "100%", padding: "10px 12px", fontSize: 14, height: 44,
-  border: "1px solid #E5E7EB", borderRadius: 8, outline: "none", boxSizing: "border-box",
-  color: "#414651", background: "#ffffff", fontFamily: "Inter, sans-serif",
-};
-
-function fmtMoney(n: number | null | undefined, currency?: string | null): string {
-  if (n == null) return "NA";
-  return `${currency ?? ""} ${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`.trim();
-}
-
-function toIsoDate(iso: string): Date {
-  return new Date(/Z$|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : iso + "Z");
-}
-
-function formatTimestamp(iso: string): string {
-  try {
-    return toIsoDate(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-  } catch {
-    return iso;
-  }
-}
-
-
 function contractRoute(c: DpContractRun): string {
   if (c.status === "postprocessing") {
     return `/directpay/contract/${c.id}/extraction-postprocessing`;
@@ -186,7 +140,21 @@ function invoiceAction(
   return { label: "Continue", primary: false, disabled: false };
 }
 
-function contractAction(c: DpContractRun): { label: string; primary: boolean; disabled: boolean } {
+// Statuses at which an Auto-Process contract is no longer mid-cascade — the
+// fallback for releasing the local lock when no stp_state was published.
+const CONTRACT_STP_TERMINAL = new Set(["saved"]);
+
+function contractAction(
+  c: DpContractRun,
+  locallyProcessing = false,
+): { label: string; primary: boolean; disabled: boolean } {
+  // With Auto-Process on, the upload stays on this page and the row itself
+  // reports progress — from the server's stp_state, or from this tab's own lock
+  // during the moment before the first state is published. Same mechanism as
+  // the invoice rows above.
+  if (locallyProcessing || c.stp_state === "processing") {
+    return { label: "Processing", primary: false, disabled: true };
+  }
   if (c.status === "review") return { label: "Review", primary: true, disabled: false };
   if (c.status === "postprocessing") return { label: "Continue", primary: true, disabled: false };
   return { label: "View", primary: false, disabled: false };
@@ -203,58 +171,6 @@ const FILTER_LABEL: Record<FilterCategory, string> = {
   vendor: "Vendor Name",
   amount: "Amount Range",
 };
-
-function PaneSearch({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
-  return (
-    <div style={{ position: "relative", marginBottom: 14 }}>
-      <svg width="15" height="15" viewBox="0 0 14 14" fill="none"
-        style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "#8D92A6" }}>
-        <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.3" />
-        <path d="M9.5 9.5L12 12" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-      </svg>
-      <input
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder={placeholder}
-        style={{ ...INPUT_S, height: 42, paddingLeft: 38 }}
-        onFocus={e => (e.target.style.borderColor = "#1876FF")}
-        onBlur={e => (e.target.style.borderColor = "#E5E7EB")}
-      />
-    </div>
-  );
-}
-
-function FilterPill({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        display: "inline-flex", alignItems: "center", gap: 7,
-        height: 36, padding: "0 16px", borderRadius: 999,
-        fontSize: 13.5, fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap",
-        border: `1px solid ${active ? "#1876FF" : "#E5E7EB"}`,
-        color: active ? "#1876FF" : "#414651",
-        background: active ? "#F0F7FF" : "#ffffff",
-        fontFamily: "Inter, sans-serif",
-      }}
-    >
-      {children}
-    </button>
-  );
-}
-
-function CheckRow({ checked, onChange, children }: { checked: boolean; onChange: () => void; children: React.ReactNode }) {
-  return (
-    <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 2px", cursor: "pointer" }}>
-      <input type="checkbox" checked={checked} onChange={onChange}
-        style={{ accentColor: "#1876FF", width: 16, height: 16, flexShrink: 0 }} />
-      <span style={{
-        fontSize: 14, color: "#414651", fontFamily: "Inter, sans-serif",
-        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-      }}>{children}</span>
-    </label>
-  );
-}
 
 interface FilterPanelProps {
   open: boolean;
@@ -465,6 +381,9 @@ function DirectPayDashboard() {
   // cascade is already running. Same mechanism, and same auto-clear, as P2P's
   // own dashboard (stpProcessingIds / STP_TERMINAL).
   const [stpProcessingIds, setStpProcessingIds] = useState<Set<string>>(new Set());
+  // Same lock for contracts — Auto-Process now drives them too (Review ->
+  // Derived Fields -> Saved, ungated; see backend stp._cascade_dp_contract).
+  const [stpProcessingContractIds, setStpProcessingContractIds] = useState<Set<string>>(new Set());
   const [contractPhase, setContractPhase] = useState<"extracting" | "validating">("extracting");
   const [invoicePhase, setInvoicePhase] = useState<"extracting" | "validating">("extracting");
   const fileRef = useRef<HTMLInputElement>(null);
@@ -535,6 +454,15 @@ function DirectPayDashboard() {
         for (const i of inv.items) {
           const settled = !!i.stp_state && i.stp_state !== "processing";
           if (next.has(i.id) && (settled || STP_TERMINAL.has(i.status))) next.delete(i.id);
+        }
+        return next.size === prev.size ? prev : next;
+      });
+      setStpProcessingContractIds((prev) => {
+        if (prev.size === 0) return prev;
+        const next = new Set(prev);
+        for (const c of con.items) {
+          const settled = !!c.stp_state && c.stp_state !== "processing";
+          if (next.has(c.id) && (settled || CONTRACT_STP_TERMINAL.has(c.status))) next.delete(c.id);
         }
         return next.size === prev.size ? prev : next;
       });
@@ -692,6 +620,19 @@ function DirectPayDashboard() {
       }
       const runs = await directpayService.uploadContract(file);
       setUploading(false);
+
+      // Auto-Process on: the whole cascade is driven server-side (Review ->
+      // Derived Fields -> Saved), so there is nothing for the uploader to wait on
+      // and nowhere to hand the user off to. Stay on the dashboard — no
+      // extraction loader, no jump to Contract Review — and let the row report
+      // progress from its own stp_state while the 8s poll follows it. Exactly
+      // what the invoice branch above does.
+      if (stpEnabled) {
+        setStpProcessingContractIds((prev) => new Set([...prev, ...runs.map((r) => r.id)]));
+        await load();
+        return;
+      }
+
       setAutoExtracting("contract");
       setContractPhase("extracting");
       await sleep(CONTRACT_EXTRACTING_MS);
@@ -862,7 +803,10 @@ function DirectPayDashboard() {
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
               {/* Auto-Process (STP) — invoices only; contracts always need a
                   manual Approve, so the toggle is hidden on the Contracts tab. */}
-              {tab === "invoices" && !stpLoading && (
+              {/* Auto-Process applies to BOTH entities now — invoices run a gated
+                  cascade, contracts an ungated one — so the toggle shows on
+                  either tab rather than being hidden on Contracts. */}
+              {!stpLoading && (
                 <div
                   style={{
                     display: "flex", alignItems: "center", gap: 8,
@@ -1202,7 +1146,7 @@ function DirectPayDashboard() {
                         <EmptyRow cols={5} label="No contracts found" hint={searchQuery || activeFilterCount > 0 ? "No contracts match your search or filters." : "Upload your first contract to get started."} pageSize={pageSize} />
                       ) : (
                         pagedContracts.map((c) => {
-                          const action = contractAction(c);
+                          const action = contractAction(c, stpProcessingContractIds.has(c.id));
                           return (
                             <tr
                               key={c.id}
@@ -1319,103 +1263,4 @@ function DirectPayDashboard() {
       </div>
   );
 }
-function actionButtonStyle(action: { primary: boolean; disabled: boolean }): React.CSSProperties {
-  if (action.primary) {
-    return {
-      background: "#ffffff", border: "1px solid #1876FF", color: "#1876FF",
-      borderRadius: 8, fontWeight: 600, fontSize: 12.5,
-      height: 30, padding: "0 18px", cursor: "pointer",
-      fontFamily: "Inter, sans-serif",
-    };
-  }
-  if (action.disabled) {
-    return {
-      background: "#F5F5F5", border: "1px solid #E0E0E0", color: "#8D92A6",
-      borderRadius: 8, fontWeight: 500, fontSize: 12.5,
-      height: 30, padding: "0 14px", cursor: "not-allowed",
-      fontFamily: "Inter, sans-serif",
-    };
-  }
-  return {
-    background: "#ffffff", border: "1px solid #D5D5D5", color: "#364153",
-    borderRadius: 8, fontWeight: 500, fontSize: 12.5,
-    height: 30, padding: "0 18px", cursor: "pointer",
-    fontFamily: "Inter, sans-serif",
-  };
-}
-
-// The "loader in the row" for a Processing invoice/contract — mirrors P2P's
-// dashboard, whose row action button uses AntD's `loading` prop (a spinning
-// icon inline with the label) rather than a plain disabled button with no
-// visual feedback that something is actually happening.
-function ButtonSpinner() {
-  return (
-    <svg className="animate-spin" width="12" height="12" viewBox="0 0 1024 1024" style={{ flexShrink: 0 }}>
-      <path
-        fill="currentColor"
-        d="M988 548c-19.9 0-36-16.1-36-36 0-59.4-11.6-117-34.6-171.3a440.45 440.45 0 0 0-94.3-139.9 437.71 437.71 0 0 0-139.9-94.3C629 83.6 571.4 72 512 72c-19.9 0-36-16.1-36-36s16.1-36 36-36c69.1 0 136.2 13.5 199.3 40.3C772.3 66 827 103 874 150c47 47 83.9 101.8 109.7 162.7 26.7 63.1 40.2 130.2 40.2 199.3.1 19.9-16 36-35.9 36z"
-      />
-    </svg>
-  );
-}
-
-function OpenInNewTab({ disabled, onClick }: { disabled: boolean; onClick: () => void }) {
-  return (
-    <button
-      title="Open in new tab"
-      disabled={disabled}
-      onClick={() => { if (!disabled) onClick(); }}
-      style={{
-        background: "transparent", border: "none", padding: 2,
-        cursor: disabled ? "not-allowed" : "pointer",
-        color: disabled ? "#D1D5DB" : "#717680",
-        display: "inline-flex", alignItems: "center",
-      }}
-      onMouseEnter={e => { if (!disabled) e.currentTarget.style.color = "#1876FF"; }}
-      onMouseLeave={e => { if (!disabled) e.currentTarget.style.color = "#717680"; }}
-    >
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M15 3h6v6" />
-        <path d="M10 14 21 3" />
-        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-      </svg>
-    </button>
-  );
-}
-
-function LoadingRows({ cols }: { cols: number }) {
-  return (
-    <>
-      {Array.from({ length: 5 }).map((_, i) => (
-        <tr key={i} style={{ borderBottom: "1px solid #E6E6E6" }}>
-          {Array.from({ length: cols }).map((__, j) => (
-            <td key={j} style={{ padding: "10px 16px" }}>
-              <div style={{ height: 14, borderRadius: 4, background: "#F0F0F0", width: j === 0 ? 160 : 90 }} />
-            </td>
-          ))}
-        </tr>
-      ))}
-    </>
-  );
-}
-
-function EmptyRow({ cols, label, hint, pageSize }: { cols: number; label: string; hint: string; pageSize: number }) {
-  return (
-    <tr>
-      <td colSpan={cols} style={{ height: pageSize * 56, padding: 24, textAlign: "center", verticalAlign: "middle" }}>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 44, height: 44, borderRadius: 12, background: "#F5F5F5", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-              <rect x="2" y="2" width="18" height="18" rx="3" stroke="#8D92A6" strokeWidth="1.4" />
-              <path d="M6 8h10M6 11h10M6 14h6" stroke="#8D92A6" strokeWidth="1.4" strokeLinecap="round" />
-            </svg>
-          </div>
-          <p style={{ margin: 0, fontSize: 14, fontWeight: 500, color: "#414651", fontFamily: "Inter, sans-serif" }}>{label}</p>
-          <p style={{ margin: 0, fontSize: 12, color: "#717680", fontFamily: "Inter, sans-serif" }}>{hint}</p>
-        </div>
-      </td>
-    </tr>
-  );
-}
-
 export default withAuthGuard(DirectPayDashboard);

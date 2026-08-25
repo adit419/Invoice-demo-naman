@@ -1,20 +1,27 @@
 /**
  * Email escalation for the Matching stage.
  *
- * DEV NOTE: no mail is actually transmitted — there is no mail transport wired
- * into this demo app. The message body is real though, composed from the
- * invoice's own figures and the backend's actual reason for blocking, and the
- * flow (compose then send then a sent confirmation) is deliberately presented
- * as a completed escalation rather than as a preview, so it demos as the
- * finished feature. Built to the same idiom as RejectModal (ui/Modal, secondary
- * + primary footer actions).
+ * Sends for real when the invoice was trigger-uploaded WITH an `email` in the
+ * payload — POST /dp-api/invoices/{id}/escalate mails that address. The body
+ * shown here is a faithful preview, but the message actually sent is composed
+ * server-side from the run (the endpoint mails as sales@neoflo.ai, so it can't
+ * accept a browser-supplied body); only the reviewer's note is posted up.
+ *
+ * With no payload email there is nobody to mail, and the flow keeps its original
+ * behaviour: a local "sent" confirmation with no transmission. The confirmation
+ * text distinguishes the two, so it never claims an email went out when none
+ * did. Built to the same idiom as RejectModal (ui/Modal, secondary + primary
+ * footer actions).
  */
 import { useState } from "react";
 import { Modal, Button, Textarea } from "@/components/ui";
+import { directpayService } from "@/services/directpay";
 
 export interface EscalateModalProps {
   open: boolean;
   onClose: () => void;
+  /** Invoice run id — the escalate endpoint's subject. */
+  invoiceId: string;
   /** Fired when the reviewer dismisses the sent confirmation, i.e. once the
    *  escalation flow is finished. */
   onSend: () => void;
@@ -43,15 +50,45 @@ const FieldRow = ({ label, children }: { label: string; children: React.ReactNod
 );
 
 export function EscalateModal({
-  open, onClose, onSend,
+  open, onClose, onSend, invoiceId,
   invoiceNumber, vendorName, invoiceAmount, referenceAmount,
   referenceLabel = "Contract", reason, notes, thresholdEnabled, thresholdPct,
 }: EscalateModalProps) {
   // Compose then sent. Both exits clear it, so reopening always starts back at
   // the message rather than at a stale confirmation.
   const [sentAt, setSentAt] = useState<Date | null>(null);
-  const cancel = () => { setSentAt(null); onClose(); };
-  const done = () => { setSentAt(null); onSend(); };
+  const [sending, setSending] = useState(false);
+  // Who it actually reached — null when the invoice had no payload email, in
+  // which case nothing was transmitted and the confirmation says so.
+  const [sentTo, setSentTo] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [outcome, setOutcome] = useState<string | null>(null);
+  const reset = () => { setSentAt(null); setSentTo(null); setFailed(false); setOutcome(null); };
+  const cancel = () => { reset(); onClose(); };
+  const done = () => { reset(); onSend(); };
+
+  const send = async () => {
+    setSending(true);
+    setFailed(false);
+    try {
+      const res = await directpayService.escalateInvoice(invoiceId);
+      // Four distinct outcomes, and they must not be conflated: sent; nothing to
+      // send to (no payload email — a legitimate no-op); already escalated (the
+      // button should have been disabled, so this is a stale tab); or a real send
+      // that failed. Calling any of the last three a success, or each other,
+      // misleads the reviewer about whether anyone was actually told.
+      setSentTo(res.sent ? res.to : null);
+      setOutcome(res.sent ? null : res.reason ?? "send_failed");
+      setFailed(!res.sent && res.reason === "send_failed");
+    } catch {
+      setFailed(true);
+      setSentTo(null);
+      setOutcome("send_failed");
+    } finally {
+      setSending(false);
+      setSentAt(new Date());
+    }
+  };
 
   const subject = `Escalation: ${invoiceNumber || "invoice"} — Total Amount Before VAT outside tolerance`;
 
@@ -89,7 +126,10 @@ export function EscalateModal({
             style={{
               display: "flex", alignItems: "flex-start", gap: 10,
               padding: "10px 12px", borderRadius: 8,
-              background: "#F0FDF4", border: "1px solid #BBF7D0", color: "#15803D", fontSize: 12.5,
+              background: failed ? "#FEF2F2" : outcome ? "#FFFBEB" : "#F0FDF4",
+              border: `1px solid ${failed ? "#FECACA" : outcome ? "#FDE68A" : "#BBF7D0"}`,
+              color: failed ? "#B91C1C" : outcome ? "#92400E" : "#15803D",
+              fontSize: 12.5,
             }}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0, marginTop: 1 }}>
@@ -97,15 +137,31 @@ export function EscalateModal({
               <path d="M8 12.4l2.7 2.6L16 9.6" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             <span style={{ lineHeight: "18px" }}>
-              <strong>Escalation sent to Finance Approver.</strong>
+              <strong>
+                {failed ? "Escalation could not be emailed."
+                  : outcome === "already_escalated" ? "Already escalated."
+                  : sentTo ? `Escalation emailed to ${sentTo}.`
+                  : "Escalation recorded."}
+              </strong>
               <br />
-              {invoiceNumber ? `${invoiceNumber} is ` : "This invoice is "}
-              now awaiting an approval decision. Sent{" "}
-              {sentAt.toLocaleString("en-GB", {
-                day: "2-digit", month: "short", year: "numeric",
-                hour: "2-digit", minute: "2-digit",
-              })}
-              .
+              {failed
+                ? "The invoice is still awaiting a decision — retry, or follow up manually."
+                : outcome === "already_escalated"
+                ? "This invoice was escalated earlier; no second email was sent. "
+                : outcome === "no_payload_email"
+                ? "This invoice has no notification address, so no email was sent. "
+                : ""}
+              {!failed && (
+                <>
+                  {invoiceNumber ? `${invoiceNumber} is ` : "This invoice is "}
+                  now awaiting an approval decision.{" "}
+                  {sentAt.toLocaleString("en-GB", {
+                    day: "2-digit", month: "short", year: "numeric",
+                    hour: "2-digit", minute: "2-digit",
+                  })}
+                  .
+                </>
+              )}
             </span>
           </div>
         )}
@@ -138,8 +194,8 @@ export function EscalateModal({
               <Button variant="secondary" onClick={cancel}>
                 Cancel
               </Button>
-              <Button variant="primary" onClick={() => setSentAt(new Date())}>
-                Send Escalation
+              <Button variant="primary" onClick={send} disabled={sending}>
+                {sending ? "Sending…" : "Send Escalation"}
               </Button>
             </>
           )}

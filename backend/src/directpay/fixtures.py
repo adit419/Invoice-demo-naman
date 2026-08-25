@@ -173,6 +173,11 @@ class DpFixtureLoader:
         candidates.append(Path("/fixtures/dp"))
 
         self._root = next((p for p in candidates if p.is_dir()), candidates[-1])
+        # path -> page count. discover() deliberately re-reads disk every call
+        # (live fixture edits), but page counts are only used for demo pacing and
+        # re-parsing a 14MB PDF per upload isn't worth it. Keyed by path, so
+        # replacing a fixture PDF needs a restart to change its pacing.
+        self._page_counts: dict[str, int] = {}
 
     def discover(self) -> dict[str, DpFixtureBundle]:
         """Re-reads disk on every call (same live-edit convention as fixtures/loader.py)."""
@@ -273,6 +278,53 @@ class DpFixtureLoader:
             bundles[entry.name] = bundle
 
         return bundles
+
+    def page_count(self, pdf_path: Optional[Path]) -> int:
+        """Pages in a fixture PDF, read straight from the file's bytes.
+
+        There is no PDF library in this environment (no pypdf/pikepdf/fitz), and
+        pulling one in to power a demo pacing delay isn't worth it — so this
+        parses the two structures that actually carry the count:
+
+          1. the page tree's own `/Count N`, tried in both key orders since a
+             dict may serialise as `/Type /Pages ... /Count 13` or the reverse;
+          2. failing that, occurrences of `/Type /Page` (excluding `/Pages`).
+
+        Fallback (2) is needed for the three fixtures whose page tree lives in a
+        compressed object stream, where (1) finds nothing: PT_BANGUN,
+        RATNA_INTAN and GRAHA_MEGARIA. Where both methods work they agree
+        exactly on all four remaining fixtures, and (2) puts PT_BANGUN at the 34
+        pages its lease is independently known to have.
+
+        Cached per path — RATNA_INTAN's contract is 14MB and this is called on
+        every upload of it.
+        """
+        if pdf_path is None or not pdf_path.is_file():
+            return 1
+        key = str(pdf_path)
+        cached = self._page_counts.get(key)
+        if cached is not None:
+            return cached
+
+        try:
+            raw = pdf_path.read_bytes()
+        except OSError:
+            return 1
+
+        counts = [
+            int(m.group(1))
+            for pattern in (
+                rb"/Type\s*/Pages\b[^>]*?/Count\s+(\d+)",
+                rb"/Count\s+(\d+)[^>]*?/Type\s*/Pages\b",
+            )
+            for m in re.finditer(pattern, raw, re.S)
+        ]
+        # The page tree ROOT holds the total; nested nodes hold their subtree's,
+        # so the largest is the document's own count.
+        pages = max(counts) if counts else len(re.findall(rb"/Type\s*/Page(?![s/\w])", raw))
+        pages = max(1, pages)
+        self._page_counts[key] = pages
+        return pages
 
     def resolve(self, file_name: str) -> Optional[DpFixtureBundle]:
         bundles = self.discover()

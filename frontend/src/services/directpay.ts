@@ -60,6 +60,15 @@ export interface DpContractRun {
   // has been made on either Contract Extraction or Extraction
   // Postprocessing (both append to the same doc-level edit_history).
   has_edit_history: boolean;
+  // Auto-Process progress. The contract cascade is UNGATED (nothing to validate
+  // against), so it runs Review -> Derived Fields -> Saved and always lands on
+  // "done" — unlike the invoice cascade, which can stop at "waiting_review".
+  stp_state?: "processing" | "waiting_review" | "done" | null;
+  stp_failure_reason?: string | null;
+  // "manual" (real multipart upload) vs "trigger" (/contracts/trigger-upload).
+  source?: "manual" | "trigger";
+  tag?: string | null;
+  notify_email?: string | null;
   pdf_url: string;
   created_at: string;
   updated_at: string;
@@ -261,6 +270,17 @@ export interface DpInvoiceRun {
   notify_email?: string | null;
   stp_state?: "processing" | "waiting_review" | "done" | null;
   stp_failure_reason?: string | null;
+  /** Emails sent about this invoice. Drives the one-escalation-per-invoice rule
+   *  (a prior `kind: "escalation"` disables the button) and is the record behind
+   *  the Gmail thread each notification continues. */
+  notifications?: {
+    kind: "posted" | "action_required" | "escalation";
+    stage: string;
+    to: string;
+    subject?: string;
+    thread_id?: string | null;
+    sent_at?: string;
+  }[];
   review: DpReview;
   pdf_url: string;
   created_at: string;
@@ -439,6 +459,68 @@ export interface DpFakturPajak {
   acknowledged_fields: string[];
 }
 
+/**
+ * One finished invoice on the Tracker — an invoice that has either been posted
+ * to the ERP or rejected, the same two terminal outcomes the dashboard's Closed
+ * tab shows.
+ *
+ * Every money figure here is the SAME value that invoice's own Bill Posting page
+ * displays: the backend builds these rows through _bill_posting_out rather than
+ * reading `extracted` directly, because Taxable/VAT/WHT/Payable aren't plain
+ * extraction fields — they fold in the matched installment, the RATNA_INTAN
+ * schedule substitution and the reviewer's WHT-code selection.
+ */
+export interface DpTrackerRow {
+  id: string;
+  file_name?: string | null;
+  /** Every pipeline stage, not just the terminal two — the Tracker is a live
+   *  view of processing, so a row exists from upload onward. */
+  status: "extraction" | "extracted" | "fp_extraction" | "matching" | "bill_posting" | "posted" | "rejected";
+  /** Needed to route back to this invoice's stage page (utils/directpayRoutes.ts),
+   *  AND to disambiguate the Status label: the pipeline parks three different
+   *  moments on "extracted". */
+  extraction_confirmed: boolean;
+  /** Auto-Process progress, so an in-flight row reads as moving rather than stuck. */
+  stp_state?: "processing" | "waiting_review" | "done" | null;
+  stp_failure_reason?: string | null;
+  source?: "manual" | "trigger";
+  /** Has extraction produced ANY data for this run? Distinguishes "not known
+   *  yet" (render —) from "the document doesn't state it" (render NA). Can't be
+   *  inferred from nulls on the client: a COMPLETED invoice legitimately has null
+   *  columns too (DEBORA states no payment due date). */
+  has_extraction: boolean;
+
+  /** ISO timestamp — when the run was uploaded into DirectPay. */
+  invoice_received_date?: string | null;
+  vendor_name?: string | null;
+  invoice_number?: string | null;
+  /** As printed on the invoice: ISO, English ("25 June 2026") or Indonesian ("30 Juli 2026"). */
+  invoice_date?: string | null;
+  /** Normalized YYYY-MM-DD twin of invoice_date, for sorting/range filtering.
+   *  Null when the printed date isn't in a recognised shape. */
+  invoice_date_iso?: string | null;
+  description?: string | null;
+  currency?: string | null;
+  taxable_amount?: number | null;
+  vat_amount?: number | null;
+  /** Null — not 0 — when withholding doesn't apply to this invoice at all. */
+  wht_amount?: number | null;
+  wht_applicable: boolean;
+  payable_amount?: number | null;
+  payment_due_date?: string | null;
+  payment_due_date_iso?: string | null;
+  bank_account_name?: string | null;
+  bank_account_number?: string | null;
+
+  contract_id?: string | null;
+  /** The matched contract's own vendor name — what the Contract filter groups on. */
+  contract_name?: string | null;
+  erp_bill_number?: string | null;
+  posted_at?: string | null;
+  rejection_reason?: string | null;
+  updated_at?: string | null;
+}
+
 export interface DpEditHistoryItem {
   timestamp: string;
   user_email: string;
@@ -477,11 +559,16 @@ export const directpayService = {
    * and simply failed. One small JSON request works for any number of files, at any
    * size.
    */
-  uploadContract: async (files: File | File[]): Promise<DpContractRun[]> => {
+  uploadContract: async (files: File | File[], opts?: { email?: string; tag?: string }): Promise<DpContractRun[]> => {
     type Result = DpContractRun | { items: DpContractRun[] };
     const list = Array.isArray(files) ? files : [files];
-    const res = await api.post<Result>("/dp-api/contracts/trigger-upload",
-      { file_names: list.map((f) => f.name) });
+    // Same payload as the invoice trigger: `file_names` mandatory (one name or
+    // many), `email` and `tag` optional.
+    const res = await api.post<Result>("/dp-api/contracts/trigger-upload", {
+      file_names: list.map((f) => f.name),
+      ...(opts?.email ? { email: opts.email } : {}),
+      ...(opts?.tag ? { tag: opts.tag } : {}),
+    });
     const items = (res as { items?: DpContractRun[] }).items;
     return Array.isArray(items) ? items : [res as DpContractRun];
   },
@@ -515,7 +602,10 @@ export const directpayService = {
     type UploadResult = DpInvoiceRun | { items: DpInvoiceRun[] };
     let res: UploadResult;
     if (file.size > LARGE_FILE_THRESHOLD_BYTES) {
-      res = await api.post<UploadResult>("/dp-api/ingestion/trigger-upload", { file_name: file.name });
+      // Unified trigger payload: `file_names` is the one mandatory field on BOTH
+      // trigger endpoints and takes a single name or many (see the backend's
+      // DpTriggerUploadBase). There is no `file_name` variant any more.
+      res = await api.post<UploadResult>("/dp-api/ingestion/trigger-upload", { file_names: [file.name] });
     } else {
       const fd = new FormData();
       fd.append("file", file);
@@ -564,6 +654,20 @@ export const directpayService = {
       action,
       reason,
     }),
+
+  // Tracker — every finished invoice (posted or rejected). Filtering, sorting
+  // and CSV export all happen client-side over this one payload, same as the
+  // dashboard does over listInvoices.
+  listTracker: () => api.get<{ items: DpTrackerRow[] }>("/dp-api/tracker"),
+
+  /** Matching-stage Escalate. Mails the trigger-upload payload address; the
+   *  subject/body are composed server-side, so only the reviewer's note goes up.
+   *  `sent: false` with `to: null` means the invoice carried no payload email —
+   *  nothing was sent and the caller should keep its local confirmation. */
+  escalateInvoice: (id: string, note?: string) =>
+    api.post<{ sent: boolean; to: string | null; reason?: string }>(
+      `/dp-api/invoices/${id}/escalate`, { note },
+    ),
 
   // Bill Posting
   getBillPosting: (id: string) => api.get<DpBillPostingData>(`/dp-api/invoices/${id}/bill-posting`),
