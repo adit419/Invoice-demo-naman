@@ -1,17 +1,17 @@
 /**
  * Email escalation for the Matching stage.
  *
- * Sends for real when the invoice was trigger-uploaded WITH an `email` in the
- * payload — POST /dp-api/invoices/{id}/escalate mails that address. The body
- * shown here is a faithful preview, but the message actually sent is composed
- * server-side from the run (the endpoint mails as sales@neoflo.ai, so it can't
- * accept a browser-supplied body); only the reviewer's note is posted up.
+ * Posts a reply on the invoice's originating FreshDesk ticket — the `tag` its
+ * trigger-upload carried. POST /dp-api/invoices/{id}/escalate does the posting;
+ * the body shown here is a faithful preview, but what actually goes out is
+ * composed server-side from the run (only the reviewer's note is sent up, so the
+ * endpoint can't be used to post arbitrary content).
  *
- * With no payload email there is nobody to mail, and the flow keeps its original
- * behaviour: a local "sent" confirmation with no transmission. The confirmation
- * text distinguishes the two, so it never claims an email went out when none
- * did. Built to the same idiom as RejectModal (ui/Modal, secondary + primary
- * footer actions).
+ * With no originating ticket there is no conversation to reply into, and the flow
+ * keeps its original behaviour: a local confirmation with nothing transmitted.
+ * The confirmation text distinguishes the outcomes, so it never claims something
+ * went out when nothing did. Built to the same idiom as RejectModal (ui/Modal,
+ * secondary + primary footer actions).
  */
 import { useState } from "react";
 import { Modal, Button, Textarea } from "@/components/ui";
@@ -60,10 +60,10 @@ export function EscalateModal({
   const [sending, setSending] = useState(false);
   // Who it actually reached — null when the invoice had no payload email, in
   // which case nothing was transmitted and the confirmation says so.
-  const [sentTo, setSentTo] = useState<string | null>(null);
+  const [ticketId, setTicketId] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const [outcome, setOutcome] = useState<string | null>(null);
-  const reset = () => { setSentAt(null); setSentTo(null); setFailed(false); setOutcome(null); };
+  const reset = () => { setSentAt(null); setTicketId(null); setFailed(false); setOutcome(null); };
   const cancel = () => { reset(); onClose(); };
   const done = () => { reset(); onSend(); };
 
@@ -77,12 +77,12 @@ export function EscalateModal({
       // button should have been disabled, so this is a stale tab); or a real send
       // that failed. Calling any of the last three a success, or each other,
       // misleads the reviewer about whether anyone was actually told.
-      setSentTo(res.sent ? res.to : null);
+      setTicketId(res.sent ? res.ticket_id : null);
       setOutcome(res.sent ? null : res.reason ?? "send_failed");
       setFailed(!res.sent && res.reason === "send_failed");
     } catch {
       setFailed(true);
-      setSentTo(null);
+      setTicketId(null);
       setOutcome("send_failed");
     } finally {
       setSending(false);
@@ -138,18 +138,18 @@ export function EscalateModal({
             </svg>
             <span style={{ lineHeight: "18px" }}>
               <strong>
-                {failed ? "Escalation could not be emailed."
+                {failed ? "Escalation could not be posted."
                   : outcome === "already_escalated" ? "Already escalated."
-                  : sentTo ? `Escalation emailed to ${sentTo}.`
+                  : ticketId ? `Escalation posted to ticket #${ticketId}.`
                   : "Escalation recorded."}
               </strong>
               <br />
               {failed
                 ? "The invoice is still awaiting a decision — retry, or follow up manually."
                 : outcome === "already_escalated"
-                ? "This invoice was escalated earlier; no second email was sent. "
-                : outcome === "no_payload_email"
-                ? "This invoice has no notification address, so no email was sent. "
+                ? "This invoice was escalated earlier; nothing was posted again. "
+                : outcome === "no_ticket"
+                ? "This invoice has no originating support ticket, so nothing was posted. "
                 : ""}
               {!failed && (
                 <>

@@ -27,6 +27,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import Response
 
 from ..auth.deps import CurrentUser, get_current_user
+from ..config import settings
 from ..database import get_db
 from ..api.v1._common import _envelope, _oid
 from . import field_mapping, service
@@ -162,9 +163,13 @@ async def _upload_contracts_by_filename(
     ungated, so each of these ends up saved (see stp._cascade_dp_contract)."""
     db = get_db()
     results: list[dict] = []
+    duplicates: list[dict] = []
     for name in file_names:
         try:
             results.append(await service.upload_contract(db, name, email, tag, source))
+        except service.DuplicateInvoiceError as dup:
+            duplicates.append({"file_name": name, **dup.to_payload()})
+            asyncio.create_task(service.notify_dp_duplicate_rejected(db, duplicates[-1], tag))
         except service.NotFoundError as exc:
             # Only when NO scenarios are configured at all — a name that matches
             # nothing still resolves to some bundle (see DpFixtureLoader.resolve).
@@ -173,7 +178,7 @@ async def _upload_contracts_by_filename(
         from bson import ObjectId
         for result in results:
             asyncio.create_task(run_dp_stp_for_contract(ObjectId(result["id"])))
-    return results
+    return results, duplicates
 
 
 @router.post("/contracts/upload")
@@ -183,7 +188,13 @@ async def upload_contract(files: list[UploadFile] = File(..., alias="file")):
     names = [f.filename or "" for f in files if (f.filename or "").strip()]
     if not names:
         raise HTTPException(status_code=422, detail="At least one file is required")
-    return _envelope(data=_upload_payload(await _upload_contracts_by_filename(names, source="manual")))
+    runs, duplicates = await _upload_contracts_by_filename(names, source="manual")
+    if not runs and duplicates:
+        raise HTTPException(status_code=409, detail=duplicates[0])
+    payload = _upload_payload(runs)
+    if duplicates and isinstance(payload, dict):
+        payload["duplicates"] = duplicates
+    return _envelope(data=payload)
 
 
 # Mirrors /ingestion/trigger-upload on the invoice side: same effect as the
@@ -198,8 +209,14 @@ async def upload_contract(files: list[UploadFile] = File(..., alias="file")):
 # requests with the same 422s rather than each re-checking by hand.
 @router.post("/contracts/trigger-upload")
 async def trigger_upload_contract(body: DpContractTriggerUploadRequest):
-    results = await _upload_contracts_by_filename(body.file_names, body.email, body.tag, source="trigger")
-    return _envelope(data=_upload_payload(results))
+    runs, duplicates = await _upload_contracts_by_filename(
+        body.file_names, body.email, body.tag, source="trigger")
+    if not runs and duplicates:
+        raise HTTPException(status_code=409, detail={"duplicates": duplicates})
+    payload = _upload_payload(runs)
+    if duplicates and isinstance(payload, dict):
+        payload["duplicates"] = duplicates
+    return _envelope(data=payload)
 
 
 @router.get("/contracts")
@@ -304,15 +321,21 @@ async def _upload_invoice_by_filename(
     each. Every other upload returns a single-element list."""
     db = get_db()
     try:
-        results = await service.upload_invoice_documents(db, filename or "", email, tag, source)
+        results, duplicates = await service.upload_invoice_documents(db, filename or "", email, tag, source)
     except service.NotFoundError as exc:
         _not_found(exc)
-        return []
+        return [], []
     if await get_global_dp_stp(db):
         from bson import ObjectId
         for result in results:
             asyncio.create_task(run_dp_stp_for_invoice(ObjectId(result["id"])))
-    return results
+    # An invoice refused as a duplicate still gets a notification when it arrived
+    # via trigger-upload with an email — the sender asked to be told about this
+    # invoice, and "we already have it" is exactly the kind of thing they need to
+    # know. Fire-and-forget, same as every other notification.
+    for dup in duplicates:
+        asyncio.create_task(service.notify_dp_duplicate_rejected(db, dup, tag))
+    return results, duplicates
 
 
 def _upload_payload(results: list[dict]):
@@ -324,7 +347,15 @@ def _upload_payload(results: list[dict]):
 
 @router.post("/invoices/upload")
 async def upload_invoice(file: UploadFile = File(...)):
-    return _envelope(data=_upload_payload(await _upload_invoice_by_filename(file.filename or "", source="manual")))
+    runs, duplicates = await _upload_invoice_by_filename(file.filename or "", source="manual")
+    # Nothing created and the reason was "we already have this invoice" — a 409 is
+    # the honest answer: the caller asked to create something and we declined.
+    if not runs and duplicates:
+        raise HTTPException(status_code=409, detail=duplicates[0])
+    payload = _upload_payload(runs)
+    if duplicates and isinstance(payload, dict):
+        payload["duplicates"] = duplicates
+    return _envelope(data=payload)
 
 
 # ── Ingestion (trigger by filename, no file bytes) ────────────────────────────
@@ -359,17 +390,26 @@ async def trigger_upload_invoice(body: DpTriggerUploadRequest):
     # per-name mapping a caller needs to know which of its files went where.
     seen: dict[str, dict] = {}
     files: list[dict] = []
+    duplicates: list[dict] = []
     for name in body.file_names:
-        results = await _upload_invoice_by_filename(name, body.email, body.tag, source="trigger")
+        results, dups = await _upload_invoice_by_filename(name, body.email, body.tag, source="trigger")
+        duplicates.extend(dups)
         for result in results:
             files.append({"file_name": name, "invoice_id": result.get("id")})
             seen.setdefault(result["id"], result)
     runs = list(seen.values())
+    # Every name in the batch was already in the system — nothing was created, so
+    # say so rather than returning an empty success.
+    if not runs and duplicates:
+        raise HTTPException(status_code=409, detail={"duplicates": duplicates})
     # A single resulting run keeps the bare-run response shape both upload
     # endpoints have always used; several return {"items": [...]}.
     payload = _upload_payload(runs)
     if isinstance(payload, dict) and "items" in payload:
         payload["files"] = files
+    # A partly-duplicate batch still creates what it can, and reports the rest.
+    if duplicates and isinstance(payload, dict):
+        payload["duplicates"] = duplicates
     return _envelope(data=payload)
 
 
@@ -671,6 +711,26 @@ async def post_bill(run_id: str):
         _not_found(exc)
     except service.InvalidStateError as exc:
         raise HTTPException(status_code=400, detail=exc.message)
+
+
+@router.get("/drive/check")
+async def drive_check():
+    """Is the Drive destination reachable? Run this after dropping in a new
+    refresh token, BEFORE relying on any upload.
+
+    Separates the failure modes that all look like a 403/404 otherwise: Drive API
+    not enabled on the project, the `drive` scope missing from the token, or
+    sales@neoflo.ai not being a member of the shared drive."""
+    from ..services import drive_client
+    if not drive_client.is_configured():
+        return _envelope(data={
+            "configured": False,
+            "drive_enabled": settings.drive_enabled,
+            "folder_id_set": bool(settings.drive_folder_id),
+            "credential_set": bool(settings.gmail_refresh_token),
+        })
+    result = await drive_client.check_access()
+    return _envelope(data={"configured": True, **result})
 
 
 # ── Tracker ───────────────────────────────────────────────────────────────────

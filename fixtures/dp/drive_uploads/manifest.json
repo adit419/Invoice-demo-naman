@@ -1,0 +1,427 @@
+[
+  {
+    "fixture_key": "DEBORA_KEMANG",
+    "document_key": "invoice_1",
+    "vendor_name_raw": "Debora Debby Wage",
+    "vendor_name": "Debora Debby Wage",
+    "invoice_number_raw": "Invoice - 1",
+    "invoice_number": "Invoice - 1",
+    "documents": [
+      {
+        "doc_type": "Revenue Share Invoice",
+        "file": "Debora Debby Wage_Invoice - 1_Revenue Share Invoice.pdf",
+        "source": "DEBORA_KEMANG/invoice_1.pdf"
+      },
+      {
+        "doc_type": "Revenue Share Supporting Document",
+        "file": "Debora Debby Wage_Invoice - 1_Revenue Share Supporting Document.pdf",
+        "source": "DEBORA_KEMANG/supporting_doc_inv1.pdf"
+      }
+    ]
+  },
+  {
+    "fixture_key": "DEBORA_KEMANG",
+    "document_key": "invoice_2",
+    "vendor_name_raw": "Debora Debby Wage",
+    "vendor_name": "Debora Debby Wage",
+    "invoice_number_raw": "Invoice - 2",
+    "invoice_number": "Invoice - 2",
+    "documents": [
+      {
+        "doc_type": "Invoice",
+        "file": "Debora Debby Wage_Invoice - 2_Invoice.pdf",
+        "source": "DEBORA_KEMANG/invoice_2.pdf"
+      }
+    ]
+  },
+  {
+    "fixture_key": "GRAHA_MEGARIA",
+    "document_key": "invoice_1",
+    "vendor_name_raw": "PT GRAHA MEGARIA RAYA",
+    "vendor_name": "PT Graha Megaria Raya",
+    "invoice_number_raw": "INV/2026/04063",
+    "invoice_number": "INV-2026-04063",
+    "documents": [
+      {
+        "doc_type": "Rent Invoice",
+        "file": "PT Graha Megaria Raya_INV-2026-04063_Rent Invoice.pdf",
+        "source": "GRAHA_MEGARIA/invoice_1.pdf"
+      },
+      {
+        "doc_type": "Faktur Pajak",
+        "file": "PT Graha Megaria Raya_INV-2026-04063_Faktur Pajak.pdf",
+        "source": "GRAHA_MEGARIA/invoice_fp_3.pdf"
+      }
+    ]
+  },
+  {
+    "fixture_key": "GRAHA_MEGARIA",
+    "document_key": "invoice_2",
+    "vendor_name_raw": "PT GRAHA MEGARIA RAYA",
+    "vendor_name": "PT Graha Megaria Raya",
+    "invoice_number_raw": "INV/2026/04062",
+    "invoice_number": "INV-2026-04062",
+    "documents": [
+      {
+        "doc_type": "Service Charge Invoice",
+        "file": "PT Graha Megaria Raya_INV-2026-04062_Service Charge Invoice.pdf",
+        "source": "GRAHA_MEGARIA/invoice_2.pdf"
+      },
+      {
+        "doc_type": "Faktur Pajak",
+        "file": "PT Graha Megaria Raya_INV-2026-04062_Faktur Pajak.pdf",
+        "source": "GRAHA_MEGARIA/invoice_fp_2.pdf"
+      }
+    ]
+  },
+  {
+    "fixture_key": "GRAHA_MEGARIA",
+    "document_key": "invoice_3",
+    "vendor_name_raw": "PT GRAHA MEGARIA RAYA",
+    "vendor_name": "PT Graha Megaria Raya",
+    "invoice_number_raw": "INV/2026/03848",
+    "invoice_number": "INV-2026-03848",
+    "documents": [
+      {
+        "doc_type": "Water Invoice",
+        "file": "PT Graha Megaria Raya_INV-2026-03848_Water Invoice.pdf",
+        "source": "GRAHA_MEGARIA/invoice_3.pdf"
+      },
+      {
+        "doc_type": "Faktur Pajak",
+        "file": "PT Graha Megaria Raya_INV-2026-03848_Faktur Pajak.pdf",
+        "source": "GRAHA_MEGARIA/invoice_fp_5.pdf"
+      },
+      {
+        "doc_type": "Water Supporting Document",
+        "file": "PT Graha Megaria Raya_INV-2026-03848_Water Supporting Document.pdf",
+        "source": "GRAHA_MEGARIA/supporting_doc_inv3.pdf"
+      }
+    ]
+  },
+  {
+    "fixture_key": "GRAHA_MEGARIA",
+    "document_key": "invoice_4",
+    "vendor_name_raw": "PT GRAHA MEGARIA RAYA",
+    "vendor_name": "PT Graha Megaria Raya",
+    "invoice_number_raw": "INV/2026/03847",
+    "invoice_number": "INV-2026-03847",
+    "documents": [
+      {
+        "doc_type": "Electricity Invoice",
+        "file": "PT Graha Megaria Raya_INV-2026-03847_Electricity Invoice.pdf",
+        "source": "GRAHA_MEGARIA/invoice_4.pdf"
+      },
+      {
+        "doc_type": "Faktur Pajak",
+        "file": "PT Graha Megaria Raya_INV-2026-03847_Faktur Pajak.pdf",
+        "source": "GRAHA_MEGARIA/invoice_fp_4.pdf"
+      },
+      {
+        "doc_type": "Electricity Supporting Document",
+        "file": "PT Graha Megaria Raya_INV-2026-03847_Electricity Supporting Document.pdf",
+        "source": "GRAHA_MEGARIA/supporting_doc_inv4.pdf"
+      }
+    ]
+  },
+  {
+    "fixture_key": "KARYA_NASTARI",
+    "document_key": "invoice_1",
+    "vendor_name_raw": "PT. KARYA NASTARI PRAPTA",
+    "vendor_name": "PT Karya Nastari Prapta",
+    "invoice_number_raw": "BIL/2026/9OQC/00001877",
+    "invoice_number": "BIL-2026-9OQC-00001877",
+    "documents": [
+      {
+        "doc_type": "Rent Invoice",
+        "file": "PT Karya Nastari Prapta_BIL-2026-9OQC-00001877_Rent Invoice.pdf",
+        "source": "KARYA_NASTARI/invoice_1.pdf"
+      },
+      {
+        "doc_type": "Faktur Pajak",
+        "file": "PT Karya Nastari Prapta_BIL-2026-9OQC-00001877_Faktur Pajak.pdf",
+        "source": "KARYA_NASTARI/invoice_fp_5.pdf"
+      }
+    ]
+  },
+  {
+    "fixture_key": "KARYA_NASTARI",
+    "document_key": "invoice_2",
+    "vendor_name_raw": "PT. KARYA NASTARI PRAPTA",
+    "vendor_name": "PT Karya Nastari Prapta",
+    "invoice_number_raw": "BIL/2026/9OQC/00001348",
+    "invoice_number": "BIL-2026-9OQC-00001348",
+    "documents": [
+      {
+        "doc_type": "Rent Invoice",
+        "file": "PT Karya Nastari Prapta_BIL-2026-9OQC-00001348_Rent Invoice.pdf",
+        "source": "KARYA_NASTARI/invoice_2.pdf"
+      },
+      {
+        "doc_type": "Faktur Pajak",
+        "file": "PT Karya Nastari Prapta_BIL-2026-9OQC-00001348_Faktur Pajak.pdf",
+        "source": "KARYA_NASTARI/invoice_fp_4.pdf"
+      }
+    ]
+  },
+  {
+    "fixture_key": "KARYA_NASTARI",
+    "document_key": "invoice_3",
+    "vendor_name_raw": "PT. KARYA NASTARI PRAPTA",
+    "vendor_name": "PT Karya Nastari Prapta",
+    "invoice_number_raw": "BIL/2026/9OQC/00004054",
+    "invoice_number": "BIL-2026-9OQC-00004054",
+    "documents": [
+      {
+        "doc_type": "Utility Invoice",
+        "file": "PT Karya Nastari Prapta_BIL-2026-9OQC-00004054_Utility Invoice.pdf",
+        "source": "KARYA_NASTARI/invoice_3.pdf"
+      },
+      {
+        "doc_type": "Faktur Pajak - Admin Fee",
+        "file": "PT Karya Nastari Prapta_BIL-2026-9OQC-00004054_Faktur Pajak - Admin Fee.pdf",
+        "source": "KARYA_NASTARI/invoice_3_fp_admin_fee.pdf"
+      },
+      {
+        "doc_type": "Faktur Pajak - Water",
+        "file": "PT Karya Nastari Prapta_BIL-2026-9OQC-00004054_Faktur Pajak - Water.pdf",
+        "source": "KARYA_NASTARI/invoice_3_fp_water.pdf"
+      },
+      {
+        "doc_type": "Faktur Pajak - Electricity",
+        "file": "PT Karya Nastari Prapta_BIL-2026-9OQC-00004054_Faktur Pajak - Electricity.pdf",
+        "source": "KARYA_NASTARI/invoice_3_fp_electricity.pdf"
+      }
+    ]
+  },
+  {
+    "fixture_key": "PAKUWON",
+    "document_key": "invoice_1",
+    "vendor_name_raw": "PT. Pakuwon Sentosa Abadi",
+    "vendor_name": "PT Pakuwon Sentosa Abadi",
+    "invoice_number_raw": "PSA/SP/26-06/00039",
+    "invoice_number": "PSA-SP-26-06-00039",
+    "documents": [
+      {
+        "doc_type": "Rent Invoice",
+        "file": "PT Pakuwon Sentosa Abadi_PSA-SP-26-06-00039_Rent Invoice.pdf",
+        "source": "PAKUWON/invoice_1.pdf p1 (split)"
+      },
+      {
+        "doc_type": "Faktur Pajak",
+        "file": "PT Pakuwon Sentosa Abadi_PSA-SP-26-06-00039_Faktur Pajak.pdf",
+        "source": "PAKUWON/invoice_1.pdf p2 (split)"
+      }
+    ]
+  },
+  {
+    "fixture_key": "PAKUWON",
+    "document_key": "invoice_2",
+    "vendor_name_raw": "PT. Pakuwon Sentosa Abadi",
+    "vendor_name": "PT Pakuwon Sentosa Abadi",
+    "invoice_number_raw": "PSA/SP/25-08/00812",
+    "invoice_number": "PSA-SP-25-08-00812",
+    "documents": [
+      {
+        "doc_type": "Rent Invoice",
+        "file": "PT Pakuwon Sentosa Abadi_PSA-SP-25-08-00812_Rent Invoice.pdf",
+        "source": "PAKUWON/invoice_2.pdf p1 (split)"
+      },
+      {
+        "doc_type": "Faktur Pajak",
+        "file": "PT Pakuwon Sentosa Abadi_PSA-SP-25-08-00812_Faktur Pajak.pdf",
+        "source": "PAKUWON/invoice_2.pdf p2 (split)"
+      }
+    ]
+  },
+  {
+    "fixture_key": "PAKUWON",
+    "document_key": "invoice_3",
+    "vendor_name_raw": "PT. Pakuwon Sentosa Abadi",
+    "vendor_name": "PT Pakuwon Sentosa Abadi",
+    "invoice_number_raw": "PSA/SP/25-08/00820",
+    "invoice_number": "PSA-SP-25-08-00820",
+    "documents": [
+      {
+        "doc_type": "Rent Invoice",
+        "file": "PT Pakuwon Sentosa Abadi_PSA-SP-25-08-00820_Rent Invoice.pdf",
+        "source": "PAKUWON/invoice_3.pdf p1 (split)"
+      },
+      {
+        "doc_type": "Faktur Pajak",
+        "file": "PT Pakuwon Sentosa Abadi_PSA-SP-25-08-00820_Faktur Pajak.pdf",
+        "source": "PAKUWON/invoice_3.pdf p2 (split)"
+      }
+    ]
+  },
+  {
+    "fixture_key": "PAKUWON",
+    "document_key": "invoice_4",
+    "vendor_name_raw": "PT. Pakuwon Sentosa Abadi",
+    "vendor_name": "PT Pakuwon Sentosa Abadi",
+    "invoice_number_raw": "PSA/SP/25-09/00760",
+    "invoice_number": "PSA-SP-25-09-00760",
+    "documents": [
+      {
+        "doc_type": "Rent Invoice",
+        "file": "PT Pakuwon Sentosa Abadi_PSA-SP-25-09-00760_Rent Invoice.pdf",
+        "source": "PAKUWON/invoice_4.pdf p1 (split)"
+      },
+      {
+        "doc_type": "Faktur Pajak",
+        "file": "PT Pakuwon Sentosa Abadi_PSA-SP-25-09-00760_Faktur Pajak.pdf",
+        "source": "PAKUWON/invoice_4.pdf p2 (split)"
+      }
+    ]
+  },
+  {
+    "fixture_key": "PAKUWON",
+    "document_key": "invoice_5",
+    "vendor_name_raw": "PT. Pakuwon Sentosa Abadi",
+    "vendor_name": "PT Pakuwon Sentosa Abadi",
+    "invoice_number_raw": "PSA/SP/26-06/00874",
+    "invoice_number": "PSA-SP-26-06-00874",
+    "documents": [
+      {
+        "doc_type": "Water Invoice",
+        "file": "PT Pakuwon Sentosa Abadi_PSA-SP-26-06-00874_Water Invoice.pdf",
+        "source": "PAKUWON/invoice_5.pdf p1 (split)"
+      },
+      {
+        "doc_type": "Faktur Pajak",
+        "file": "PT Pakuwon Sentosa Abadi_PSA-SP-26-06-00874_Faktur Pajak.pdf",
+        "source": "PAKUWON/invoice_5.pdf p2 (split)"
+      }
+    ]
+  },
+  {
+    "fixture_key": "PAKUWON",
+    "document_key": "invoice_6",
+    "vendor_name_raw": "PT. Pakuwon Sentosa Abadi",
+    "vendor_name": "PT Pakuwon Sentosa Abadi",
+    "invoice_number_raw": "PSA/SP/26-06/01025",
+    "invoice_number": "PSA-SP-26-06-01025",
+    "documents": [
+      {
+        "doc_type": "Electricity Invoice",
+        "file": "PT Pakuwon Sentosa Abadi_PSA-SP-26-06-01025_Electricity Invoice.pdf",
+        "source": "PAKUWON/invoice_6.pdf p1 (split)"
+      },
+      {
+        "doc_type": "Faktur Pajak",
+        "file": "PT Pakuwon Sentosa Abadi_PSA-SP-26-06-01025_Faktur Pajak.pdf",
+        "source": "PAKUWON/invoice_6.pdf p2 (split)"
+      },
+      {
+        "doc_type": "Electricity Supporting Document",
+        "file": "PT Pakuwon Sentosa Abadi_PSA-SP-26-06-01025_Electricity Supporting Document.pdf",
+        "source": "PAKUWON/invoice_6_supporting_doc.pdf"
+      }
+    ]
+  },
+  {
+    "fixture_key": "PALLADIUM",
+    "document_key": "invoice_1",
+    "vendor_name_raw": "PT. Palladium Megah Lestari",
+    "vendor_name": "PT Palladium Megah Lestari",
+    "invoice_number_raw": "INV/A37/04/26/00141",
+    "invoice_number": "INV-A37-04-26-00141",
+    "documents": [
+      {
+        "doc_type": "Service Charge Invoice",
+        "file": "PT Palladium Megah Lestari_INV-A37-04-26-00141_Service Charge Invoice.pdf",
+        "source": "PALLADIUM/invoice_1.pdf"
+      },
+      {
+        "doc_type": "Faktur Pajak",
+        "file": "PT Palladium Megah Lestari_INV-A37-04-26-00141_Faktur Pajak.pdf",
+        "source": "PALLADIUM/invoice_fp_4.pdf"
+      }
+    ]
+  },
+  {
+    "fixture_key": "PALLADIUM",
+    "document_key": "invoice_2",
+    "vendor_name_raw": "PT. Palladium Megah Lestari",
+    "vendor_name": "PT Palladium Megah Lestari",
+    "invoice_number_raw": "INV/A37/04/26/00033",
+    "invoice_number": "INV-A37-04-26-00033",
+    "documents": [
+      {
+        "doc_type": "Electricity Invoice",
+        "file": "PT Palladium Megah Lestari_INV-A37-04-26-00033_Electricity Invoice.pdf",
+        "source": "PALLADIUM/invoice_2.pdf"
+      },
+      {
+        "doc_type": "Faktur Pajak",
+        "file": "PT Palladium Megah Lestari_INV-A37-04-26-00033_Faktur Pajak.pdf",
+        "source": "PALLADIUM/invoice_fp_5.pdf"
+      },
+      {
+        "doc_type": "Electricity Supporting Document",
+        "file": "PT Palladium Megah Lestari_INV-A37-04-26-00033_Electricity Supporting Document.pdf",
+        "source": "PALLADIUM/supporting_doc_inv2.pdf"
+      }
+    ]
+  },
+  {
+    "fixture_key": "PALLADIUM",
+    "document_key": "invoice_3",
+    "vendor_name_raw": "PT. Palladium Megah Lestari",
+    "vendor_name": "PT Palladium Megah Lestari",
+    "invoice_number_raw": "INV/A37/04/26/00101",
+    "invoice_number": "INV-A37-04-26-00101",
+    "documents": [
+      {
+        "doc_type": "Water Invoice",
+        "file": "PT Palladium Megah Lestari_INV-A37-04-26-00101_Water Invoice.pdf",
+        "source": "PALLADIUM/invoice_3.pdf"
+      },
+      {
+        "doc_type": "Faktur Pajak",
+        "file": "PT Palladium Megah Lestari_INV-A37-04-26-00101_Faktur Pajak.pdf",
+        "source": "PALLADIUM/invoice_fp_6.pdf"
+      },
+      {
+        "doc_type": "Water Supporting Document",
+        "file": "PT Palladium Megah Lestari_INV-A37-04-26-00101_Water Supporting Document.pdf",
+        "source": "PALLADIUM/supporting_doc_inv3.pdf"
+      }
+    ]
+  },
+  {
+    "fixture_key": "PT_BANGUN",
+    "document_key": "invoice",
+    "vendor_name_raw": "PT.Bangun Era Sejahtera",
+    "vendor_name": "PT Bangun Era Sejahtera",
+    "invoice_number_raw": "BES-FAK/VII/2026/002",
+    "invoice_number": "BES-FAK-VII-2026-002",
+    "documents": [
+      {
+        "doc_type": "Rent Invoice",
+        "file": "PT Bangun Era Sejahtera_BES-FAK-VII-2026-002_Rent Invoice.pdf",
+        "source": "PT_BANGUN/invoice.pdf p1 (split)"
+      },
+      {
+        "doc_type": "Faktur Pajak",
+        "file": "PT Bangun Era Sejahtera_BES-FAK-VII-2026-002_Faktur Pajak.pdf",
+        "source": "PT_BANGUN/invoice.pdf p2 (split)"
+      }
+    ]
+  },
+  {
+    "fixture_key": "RATNA_INTAN",
+    "document_key": "invoice",
+    "vendor_name_raw": "Ny. Ratna Intan Mulyati G",
+    "vendor_name": "Ny Ratna Intan Mulyati G",
+    "invoice_number_raw": "KK.BKS.RKJTRSJTASH-3",
+    "invoice_number": "KK.BKS.RKJTRSJTASH-3",
+    "documents": [
+      {
+        "doc_type": "Rent Invoice",
+        "file": "Ny Ratna Intan Mulyati G_KK.BKS.RKJTRSJTASH-3_Rent Invoice.pdf",
+        "source": "RATNA_INTAN/invoice.pdf"
+      }
+    ]
+  }
+]

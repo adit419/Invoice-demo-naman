@@ -1,0 +1,820 @@
+{
+  "info": {
+    "_postman_id": "dp-trigger-upload-0001",
+    "name": "DirectPay \u2014 trigger-upload",
+    "description": "Fixture-driven DirectPay ingestion.\n\nBOTH trigger-upload endpoints take the SAME payload: `file_names` (required \u2014 a string or an array) plus optional `email` and `tag`.\n\nRun **Setup \u2192 Get Token** first; it saves the token into the `token` collection variable, and collection-level Bearer auth picks it up for every other request.\n\nGOTCHA: an unrecognised file name does NOT 404 \u2014 fixture resolution falls back to an arbitrary bundle, so a typo silently creates a run against the wrong vendor. Use the names in these requests verbatim.\n\n`email` is the ONLY notification recipient and there is no fallback: include it and that address receives the confirmation / action-required / escalation mails; omit it and processing is identical but silent.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8099",
+      "description": "Backend directly. http://localhost:3000 also works if the frontend is up (it proxies /dp-api/*)."
+    },
+    {
+      "key": "token",
+      "value": "",
+      "description": "Filled in by Setup \u2192 Get Token."
+    },
+    {
+      "key": "notify_email",
+      "value": "adit.n@neoflo.ai",
+      "description": "Goes into the `email` field. This address receives the notifications."
+    },
+    {
+      "key": "invoice_id",
+      "value": "",
+      "description": "Filled in by an invoice upload, used by Escalate."
+    }
+  ],
+  "item": [
+    {
+      "name": "0 \u00b7 Setup",
+      "item": [
+        {
+          "name": "Get Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "username",
+                  "value": "admin@neoflo.ai",
+                  "type": "text"
+                },
+                {
+                  "key": "password",
+                  "value": "Admin@123",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/token",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "token"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Returns a bare {access_token, token_type} \u2014 not enveloped. The test script saves it."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "const t = pm.response.json().access_token;",
+                  "pm.collectionVariables.set(\"token\", t);",
+                  "pm.test(\"token saved\", () => pm.expect(t).to.be.a(\"string\").and.not.empty);",
+                  "console.log(\"token saved to the {{token}} collection variable\");"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "1 \u00b7 Contracts",
+      "item": [
+        {
+          "name": "Multiple contracts (all 7)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/dp-api/contracts/trigger-upload",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "dp-api",
+                "contracts",
+                "trigger-upload"
+              ]
+            },
+            "description": "One run per file \u2014 contracts are never deduped, so 7 names means 7 runs.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"file_names\": [\n    \"PT_BANGUN_CONTRACT.pdf\",\n    \"PALLADIUM_CONTRACT.pdf\",\n    \"PAKUWON_CONTRACT.pdf\",\n    \"KARYA_NASTARI_CONTRACT.pdf\",\n    \"RATNA_INTAN_CONTRACT.pdf\",\n    \"GRAHA_MEGARIA_CONTRACT.pdf\",\n    \"DEBORA_KEMANG_CONTRACT.pdf\"\n  ],\n  \"email\": \"{{notify_email}}\",\n  \"tag\": \"vendor-onboarding-q3\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json().data;",
+                  "const runs = d.items || [d];",
+                  "pm.test(\"7 run(s) created\", () => pm.expect(runs.length).to.eql(7));",
+                  "runs.forEach(r => console.log(r.fixture_key, r.id, r.status));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Single contract (bare string)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/dp-api/contracts/trigger-upload",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "dp-api",
+                "contracts",
+                "trigger-upload"
+              ]
+            },
+            "description": "`file_names` accepts a bare string; one name returns the bare run object rather than {items}.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"file_names\": \"PT_BANGUN_CONTRACT.pdf\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json().data;",
+                  "const runs = d.items || [d];",
+                  "pm.test(\"1 run(s) created\", () => pm.expect(runs.length).to.eql(1));",
+                  "runs.forEach(r => console.log(r.fixture_key, r.id, r.status));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Contracts, no email (silent)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/dp-api/contracts/trigger-upload",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "dp-api",
+                "contracts",
+                "trigger-upload"
+              ]
+            },
+            "description": "No `email` \u2014 identical processing, no notification sent to anyone.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"file_names\": [\n    \"PALLADIUM_CONTRACT.pdf\",\n    \"PAKUWON_CONTRACT.pdf\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json().data;",
+                  "const runs = d.items || [d];",
+                  "pm.test(\"2 run(s) created\", () => pm.expect(runs.length).to.eql(2));",
+                  "runs.forEach(r => console.log(r.fixture_key, r.id, r.status));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2 \u00b7 Invoices",
+      "item": [
+        {
+          "name": "Multiple invoices (8 vendors)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/dp-api/ingestion/trigger-upload",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "dp-api",
+                "ingestion",
+                "trigger-upload"
+              ]
+            },
+            "description": "One run per invoice. `files` in the response maps each name to the run it produced.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"file_names\": [\n    \"PT_BANGUN_RENT_INV.pdf\",\n    \"RATNA_INTAN_INV.pdf\",\n    \"PALLADIUM_INV_1.pdf\",\n    \"PALLADIUM_INV_2.pdf\",\n    \"PAKUWON_INV_1.pdf\",\n    \"KARYA_NASTARI_INV_1.pdf\",\n    \"DEBORA_KEMANG_INV_1.pdf\",\n    \"DEBORA_KEMANG_INV_2.pdf\"\n  ],\n  \"email\": \"{{notify_email}}\",\n  \"tag\": \"aug-rent-batch\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json().data;",
+                  "pm.test(\"items + files present\", () => { pm.expect(d.items).to.be.an(\"array\"); pm.expect(d.files).to.be.an(\"array\"); });",
+                  "pm.collectionVariables.set(\"invoice_id\", d.items[0].id);",
+                  "d.files.forEach(f => console.log(f.file_name, \"->\", f.invoice_id));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Invoice + its Faktur Pajak (2 names \u2192 1 run)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/dp-api/ingestion/trigger-upload",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "dp-api",
+                "ingestion",
+                "trigger-upload"
+              ]
+            },
+            "description": "An FP name ATTACHES to the invoice's existing run instead of creating one, so two names collapse to a single run. FP aliases: GRAHA INV_FP_3\u2192invoice_1, INV_FP_2\u2192invoice_2, INV_FP_5\u2192invoice_3, INV_FP_4\u2192invoice_4; PALLADIUM has INV_FP_4/5/6.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"file_names\": [\n    \"GRAHA_MEGARIA_INV_2.pdf\",\n    \"GRAHA_MEGARIA_INV_FP_2.pdf\"\n  ],\n  \"email\": \"{{notify_email}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json().data;",
+                  "const runs = d.items || [d];",
+                  "pm.test(\"1 run(s) created\", () => pm.expect(runs.length).to.eql(1));",
+                  "runs.forEach(r => console.log(r.fixture_key, r.id, r.status));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Combined 6-page PDF (1 name \u2192 4 runs)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/dp-api/ingestion/trigger-upload",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "dp-api",
+                "ingestion",
+                "trigger-upload"
+              ]
+            },
+            "description": "GRAHA's single 6-page file holds four invoices and fans out into four independent runs. Also accepts INV_COMBINED, INV_BUNDLE, INV_1_TO_4, ALL_6_PAGES.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"file_names\": [\n    \"GRAHA_MEGARIA_INV_ALL_6_PAGES.pdf\"\n  ],\n  \"email\": \"{{notify_email}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json().data;",
+                  "const runs = d.items || [d];",
+                  "pm.test(\"4 run(s) created\", () => pm.expect(runs.length).to.eql(4));",
+                  "runs.forEach(r => console.log(r.fixture_key, r.id, r.status));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Invoices, no email (silent)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/dp-api/ingestion/trigger-upload",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "dp-api",
+                "ingestion",
+                "trigger-upload"
+              ]
+            },
+            "description": "No `email` \u2014 no notification will be sent at any stage.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"file_names\": [\n    \"PAKUWON_INV_2.pdf\",\n    \"PAKUWON_INV_3.pdf\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json().data;",
+                  "const runs = d.items || [d];",
+                  "pm.test(\"2 run(s) created\", () => pm.expect(runs.length).to.eql(2));",
+                  "runs.forEach(r => console.log(r.fixture_key, r.id, r.status));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3 \u00b7 Validation (expect 422)",
+      "item": [
+        {
+          "name": "file_names missing",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/dp-api/ingestion/trigger-upload",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "dp-api",
+                "ingestion",
+                "trigger-upload"
+              ]
+            },
+            "description": "file_names is the one mandatory field.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{notify_email}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"422 Unprocessable\", () => pm.response.to.have.status(422));",
+                  "console.log(JSON.stringify(pm.response.json().detail));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "file_names empty array",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/dp-api/contracts/trigger-upload",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "dp-api",
+                "contracts",
+                "trigger-upload"
+              ]
+            },
+            "description": "Must contain at least one non-empty name.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"file_names\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"422 Unprocessable\", () => pm.response.to.have.status(422));",
+                  "console.log(JSON.stringify(pm.response.json().detail));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "file_names all blank",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/dp-api/ingestion/trigger-upload",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "dp-api",
+                "ingestion",
+                "trigger-upload"
+              ]
+            },
+            "description": "Whitespace-only names are stripped, leaving nothing.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"file_names\": [\n    \"  \",\n    \"\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"422 Unprocessable\", () => pm.response.to.have.status(422));",
+                  "console.log(JSON.stringify(pm.response.json().detail));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "email malformed",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/dp-api/contracts/trigger-upload",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "dp-api",
+                "contracts",
+                "trigger-upload"
+              ]
+            },
+            "description": "email must contain an @.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"file_names\": [\n    \"PT_BANGUN_CONTRACT.pdf\"\n  ],\n  \"email\": \"not-an-email\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"422 Unprocessable\", () => pm.response.to.have.status(422));",
+                  "console.log(JSON.stringify(pm.response.json().detail));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "legacy `file_name` (singular)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/dp-api/ingestion/trigger-upload",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "dp-api",
+                "ingestion",
+                "trigger-upload"
+              ]
+            },
+            "description": "NO LONGER SUPPORTED \u2014 the field is `file_names`. Old collections must be renamed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"file_name\": \"PT_BANGUN_RENT_INV.pdf\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"422 Unprocessable\", () => pm.response.to.have.status(422));",
+                  "console.log(JSON.stringify(pm.response.json().detail));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4 \u00b7 Handy reads",
+      "item": [
+        {
+          "name": "List contracts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/dp-api/contracts",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "dp-api",
+                "contracts"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List invoices",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/dp-api/invoices",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "dp-api",
+                "invoices"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Tracker (every invoice, every stage)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/dp-api/tracker",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "dp-api",
+                "tracker"
+              ]
+            },
+            "description": "Live pipeline view \u2014 a row from upload onward."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Escalate an invoice",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/dp-api/invoices/{{invoice_id}}/escalate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "dp-api",
+                "invoices",
+                "{{invoice_id}}",
+                "escalate"
+              ]
+            },
+            "description": "Mails the payload address. One escalation per invoice \u2014 a second returns sent:false with reason 'already_escalated'. Subject/body are composed server-side; only `note` is accepted from the caller.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": \"Please confirm this variance before month end.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json().data;",
+                  "console.log(\"sent:\", d.sent, \"to:\", d.to, \"reason:\", d.reason);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
