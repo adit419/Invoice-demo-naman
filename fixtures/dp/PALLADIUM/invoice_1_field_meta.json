@@ -82,10 +82,10 @@
   "total_amount": {
     "bbox": {
       "page": 1,
-      "bbox_left": 0.74372,
-      "bbox_top": 0.290909,
-      "bbox_width": 0.05977,
-      "bbox_height": 0.013055,
+      "bbox_left": 0.882347,
+      "bbox_top": 0.499458,
+      "bbox_width": 0.059771,
+      "bbox_height": 0.013084,
       "value_confidence": 0.95
     }
   },
@@ -132,10 +132,20 @@
   "total_amount_before_vat": {
     "bbox": {
       "page": 1,
-      "bbox_left": 0.438822,
-      "bbox_top": 0.422181,
+      "bbox_left": 0.438815,
+      "bbox_top": 0.422185,
       "bbox_width": 0.059771,
-      "bbox_height": 0.013054,
+      "bbox_height": 0.04983,
+      "value_confidence": 0.95
+    }
+  },
+  "customer_address": {
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.031206,
+      "bbox_top": 0.129968,
+      "bbox_width": 0.476156,
+      "bbox_height": 0.042831,
       "value_confidence": 0.95
     }
   }

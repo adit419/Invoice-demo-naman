@@ -82,9 +82,9 @@
   "total_amount": {
     "bbox": {
       "page": 1,
-      "bbox_left": 0.033008,
-      "bbox_top": 0.250718,
-      "bbox_width": 0.094531,
+      "bbox_left": 0.908215,
+      "bbox_top": 0.529975,
+      "bbox_width": 0.058584,
       "bbox_height": 0.011409,
       "value_confidence": 0.95
     }

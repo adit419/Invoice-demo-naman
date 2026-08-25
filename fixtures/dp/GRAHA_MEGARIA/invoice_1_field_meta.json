@@ -152,10 +152,10 @@
   "vendor_bank_account_name": {
     "bbox": {
       "page": 1,
-      "bbox_left": 0.049758,
+      "bbox_left": 0.372598,
       "bbox_top": 0.576001,
-      "bbox_width": 0.461239,
-      "bbox_height": 0.032267,
+      "bbox_width": 0.138398,
+      "bbox_height": 0.015536,
       "value_confidence": 0.95
     }
   },
