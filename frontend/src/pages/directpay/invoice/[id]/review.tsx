@@ -300,7 +300,9 @@ function InvoiceReviewPage() {
           confidence: activeFieldBbox.value_confidence,
           confidenceThreshold: LOW_CONF,
           id: `field-${activeFieldDef.key}`,
-          label: activeFieldDef.label,
+          // Same override the table row uses, so the PDF highlight's caption
+          // can't disagree with the label the user just clicked.
+          label: run.field_meta[activeFieldDef.key]?.label ?? activeFieldDef.label,
           value: (edits[activeFieldDef.key] ?? (extracted[activeFieldDef.key] == null ? undefined : String(extracted[activeFieldDef.key]))) || undefined,
         }
       : null;
@@ -494,7 +496,7 @@ function InvoiceReviewPage() {
                               onMouseLeave={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.background = ""; }}
                             >
                               <td style={{ textAlign: "left", fontSize: 13, color: "#414651", boxShadow: leftBarColor ? `inset 3px 0 0 ${leftBarColor}` : undefined, padding: "10px 14px", lineHeight: "20px", backgroundColor: "#F4F4F4", borderRight: "1px solid #EBEDF0", width: "32%" }}>
-                                {f.label}
+                                {run.field_meta[f.key]?.label ?? f.label}
                                 {isRequired && <span style={{ color: "#E02D3C", fontWeight: 600, marginLeft: 3 }}>*</span>}
                               </td>
                               <td style={{ textAlign: "left", fontSize: 13, color: "#414651", padding: "10px 14px", lineHeight: "20px", background: cellBg }}>

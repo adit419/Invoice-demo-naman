@@ -3,7 +3,7 @@
   "invoice_date": "2026-08-01",
   "vendor_name": "Rainey Street Properties III, LLC",
   "vendor_address": "98 San Jacinto Boulevard, Suite 400, Austin, TX 78701",
-  "vendor_vat_id": "87-3049126",
+  "vendor_vat_id": null,
   "customer_legal_entity": "Rootbridge Technologies, Inc.",
   "customer_address": "401 Congress Avenue, Suite 3200, Austin, TX 78701",
   "customer_vat_id": null,

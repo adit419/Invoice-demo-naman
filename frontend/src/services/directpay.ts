@@ -217,6 +217,14 @@ export interface DpReview {
 // already gets from its own hardcoded FIELD_DEFS instead of field_meta).
 export interface DpInvoiceFieldMeta {
   bbox?: DpFieldBbox | null;
+  // Per-vendor label override for the Extracted Data table. The default labels
+  // live in review.tsx's FIELD_DEFS and apply to every vendor; a fixture sets
+  // this only where one vendor's document calls the same field something else
+  // (RAINEY_STREET_PROPERTIES: "VAT / GST" reads "VAT / GST / Taxed Amount").
+  // Same convention contract_field_meta.json already uses for its own labels,
+  // which is why this belongs in the fixture rather than as a vendor check in
+  // the component.
+  label?: string | null;
 }
 
 export interface DpInvoiceRun {

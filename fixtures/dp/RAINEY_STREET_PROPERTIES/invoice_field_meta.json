@@ -39,16 +39,6 @@
       "value_confidence": 1.0
     }
   },
-  "vendor_vat_id": {
-    "bbox": {
-      "page": 1,
-      "bbox_left": 0.479949,
-      "bbox_top": 0.13115,
-      "bbox_width": 0.068675,
-      "bbox_height": 0.011108,
-      "value_confidence": 1.0
-    }
-  },
   "customer_legal_entity": {
     "bbox": {
       "page": 1,
@@ -130,6 +120,9 @@
     }
   },
   "tax_type": {},
+  "vat_gst": {
+    "label": "VAT / GST / Taxed Amount"
+  },
   "total_amount": {
     "bbox": {
       "page": 1,
