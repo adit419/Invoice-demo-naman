@@ -7,10 +7,10 @@
     "ai_match_reasoning": null,
     "bbox": {
       "page": 18,
-      "bbox_left": 0.146371,
-      "bbox_top": 0.410607,
-      "bbox_width": 0.265887,
-      "bbox_height": 0.01095,
+      "bbox_left": 0.143952,
+      "bbox_top": 0.437411,
+      "bbox_width": 0.373386,
+      "bbox_height": 0.075848,
       "value_confidence": 0.93
     }
   },
@@ -82,10 +82,10 @@
     "ai_match_reasoning": null,
     "bbox": {
       "page": 1,
-      "bbox_left": 0.695081,
-      "bbox_top": 0.059196,
-      "bbox_width": 0.19379,
-      "bbox_height": 0.008896,
+      "bbox_left": 0.489113,
+      "bbox_top": 0.363844,
+      "bbox_width": 0.085081,
+      "bbox_height": 0.009124,
       "value_confidence": 0.93
     }
   },
@@ -395,11 +395,11 @@
     "audit_trail": null,
     "ai_match_reasoning": "Not in the tracker's own Field 46, but printed identically on both invoices and in the agreement's payment article: MANDIRI 1270000055283, DEBORA DEBBY WAGE.",
     "bbox": {
-      "page": 1,
-      "bbox_left": 0.156532,
-      "bbox_top": 0.236441,
-      "bbox_width": 0.160645,
-      "bbox_height": 0.011463,
+      "page": 5,
+      "bbox_left": 0.423387,
+      "bbox_top": 0.647562,
+      "bbox_width": 0.148387,
+      "bbox_height": 0.011121,
       "value_confidence": 0.93
     }
   },

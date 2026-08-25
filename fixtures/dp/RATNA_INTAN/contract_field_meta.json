@@ -379,11 +379,11 @@
     "audit_trail": null,
     "ai_match_reasoning": "Parsed from the tracker's own \"Lessor Payment Share\" field (\"BCA 8810251850, Name: RATNA INTAN MULYATI G\") \u2014 unlike PT_BANGUN, this vendor's source cell does contain a literal account name/number",
     "bbox": {
-      "page": 2,
-      "bbox_left": 0.433936,
-      "bbox_top": 0.374879,
+      "page": 10,
+      "bbox_left": 0.599798,
+      "bbox_top": 0.392494,
       "bbox_width": 0.223866,
-      "bbox_height": 0.010432,
+      "bbox_height": 0.009121,
       "value_confidence": 0.93
     }
   },
