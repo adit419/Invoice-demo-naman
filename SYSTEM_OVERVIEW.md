@@ -2,6 +2,12 @@
 
 A end-to-end walkthrough of how the demo invoice processing pipeline works: frontend, backend, fixtures, and email ingestion.
 
+**Two apps live in this repo.** Sections 1–10 below describe **Invoice Processing** (P2P) — the
+PO-based pipeline under `/dashboard` and `/api/v1`. **DirectPay** (§11) is a separate, non-PO
+contract-vs-invoice pipeline under `/directpay` and `/dp-api`, with its own stages, collections and
+fixtures. They share the app shell, auth, the in-memory DB and some UI components, and nothing else —
+where this doc says "invoice" without qualification, it means P2P's.
+
 ---
 
 ## Table of Contents
@@ -16,6 +22,7 @@ A end-to-end walkthrough of how the demo invoice processing pipeline works: fron
 8. [Straight-Through Processing (STP)](#straight-through-processing-stp)
 9. [Deployment](#deployment)
 10. [Key Design Patterns](#key-design-patterns)
+11. [DirectPay](#directpay)
 
 ---
 
@@ -438,3 +445,107 @@ Faktur Pajak is an Indonesian tax document. The `fp_extraction` stage only activ
 ### Zoho Integration
 
 Bill posting makes real Zoho Books API calls when credentials are configured. Without credentials, the backend returns the mock response from `erp_result.json`. The frontend cannot tell the difference — it just follows the returned `zoho_url`.
+
+---
+
+## DirectPay
+
+A second pipeline in the same app, for **non-PO** spend: recurring rent, service charge and utility
+invoices validated against a **lease contract** instead of a purchase order. Routes live under
+`/directpay`, the API under `/dp-api`, fixtures under `fixtures/dp/`. Same demo principle as P2P —
+every value is served from fixture JSON, nothing is OCR'd.
+
+The engineering detail lives in `backend/src/directpay/docs/`:
+`DIRECTPAY_INSTALLMENT_RENT_WORKFLOW.md` (the main reference), `DIRECTPAY_FIELDS_BY_STAGE.md`, and
+one `DIRECTPAY_VENDOR_RULES_*.md` per vendor with non-obvious semantics. What follows is the map.
+
+### Two pipelines, not one
+
+```
+Contract:  review → postprocessing* → saved
+Invoice:   extraction → extracted → fp_extraction* → matching → bill_posting → posted
+                                                                             ↘ rejected (from any stage)
+```
+
+\* `postprocessing` only when the vendor has a `payment_schedule.json`; `fp_extraction` only for IDR
+vendors that have a Faktur Pajak document.
+
+A contract must be saved before an invoice can match against it. `extracted` is reused for three
+distinct moments and is disambiguated by the one-way `extraction_confirmed` flag — which is why stage
+routing goes through the single `utils/directpayRoutes.ts` helper rather than a status switch per
+page.
+
+### Pages
+
+| Route | Purpose |
+|-------|---------|
+| `/directpay/dashboard?tab=invoices` | Invoice list; source icon, status tag, row routing |
+| `/directpay/dashboard?tab=contracts` | Contract list |
+| `/directpay/tracker` | One row per invoice across every stage, with filters + CSV export |
+| `/directpay/contract/[id]/review`, `/extraction-postprocessing` | Contract stages |
+| `/directpay/invoice/[id]/review`, `/fp-extraction`, `/match`, `/bill-posting` | Invoice stages |
+
+### Ingestion
+
+Four upload routes — a real multipart upload and a by-name trigger, for each document type:
+
+| Route | `source` | Used by |
+|---|---|---|
+| `POST /dp-api/invoices/upload`, `POST /dp-api/contracts/upload` | `manual` | a file picked in the UI |
+| `POST /dp-api/ingestion/trigger-upload`, `POST /dp-api/contracts/trigger-upload` | `trigger` | email/API ingestion (n8n) |
+
+Both trigger endpoints take **one payload: `file_names` mandatory, `email` and `tag` optional** (a
+bare string is coerced to a list, so single and batch are the same request). Every route resolves its
+fixture from the file *name* and never reads the bytes.
+
+**Duplicate detection** refuses the same file name on all four routes, for both document types, in
+both directions, case-insensitively → `409`. A run records every name it receives
+(`uploaded_file_names`) because an invoice's Faktur Pajak and supporting documents arrive as separate
+uploads under their own names.
+
+### Notifications
+
+Automatic notifications are posted as **replies on the originating FreshDesk ticket**, whose id comes
+from the trigger-upload payload's `tag`. **No tag means no notification, of any kind, with no
+fallback** — a manual upload has no conversation to reply into. Four kinds: duplicate refused,
+acknowledgement needed (at the FP stage and at Matching, in both manual and Auto-Process modes),
+reviewer escalation (one-shot), and posted. Each is idempotent per `(kind, stage)`, and a FreshDesk
+failure is logged and swallowed — posting a bill never depends on FreshDesk being reachable.
+
+### Auto-Process (STP)
+
+The same global toggle drives both pipelines. The **invoice** cascade runs extraction → AI contract
+match → accept and holds for a human on any of four conditions. The **contract** cascade is
+deliberately ungated — there is nothing to validate a contract against — so it always reaches
+`saved`, with a visible delay scaled to the contract's page count (capped at 6s).
+
+### Google Drive
+
+Once extraction settles (or the Faktur Pajak stage is approved, where there is one), the invoice's
+documents are renamed `[VendorName]_[InvoiceNo]_[DocType]` and uploaded to the `Kopi_Non_PO_docs`
+shared drive. Requires the full `drive` scope and `supportsAllDrives=true` on every call.
+
+### Collections
+
+Separate from P2P's, so a field name that exists in both (`vendor_name`) can never cross-contaminate:
+
+| Collection | Stores |
+|---|---|
+| `dp_invoice_runs` | Invoice run — status, extracted data, findings, acknowledgements, notifications ledger |
+| `dp_contract_runs` | Contract run — extracted fields, postprocessing overrides |
+| `dp_contract_recommendations` | Cached AI contract-match recommendation, one per run |
+| `dp_field_acknowledgement_memory` | DP's own learned acknowledgements |
+
+DirectPay's persisted settings (Auto-Process, Acknowledge Threshold, Total-Before-VAT tolerance) are
+keyed rows in the shared `app_settings` collection, configured in the admin **Workflow Settings**
+page — which also has **Clear DirectPay Data** (`DELETE /dp-api/data`), emptying the four collections
+above while leaving P2P's data and the settings themselves untouched.
+
+### Environment
+
+DirectPay adds these to `backend/.env`; see [DEPLOY.md](DEPLOY.md) for the full table.
+
+| Variable | Purpose |
+|---|---|
+| `FRESHDESK_ENABLED` / `FRESHDESK_DOMAIN` / `FRESHDESK_TOKEN` | Notification replies. The token is the raw API key — the client appends the `:X` password and base64s it |
+| `DRIVE_ENABLED` / `DRIVE_FOLDER_ID` | Document upload. Reuses the Gmail OAuth app and refresh token — one credential, three scopes |

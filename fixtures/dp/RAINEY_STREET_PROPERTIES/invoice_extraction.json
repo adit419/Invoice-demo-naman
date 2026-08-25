@@ -1,0 +1,40 @@
+{
+  "invoice_number": "202608014",
+  "invoice_date": "2026-08-01",
+  "vendor_name": "Rainey Street Properties III, LLC",
+  "vendor_address": "98 San Jacinto Boulevard, Suite 400, Austin, TX 78701",
+  "vendor_vat_id": "87-3049126",
+  "customer_legal_entity": "Rootbridge Technologies, Inc.",
+  "customer_address": "401 Congress Avenue, Suite 3200, Austin, TX 78701",
+  "customer_vat_id": null,
+  "description": "Base Rent for the Month of August 2026, Suite 1200, 600 Congress Avenue, Austin, TX 78701",
+  "billing_period_start": "2026-08-01",
+  "billing_period_end": "2026-08-31",
+  "payment_terms": "Net 7 — Due August 7, 2026",
+  "due_date": "2026-08-07",
+  "total_amount_before_vat": 16000,
+  "tax_type": "None Stated",
+  "tax_rate": null,
+  "vat_gst": null,
+  "wht_rate": null,
+  "wht": null,
+  "net_amount_after_wht": null,
+  "total_amount": 16000,
+  "currency": "USD",
+  "vendor_bank_name": "JPMorgan Chase Bank, N.A.",
+  "vendor_bank_account_name": "Rainey Street Properties III, LLC",
+  "vendor_bank_account_number": "483920571",
+  "vendor_bank_swift": "CHASUS33",
+  "vendor_bank_routing_number": "111000614",
+  "notes": "If the above rent is not paid by the due date specified in the Lease Agreement, a late charge of 5% of the overdue amount will be assessed, and interest will accrue at 1.5% per month (18% per annum) on a daily basis until paid in full. Please reference Invoice No. 202608014 and the Suite number with your payment.",
+  "line_items": [
+    {
+      "label": "Base Rent for the Month of August 2026, Suite 1200, 600 Congress Avenue, Austin, TX 78701 — per Lease Agreement dated December 15, 2024",
+      "item_code": null,
+      "charge_type": "Rent",
+      "quantity": null,
+      "unit_price": null,
+      "amount": 16000
+    }
+  ]
+}

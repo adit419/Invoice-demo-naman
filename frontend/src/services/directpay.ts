@@ -136,6 +136,11 @@ export interface DpInvoiceExtracted {
   vendor_bank_account_name?: string | null;
   vendor_bank_account_number?: string | null;
   vendor_bank_swift?: string | null;
+  // US bank routing (ABA) number, alongside — not instead of — SWIFT: a US
+  // invoice states both, routing for domestic ACH/wire and SWIFT for
+  // international. First needed by RAINEY_STREET_PROPERTIES, the first USD
+  // vendor; absent on every IDR vendor, hence optional like the rest.
+  vendor_bank_routing_number?: string | null;
   notes?: string | null;
   line_items?: DpLineItem[];
 }
@@ -730,4 +735,10 @@ export const directpayService = {
       enabled,
       threshold_pct: thresholdPct,
     }),
+
+  // Wipes DirectPay's invoices, contracts and everything derived from them.
+  // Settings (Auto-Process, thresholds) survive — see backend
+  // service.reset_dp_data for what is and isn't cleared.
+  resetData: () =>
+    api.delete<{ deleted: Record<string, number>; total: number }>("/dp-api/data"),
 };

@@ -388,3 +388,32 @@ Credit.
 | WHT applicable | ✅ | ✅ | ❌ | ❌ |
 | Supporting documents | ❌ | ❌ | ✅ 2 of 3 | ✅ 2 of 4 |
 | Distinct G/L accounts | 1 | 1 | 1 | **4** |
+
+---
+
+## 8. Tracker — 8 columns (a read surface, not a stage)
+
+`GET /dp-api/tracker` → `/directpay/tracker`. Not part of the state machine: one row per invoice at
+**every** status, from upload onward. See §16 of `DIRECTPAY_INSTALLMENT_RENT_WORKFLOW.md` for the
+behaviour; this is the field list.
+
+| # | Column | Source |
+|---|---|---|
+| 1 | Invoice Number | `extracted.invoice_number` |
+| 2 | Invoice Date | `extracted.invoice_date` (+ an ISO twin for filtering) |
+| 3 | Invoice Received Date | the run's `created_at`, local-day normalised |
+| 4 | Vendor Name | `extracted.vendor_name` |
+| 5 | Description | `extracted.description` |
+| 6 | Taxable Amount | `_bill_posting_out` — gated on `has_extraction` |
+| 7 | VAT Amount (IDR) | `_bill_posting_out` — gated on `has_extraction` |
+| 8 | Status | the run's `status`, disambiguated by `extraction_confirmed` |
+
+Also on the payload but not rendered as columns: `has_extraction`, `stp_state`,
+`stp_failure_reason`, `source`, `contract_id`, `due_date`, WHT and payable (used by the filters and
+the CSV export).
+
+**Every value is the invoice's own extracted data** — never its file name — and a reviewer's edit is
+reflected immediately, since the Tracker reads the same `base_extracted` + `edited_extracted` merge
+as every other surface. `—` means not known yet; `"NA"` means the document genuinely doesn't state
+it. The money columns are blank rather than zero before extraction: `has_extraction` exists because
+without it `_match_payment_installment` invents a figure from the first schedule row.

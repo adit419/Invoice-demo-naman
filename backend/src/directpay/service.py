@@ -414,7 +414,12 @@ _RATNA_INTAN_NO_VAT_FIELDS = {"vat_gst", "tax_rate"}
 # vendor (Palladium/Pakuwon/Karya Nastari), whose own registered address
 # genuinely IS the mall the leased unit sits in — that comparison stays as-is
 # for those.
-_NO_STORE_LOCATION_MATCH_VENDORS = {"RATNA_INTAN", "PT_BANGUN", "DEBORA_KEMANG"}
+# RAINEY_STREET_PROPERTIES is the same shape: the invoice states the landlord's
+# own office (98 San Jacinto Boulevard, Suite 400) while the leased premises is
+# Suite 1200, 600 Congress Avenue — a different building. The premises appears
+# on the invoice only inside `description` and the line-item label, never in an
+# address field, so there is nothing for this comparison to match against.
+_NO_STORE_LOCATION_MATCH_VENDORS = {"RATNA_INTAN", "PT_BANGUN", "DEBORA_KEMANG", "RAINEY_STREET_PROPERTIES"}
 def _has_no_schedule_charge(extracted: dict) -> bool:
     line_items = extracted.get("line_items") or []
     return any(item.get("charge_type") in _NO_SCHEDULE_CHARGE_TYPES for item in line_items)
@@ -3770,3 +3775,42 @@ async def get_cached_contract_recommendation(db, oid: ObjectId) -> Optional[dict
     without triggering a new computation."""
     doc = await dp_contract_recommendations(db).find_one({"run_id": oid})
     return doc
+
+
+# ── Reset (admin) ─────────────────────────────────────────────────────────────
+
+async def reset_dp_data(db) -> dict:
+    """Delete every DirectPay run and everything derived from one.
+
+    Same end state a backend restart produces — the demo DB is in-memory, so a
+    restart wipes it — except scoped to DirectPay. P2P's own collections
+    (pipeline_runs, invoices, executed_stages, its field_acknowledgement_memory)
+    are untouched, which is the whole reason this exists rather than telling
+    someone to restart the server.
+
+    Deliberately NOT cleared: the `directpay_*` keys in app_settings
+    (Auto-Process, Acknowledge Threshold, Total-Before-VAT tolerance). Those are
+    configuration, not processing data, and silently resetting a reviewer's
+    thresholds because they cleared out demo invoices would be a nasty surprise.
+    A restart does reset them, so this is a deliberate difference.
+
+    Returns per-collection deleted counts, so the caller can report what it
+    actually removed rather than claiming success blindly.
+    """
+    counts: dict[str, int] = {}
+    for label, collection in (
+        ("invoices", dp_invoice_runs),
+        ("contracts", dp_contract_runs),
+        # Derived from a run and keyed by run_id: without this they would be
+        # orphaned rows that a later run could never reach but which still
+        # occupy the unique index on run_id.
+        ("contract_recommendations", dp_contract_recommendations),
+        # Learned acknowledgements. Cleared because they change how FUTURE
+        # invoices behave: a mismatch auto-approved from memory never surfaces
+        # to the reviewer, so leaving this behind would make a "clean" demo run
+        # silently skip the acknowledgement step it is meant to demonstrate.
+        ("acknowledgement_memory", dp_field_acknowledgement_memory),
+    ):
+        result = await collection(db).delete_many({})
+        counts[label] = result.deleted_count
+    return counts

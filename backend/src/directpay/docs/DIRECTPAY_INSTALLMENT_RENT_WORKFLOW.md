@@ -106,8 +106,8 @@ Two rules behind it:
 **The backend never computes on `"NA"`.** `_strip_na()` (`service.py`) normalizes `"NA"` back to
 `None` at the top of every function that does real work with extracted/contract values —
 `_apply_mandatory_field_coverage`, `_refresh_findings_from_extracted`, `_bill_posting_out`,
-`simulate_bill_posting`, `get_faktur_pajak`, `acknowledge_fp_field`,
-`_resolve_dp_notification_email`. **Any new consumer of extracted/contract field values must call
+`simulate_bill_posting`, `get_faktur_pajak`, `acknowledge_fp_field`.
+**Any new consumer of extracted/contract field values must call
 `_strip_na()` too**, or it will do arithmetic on the string `"NA"` (crash) or treat it as a real
 value (silently wrong comparison).
 
@@ -243,18 +243,29 @@ fixture and extracted separately:
 | Endpoint | Single | Batch |
 |---|---|---|
 | `POST /contracts/upload` (multipart) | one `file` field | the **`file` field repeated** per document (`list[UploadFile]`) |
-| `POST /contracts/trigger-upload` (by name) | `{"file_name": "..."}` | `{"file_names": [...]}` |
+| `POST /contracts/trigger-upload` (by name) | `{"file_names": "X.pdf"}` | `{"file_names": [...]}` |
+
+**Both trigger endpoints take one payload shape: `file_names` mandatory, `email` and `tag`
+optional.** A bare string is coerced to a one-element list by `DpTriggerUploadBase`, so single and
+batch are the same request. There is no `file_name` variant any more — it was removed so the two
+endpoints could not drift.
 
 Response shape matches the invoice side exactly: the bare run for one result, `{"items": [...]}` for
 several, so a client normalises both with one `items` check. `services/directpay.ts`'s
-`uploadContract` now returns `DpContractRun[]` always, and handles a **mixed** selection — anything
-over the large-file threshold goes by name through the trigger endpoint, the rest as real multipart
-bytes, and the two result sets are concatenated.
+`uploadContract` returns `DpContractRun[]` always.
 
-Unlike the invoice side there is **no dedupe**: `upload_contract` has never had one, so two files
-always mean two runs, and re-uploading the same contract deliberately creates another. (The
-invoice+Faktur-Pajak collapse in §6e exists because two *different* files can be the same real
-document; two contract files never are.)
+**Which endpoint the frontend uses is provenance, not transport.** A file the user picked in the UI
+always goes to the *manual* endpoint, so the run is recorded `source: "manual"`; the trigger endpoint
+is used only for a simulated ingestion (one carrying `email`/`tag`). This used to be decided by file
+size — anything over an 8MB threshold was diverted to trigger-upload — which stamped hand-picked
+contracts `source: "trigger"` and made the dashboard's source icon show email ingestion for every
+real upload, since production contract PDFs are routinely over 8MB. The threshold is gone: every
+endpoint resolves its fixture from the file NAME and never reads the bytes, so `nameOnly()` sends the
+name alone and size is irrelevant.
+
+**Contracts dedupe by file name, like invoices** — see §2e. An earlier version of this doc said
+contracts had no dedupe and that re-uploading one deliberately created another run; that is no longer
+true on any of the four upload routes.
 
 On the dashboard the file picker is now `multiple` on both tabs. Contracts go through one call and,
 when more than one run comes back, the page reloads the list and reports the count instead of routing
@@ -265,6 +276,51 @@ Verified: 7 contract files in one multipart request produced 7 runs with 7 disti
 7 distinct ids, each with its own 49-field extraction and its own vendor data; approving three of them
 left the other four untouched at `review`. Single-file uploads still return the bare run object on
 both endpoints.
+
+---
+
+### 2e. Duplicate detection (all four upload routes)
+
+**Rule: the same file name is refused, on every route, for both document types.** `manual → manual`,
+`manual → trigger`, `trigger → trigger` and `trigger → manual` all reject, and matching is
+case/whitespace-insensitive (`_normalise_upload_name` strips and lowercases, so
+`"  palladium_inv_1.PDF "` is caught).
+
+| | Refused with |
+|---|---|
+| `POST /invoices/upload`, `POST /contracts/upload` | `409` + the duplicate inline: `{file_name, duplicate, message, existing_invoice_id}` |
+| `POST /ingestion/trigger-upload`, `POST /contracts/trigger-upload` | `409` when nothing was created; `200` with a `duplicates: [...]` array when part of a batch succeeded |
+
+This replaced a fingerprint over vendor / invoice number / service period / store location / amounts.
+File name is what the requirement asks for and needs no extracted data, so the check works at upload
+time before anything has been read.
+
+**`uploaded_file_names` — why `file_name` alone was not enough.** A run holds more than one file:
+`file_name` is the invoice's own PDF, while its Faktur Pajak and supporting documents arrive as
+separate uploads under their own names, which were never recorded anywhere (`uploaded_artefacts`
+stores the artefact *type*, `"companion"`, not the name). While the run was in flight the in-flight
+branch in `upload_invoice_documents` absorbed a repeat, but once the run reached `posted`/`rejected`
+that branch no longer applies, the name check had nothing to match, and re-sending the FP **created a
+phantom run** whose `file_name` was a Faktur Pajak — showing up in the Tracker as a fresh invoice at
+extraction stage. Every name a run receives is now recorded in `uploaded_file_names`, and
+`find_duplicate_by_filename` matches that list as well as `file_name`.
+
+A side benefit: companions are judged by NAME rather than by the single `"companion"` token, so a
+Faktur Pajak and a supporting document both still attach (different names) while the same file twice
+is refused — a distinction the type-level check could not make.
+
+**What must still attach, not be refused:** an invoice's FP or supporting document under its own
+name, in either order (§6e). Only the invoice's own PDF arriving twice, or a companion arriving
+twice, is a duplicate.
+
+**Frontend.** A refused upload is not reported as a failure — the file was read fine and the system
+already holds it. `duplicateUploads()` (`services/api.ts`) recognises both 409 shapes and the
+dashboard shows `DpNotice`, a top-centre popup naming the file. Two bugs found while wiring this:
+`api.postForm` carried its own copy of the error path that passed the whole `detail` OBJECT as the
+message (rendering `[object Object]`) and dropped `detail` entirely, so a duplicate was
+indistinguishable from a real failure — both verbs now share one `throwApiError`; and a multi-file
+batch counted duplicates as failures, so `[dup, new]` reported "1 of 2 uploaded — 1 failed" when
+nothing was wrong.
 
 ## 3. Contract pipeline
 
@@ -1164,6 +1220,65 @@ all.
 
 ---
 
+### 10c. Auto-Process for contracts (ungated)
+
+The same global toggle also cascades contracts: `_cascade_dp_contract` /
+`run_dp_stp_for_contract` (`stp.py`) drive `review → postprocessing → saved` with no checks at all.
+Unlike the invoice cascade there is nothing to validate a contract against — no counterpart document
+— so it never holds and always lands on `saved`; `stp_state` therefore only ever reads `processing`
+then `done`, never `waiting_review`.
+
+The visible delay is deliberate: it is what makes processing look like it is happening.
+`contract_extraction_pause_s(pages)` scales it with the contract's real page count (from
+`fixtures.page_count()`, parsed at byte level and cached), **capped at 6s** so a long lease doesn't
+stall the demo.
+
+### 10d. Notifications (FreshDesk ticket replies)
+
+Every automatic notification is a **reply on the originating FreshDesk ticket** — not a fresh email
+from `sales@neoflo.ai`, which is the retired path. Threading is inherent: replies land on the ticket,
+so a run's notifications are one conversation by construction, with none of the
+Message-ID/`threadId` bookkeeping an email thread needs.
+
+| Notification | `kind` / `stage` | Fires from |
+|---|---|---|
+| Duplicate refused | `duplicate_rejected` | the upload routes (§2e) |
+| Acknowledgement needed | `action_required` / `faktur_pajak_mismatch` \| `matching_open_issues` | entering the FP stage, entering Matching, **and** the Auto-Process hold |
+| Reviewer escalation | `escalation` / `matching` | the Escalate button |
+| Posted | `posted` / `bill_posting` | `post_bill` |
+
+**The ticket id comes from the trigger-upload payload's `tag`** (`_dp_ticket_id` strips non-digits, so
+`"81234"`, `"#81234"` and `"FD#81234"` all work). **No tag means NO notification, of any kind, with
+no fallback** — a manual upload has no originating ticket, so there is no conversation to reply into
+and nobody who asked to be told.
+
+Three rules live in `_dp_notify` so no caller repeats them: no ticket → nothing; idempotent per
+`(kind, stage)` (the cascade is re-entrant via `resume_dp_stp_if_enabled` and would otherwise re-post
+on every resume); and never fatal — a FreshDesk failure is logged and swallowed, since posting a bill
+must not depend on FreshDesk being reachable. The client retries with backoff (3 attempts, 1s/3s) but
+**not on 4xx except 429**, because a closed ticket or bad id won't improve.
+
+`action_required` fires in **both** modes. It was originally wired only into the Auto-Process hold,
+so with Auto-Process off an invoice could sit at Matching with unacknowledged mismatches and nobody
+was ever told. The condition that matters is "acknowledgement needed", not "the cascade stopped", so
+it is now hooked to the stage *transitions* (`match_invoice`, and `confirm_extraction`'s move into
+`fp_extraction`) via `_notify_if_action_required`. Hooking the Matching *screen* instead would
+re-send on every page open, because findings are recomputed on each GET; a re-match onto a different
+contract is likewise silent, being the same stage and the same conversation.
+
+Escalation is **one-shot** — a second attempt returns `{"sent": false, "reason": "already_escalated"}`
+— and the reasons are distinguished so a send failure can't be mistaken for "no recipient":
+`no_ticket`, `already_escalated`, `send_failed`.
+
+**The request field is `body`, not `body_html`.** `body` takes HTML and FreshDesk renders it in the
+ticket and in the email to the requester. `body_html` is a field FreshDesk *returns* on a
+conversation; sending it is rejected with
+`400 {"field": "body_html", "message": "Unexpected/invalid field in request"}` — which this client
+correctly does not retry, so every notification failed silently with nothing posted. See §11.11 for
+why the test suite missed it.
+
+---
+
 ## 11. Notable bugs already fixed (learn from these when extending)
 
 These aren't historical trivia — each one is a **pattern that will recur** the moment a new
@@ -1274,6 +1389,25 @@ computed/fallback value touches more than one page:
     anchored by `bottom` (not a computed `top`) so the flip stays exact regardless of card height.
     Its earlier right-edge position also sat underneath the floating Neo widget and was unclickable
     — inline affordances in the last table column need to account for that overlay.
+20. **A stub that agreed with the code instead of the API.** Every FreshDesk notification 400'd in
+    production while the whole test suite passed, because the request used `body_html` and the API
+    only accepts `body` — and the mock server had been written to accept `body_html` too. The tests
+    were validating an assumption about the API, not the API. **A stub you wrote cannot confirm a
+    contract you guessed**: exercise the real endpoint once, even destructively, or assert the
+    contract from its own error responses. The mock now rejects `body_html` and requires a non-empty
+    `body`, exactly as the live API does, so this cannot pass again.
+21. **Fabricated money on un-extracted rows.** The Tracker showed amounts for invoices that had
+    never been extracted: `_match_payment_installment` does `float(None)` on a missing amount,
+    raises `TypeError`, and its `except` returns `installments[0]` — inventing a figure from the
+    first schedule row. Guarded by a `has_extraction` gate; any new surface that reads
+    `_bill_posting_out` before extraction needs the same gate.
+22. **Provenance decided by transport.** The frontend chose its upload endpoint by file size, and
+    the endpoint is what records `source` — so a hand-picked file over 8MB came back stamped
+    `"trigger"` and the dashboard showed email ingestion for a manual upload (§2d). Contracts were
+    worse: they posted to trigger-upload unconditionally, so the manual icon could never appear.
+23. **A notification wired to the wrong condition.** `action_required` was hooked to the
+    Auto-Process hold rather than to "acknowledgement needed", so with Auto-Process off the trail
+    stopped after the upload acknowledgement and never resumed (§10d).
 
 ---
 
@@ -1368,16 +1502,35 @@ computed/fallback value touches more than one page:
   algorithm and the `documents.json` manifest loader.
 - `models.py` — Pydantic request bodies.
 - `contract_recommendation.py` — the AI auto-match scorer (not detailed in this doc).
-- `stp.py` — Auto-Process (only ever runs the initial extraction step; never auto-drives
-  Matching/approval — see its own module docstring). **Also holds all DirectPay-scoped persisted
-  settings** — STP toggle, Ack Threshold, and the Total-Amount-Before-VAT threshold (§14) — each a
-  keyed row in the shared `app_settings` collection.
+- `stp.py` — Auto-Process for invoices AND contracts (§10b, §10c). **Also holds all
+  DirectPay-scoped persisted settings** — STP toggle, Ack Threshold, and the
+  Total-Amount-Before-VAT threshold (§14) — each a keyed row in the shared `app_settings`
+  collection.
+- `store.py` — the four DP collections: `dp_invoice_runs`, `dp_contract_runs`,
+  `dp_contract_recommendations`, `dp_field_acknowledgement_memory`, and their indexes.
+
+**Shared services** (`backend/src/services/`) — used by DirectPay, some shared with P2P:
+- `freshdesk_client.py` — `reply_to_ticket` (§10d). One operation, retry with backoff, never raises.
+- `google_auth.py` — the ONE cached OAuth access token. Gmail and Drive run off the same OAuth app
+  and the same refresh token (three scopes: `gmail.send`, `gmail.modify`, `drive`), so they must not
+  each keep their own cache.
+- `drive_client.py` — `upload_pdf`, `find_in_folder`, `check_access` (§17).
+- `email_templates.py` — the DP notification bodies (`directpay_payment_scheduled_html`,
+  `directpay_action_required_html`, `directpay_escalation_html`,
+  `directpay_duplicate_rejected_html`).
 
 **Frontend** (`frontend/src/`):
 - `services/directpay.ts` — all types + API client methods; the single source of truth for
   status unions.
 - `utils/directpayRoutes.ts` — `invoiceRoute()`, the shared stage-routing helper.
-- `pages/directpay/dashboard.tsx` — Invoices/Contracts list, status tags, row routing.
+- `pages/directpay/dashboard.tsx` — Invoices/Contracts list, status tags, row routing, the
+  manual-vs-email source icon (§2d) and the duplicate popup (§2e).
+- `pages/directpay/tracker.tsx` — the Tracker (§16), with `components/directpay/dpTableUi.tsx`
+  (shared list primitives), `DpFilterPanel.tsx` and `utils/trackerCsv.ts`.
+- `components/directpay/DpNotice.tsx` — the top-centre upload notice. Deliberately NOT the shared
+  `ui/Toast`: that one is styled from the platform's semantic tokens (a solid `surface-warning` fill
+  whose values are dark-oriented) and sits bottom-right, which reads as a foreign element on
+  DirectPay's white, Ant-flavoured screens.
 - `pages/directpay/contract/[id]/review.tsx`, `extraction-postprocessing.tsx`.
 - `pages/directpay/invoice/[id]/review.tsx`, `fp-extraction.tsx`,
   `extraction-postprocessing.tsx`, `match.tsx`, `bill-posting.tsx`.
@@ -1463,3 +1616,94 @@ on the contract side: a permanent, unresolvable hard error.
 `supporting_document` at it, add the real upload filename to `match`, and ensure the invoice's own
 line item carries a `charge_type` that's in `_NO_SCHEDULE_CHARGE_TYPES` (else the schedule-based
 path is used and the supporting document is ignored).
+
+---
+
+## 16. The Tracker
+
+`GET /dp-api/tracker` → `pages/directpay/tracker.tsx`. A flat, one-row-per-invoice register of the
+whole pipeline, **from the first stage onward** — not a record of finished work. It lists invoices at
+every status (`find({})`, no status filter), so a row appears the moment an invoice is uploaded and
+updates as it progresses.
+
+**Columns** (in render order): Invoice Number, Invoice Date, Invoice Received Date, Vendor Name,
+Description, Taxable Amount, VAT Amount, Status. Values are left-aligned, headers evenly spaced, and
+the table scrolls horizontally within its own container so the page body never scrolls sideways.
+
+**Where the values come from.** The invoice's **extracted data**, not its file name — and a
+reviewer's edit is reflected immediately, because the Tracker reads the same
+`base_extracted` + `edited_extracted` merge every other surface reads. Money comes from
+`_bill_posting_out`, so Taxable/VAT/WHT/Payable agree with Bill Posting rather than being recomputed.
+
+**Two things a pre-extraction row must get right.** `has_extraction` gates every money column — see
+§11.21, where its absence let the fabricated-installment bug print invented figures on rows that had
+never been extracted. And unknown-vs-absent stays distinguishable: `—` means "not known yet", while
+`"NA"` means the document genuinely doesn't state it (§the `_strip_na` convention).
+
+**Filters**: Contract, Vendor, Status, Invoice Date, Invoice Received Date, Payment Due Date, plus
+search and amount range. Each date column has its own preset mode (Today / Last 7 / Last 30 /
+custom). Two traps, both fixed: preset arithmetic must be done in **local** midnight, not UTC, or
+"Today" is off by one for part of the day (`localDay()`); and the filter panel's own button must not
+sit inside the outside-click handler's target test, or the click closes and immediately reopens it —
+the test is against the panel's *positioning parent*.
+
+**Download CSV** exports exactly what the filters currently show, via `utils/trackerCsv.ts`.
+
+`list_tracker` hoists `get_dp_loader().discover()` once for the whole request; it used to run one
+disk scan per row. (`list_invoices` still does two per row — a known, unfixed cost.)
+
+---
+
+## 17. File standardisation & Google Drive upload
+
+After extraction settles, an invoice's documents are renamed to a standard convention and uploaded to
+the `Kopi_Non_PO_docs` shared drive.
+
+**Naming**: `[VendorName]_[InvoiceNo]_[DocType]`, where DocType is Invoice, Faktur Pajak or
+Supporting Document — charge-type-aware where a vendor bills several (e.g.
+`..._Utility Invoice - Admin Fee`), vendor names normalised (dots stripped, title-cased) and `/`
+replaced with `-` so an invoice number like `BES-FAK/VII/2026/002` is a legal filename. The
+pre-split, correctly-named set lives in `fixtures/dp/drive_uploads/` (45 PDFs + `manifest.json`);
+`_drive_documents_for(doc)` resolves a run to its entries.
+
+**When it fires** — two triggers, so an FP is never uploaded mid-stage:
+- `confirm_extraction`, but only `if doc.get("status") != "fp_extraction"` — an invoice with no FP
+  stage has everything settled at that point.
+- `approve_faktur_pajak`, for one that does.
+
+**Drive specifics that cost time to discover:** the full `drive` scope is required, not
+`drive.file` — the latter grants access only to files the app created or the user picked via Google
+Picker, and a backend service has no Picker, so a hand-made shared-drive folder is unreachable.
+`supportsAllDrives=true` is needed on **every** call, and searching also needs
+`includeItemsFromAllDrives` + `corpora=allDrives`; without them Drive reports a folder that plainly
+exists as "not found", which reads like a wrong ID and isn't. A shared drive's own ID doubles as its
+root folder ID, and that root reports its name as the literal string `"Drive"` — `check_access`
+therefore also fetches `drives/{driveId}` so the diagnostic names the destination a human
+recognises. A Content manager can trash but not permanently delete (`canDelete: false`,
+`canTrash: true`).
+
+`settings.drive_api_base` is a test seam for pointing the client at a local stub; it is never set in
+normal operation.
+
+---
+
+## 18. Clearing DirectPay data
+
+`DELETE /dp-api/data` → `service.reset_dp_data`, surfaced as **Clear DirectPay Data** in the admin
+Workflow Settings page (DirectPay group, styled as a danger action with a two-step confirm that
+relaxes after 6s). Admin-gated like the other DP settings: `401` unauthenticated, `403` for a member.
+
+Empties all four DP collections and returns per-collection counts, so the UI reports what it actually
+removed. The same clean slate a backend restart gives — the demo DB is in-memory — but **scoped to
+DirectPay**, which is the entire reason it exists rather than telling someone to restart the server:
+P2P's `pipeline_runs` / `invoices` / `executed_stages` / `field_acknowledgement_memory` survive.
+
+Two deliberate decisions:
+- **Learned acknowledgements ARE cleared.** They change how *future* invoices behave — a remembered
+  mismatch is auto-approved and never reaches the reviewer — so leaving them behind would make a
+  "clean" demo silently skip the acknowledgement step it is meant to demonstrate.
+- **Settings are NOT cleared.** The `directpay_*` keys in `app_settings` (Auto-Process, Ack
+  Threshold, Total-Before-VAT tolerance) are configuration, not processing data. A restart *would*
+  reset them, so this is a deliberate difference from "restart the server".
+
+Dedup state goes with the runs, so a previously-refused file can be re-uploaded afterwards.

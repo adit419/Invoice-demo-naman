@@ -1,0 +1,24 @@
+{
+  "expected": {
+    "vendor": "Rainey Street Properties III, LLC",
+    "customer": "Rootbridge Technologies, Inc.",
+    "subtotal": 16000,
+    "currency": "USD",
+    "line_items": [
+      {
+        "charge_type": "rental_fee",
+        "label": "Base Rent",
+        "expected_amount": 16000,
+        "unit": "USD",
+        "clause_id": "3.1"
+      }
+    ]
+  },
+  "summary": {
+    "errors": 0,
+    "warnings": 0,
+    "info": 0,
+    "total": 0
+  },
+  "findings": []
+}

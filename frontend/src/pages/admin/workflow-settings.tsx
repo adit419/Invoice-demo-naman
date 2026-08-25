@@ -796,6 +796,106 @@ function DpTotalBeforeVatThresholdPanel({ isAdmin }: { isAdmin: boolean }) {
   );
 }
 
+// ── DirectPay: clear processing data ──────────────────────────────────────────
+// The same end state a backend restart gives (the demo DB is in-memory), scoped
+// to DirectPay so P2P's runs survive. Destructive and irreversible, hence the
+// two-step confirm: one stray click on a settings page shouldn't empty the demo.
+function DpResetDataPanel({ isAdmin }: { isAdmin: boolean }) {
+  const { toast } = useToast();
+  const [confirming, setConfirming] = useState(false);
+  const [clearing, setClearing] = useState(false);
+
+  // Don't leave the armed button sitting there indefinitely — an "are you sure?"
+  // the user walked away from should relax back to safe on its own.
+  useEffect(() => {
+    if (!confirming) return;
+    const t = setTimeout(() => setConfirming(false), 6000);
+    return () => clearTimeout(t);
+  }, [confirming]);
+
+  const clear = async () => {
+    setClearing(true);
+    try {
+      const r = await directpayService.resetData();
+      const { invoices = 0, contracts = 0 } = r.deleted ?? {};
+      toast(
+        r.total === 0
+          ? "Nothing to clear — DirectPay had no data"
+          : `DirectPay data cleared — ${invoices} invoice${invoices === 1 ? "" : "s"}, ${contracts} contract${contracts === 1 ? "" : "s"}`,
+        "success",
+      );
+      setConfirming(false);
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : "Failed to clear DirectPay data", "error");
+    } finally {
+      setClearing(false);
+    }
+  };
+
+  return (
+    <div style={{ border: "1px solid #FFCDD2", borderRadius: 8, background: "#ffffff" }}>
+      <div className="flex items-center justify-between" style={{ padding: "16px 20px", gap: 16 }}>
+        <div className="flex items-start gap-3 min-w-0">
+          <div
+            style={{
+              width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+              background: "#FFF1F0", border: "1px solid #FFA39E",
+              display: "flex", alignItems: "center", justifyContent: "center", color: "#CF1322",
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M2.5 4.5h11M6 4.5V3a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .5.5v1.5M4 4.5l.6 8a1 1 0 0 0 1 .9h4.8a1 1 0 0 0 1-.9l.6-8"
+                stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+          <div className="min-w-0">
+            <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "#101828", fontFamily: "Inter, sans-serif" }}>
+              Clear DirectPay Data
+            </h3>
+            <p style={{ color: "#717680", fontSize: 12, margin: "2px 0 0", maxWidth: 560, fontFamily: "Inter, sans-serif" }}>
+              Deletes every DirectPay invoice and contract, along with their extractions, matches,
+              acknowledgements and learned-acknowledgement memory — the same clean slate a backend
+              restart gives, without touching Invoice Processing&apos;s own data. The settings on this
+              page are kept. This cannot be undone.
+            </p>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+          {confirming && (
+            <button
+              onClick={() => setConfirming(false)}
+              disabled={clearing}
+              style={{
+                height: 32, padding: "0 12px", borderRadius: 6, background: "#ffffff",
+                border: "1px solid #D5D7DA", color: "#414651", fontSize: 13, fontWeight: 500,
+                cursor: clearing ? "default" : "pointer", fontFamily: "Inter, sans-serif",
+              }}
+            >
+              Cancel
+            </button>
+          )}
+          <button
+            onClick={() => (confirming ? clear() : setConfirming(true))}
+            disabled={!isAdmin || clearing}
+            title={!isAdmin ? "Viewers cannot clear data" : undefined}
+            style={{
+              height: 32, padding: "0 14px", borderRadius: 6, whiteSpace: "nowrap",
+              background: !isAdmin || clearing ? "#F5F5F5" : confirming ? "#CF1322" : "#ffffff",
+              border: `1px solid ${!isAdmin || clearing ? "#E6E6E6" : confirming ? "#CF1322" : "#FFA39E"}`,
+              color: !isAdmin || clearing ? "#8D92A6" : confirming ? "#ffffff" : "#CF1322",
+              fontSize: 13, fontWeight: 500, fontFamily: "Inter, sans-serif",
+              cursor: !isAdmin || clearing ? "default" : "pointer", transition: "all 0.15s",
+            }}
+          >
+            {clearing ? "Clearing…" : confirming ? "Yes, delete everything" : "Clear data"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DpAckThresholdPanel({ isAdmin }: { isAdmin: boolean }) {
   const { toast } = useToast();
   const [value, setValue] = useState<number>(3);
@@ -1264,6 +1364,8 @@ function WorkflowSettingsPage() {
                 <DpStpPanel isAdmin={isAdmin} />
                 <DpAckThresholdPanel isAdmin={isAdmin} />
                 <DpTotalBeforeVatThresholdPanel isAdmin={isAdmin} />
+                {/* Last in the DirectPay group: it destroys rather than configures. */}
+                <DpResetDataPanel isAdmin={isAdmin} />
 
                 {settings && orderedSections.map(key => (
                   <SectionPanel

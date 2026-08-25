@@ -73,6 +73,10 @@ const FIELD_DEFS: { key: keyof DpInvoiceExtracted; label: string; type: "text" |
   { key: "vendor_bank_account_name", label: "Vendor Bank Account Name", type: "text" },
   { key: "vendor_bank_account_number", label: "Vendor Bank Account Number", type: "text" },
   { key: "vendor_bank_swift", label: "Vendor Bank SWIFT", type: "text" },
+  // Sits beside SWIFT, not in place of it — a US invoice states both. Rendered
+  // for every vendor; an IDR invoice simply has no value for it, which this
+  // table already shows as "—" like any other absent field.
+  { key: "vendor_bank_routing_number", label: "Vendor Bank Routing Number", type: "text" },
 ];
 
 function InvoiceReviewPage() {

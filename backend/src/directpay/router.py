@@ -148,6 +148,18 @@ async def update_total_before_vat_threshold_setting(body: DpTotalBeforeVatThresh
     return _envelope(data={"enabled": body.enabled, "threshold_pct": body.threshold_pct})
 
 
+# Clears DirectPay's processing data and nothing else — see service.reset_dp_data
+# for exactly what goes and what stays. Admin-gated like the settings above, and
+# DELETE rather than POST because it only ever destroys.
+@router.delete("/data")
+async def reset_data(current_user: CurrentUser):
+    if current_user.role not in ("tenant_admin", "workspace_admin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    db = get_db()
+    counts = await service.reset_dp_data(db)
+    return _envelope(data={"deleted": counts, "total": sum(counts.values())})
+
+
 # ── Contracts ──────────────────────────────────────────────────────────────────
 
 async def _upload_contracts_by_filename(
