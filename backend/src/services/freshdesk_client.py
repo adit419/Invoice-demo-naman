@@ -7,7 +7,17 @@ an email thread needs.
 
     POST https://<domain>/api/v2/tickets/{ticket_id}/reply
     Authorization: Basic <token>
-    {"body_html": "..."}
+    {"body": "<html>"}
+
+`body` is the field name, and it takes HTML — FreshDesk renders it in the ticket
+and in the email it sends to the requester. There is no `body_html` request
+field: sending one is rejected outright with
+
+    400 {"field": "body_html", "message": "Unexpected/invalid field in request"}
+
+which this client (correctly) does not retry, so every notification failed
+silently with nothing posted. `body_html` is a field FreshDesk RETURNS on a
+conversation, not one it accepts.
 """
 import asyncio
 import base64
@@ -45,7 +55,7 @@ def _auth_header() -> str:
     return "Basic " + base64.b64encode(f"{token}:X".encode()).decode()
 
 
-async def reply_to_ticket(ticket_id: str, body_html: str) -> dict:
+async def reply_to_ticket(ticket_id: str, html: str) -> dict:
     """Post a reply. Returns {"ok", "status", ...}; never raises."""
     if not is_configured():
         return {"ok": False, "reason": "freshdesk_not_configured"}
@@ -67,7 +77,7 @@ async def reply_to_ticket(ticket_id: str, body_html: str) -> dict:
     for attempt in range(_MAX_ATTEMPTS):
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
-                resp = await client.post(url, headers=headers, json={"body_html": body_html})
+                resp = await client.post(url, headers=headers, json={"body": html})
             if resp.status_code < 300:
                 return {"ok": True, "status": resp.status_code, "reply_id": resp.json().get("id")}
             last = {"ok": False, "status": resp.status_code, "detail": resp.text[:300]}
