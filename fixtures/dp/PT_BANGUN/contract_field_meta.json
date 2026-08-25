@@ -4,7 +4,15 @@
     "section": "PROPERTY & PARTIES",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 31,
+      "bbox_left": 0.169333,
+      "bbox_top": 0.452424,
+      "bbox_width": 0.440333,
+      "bbox_height": 0.112183,
+      "value_confidence": 0.93
+    }
   },
   "vendor_name": {
     "label": "Vendor Name",

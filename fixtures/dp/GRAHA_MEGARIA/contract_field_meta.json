@@ -4,7 +4,15 @@
     "section": "PROPERTY & PARTIES",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "Source is internally inconsistent on the floor: Section 1(a) states \"Second Floor\" (Lantai Dua) while Section 1(c) and the attached tenant floor plan (\"TENANT CITOS FF LANTAI 1 (SATU)\") both state \"First Floor\". Floor plan treated as authoritative; not resolved by assumption."
+    "ai_match_reasoning": "Source is internally inconsistent on the floor: Section 1(a) states \"Second Floor\" (Lantai Dua) while Section 1(c) and the attached tenant floor plan (\"TENANT CITOS FF LANTAI 1 (SATU)\") both state \"First Floor\". Floor plan treated as authoritative; not resolved by assumption.",
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.187647,
+      "bbox_top": 0.587273,
+      "bbox_width": 0.658235,
+      "bbox_height": 0.061136,
+      "value_confidence": 0.93
+    }
   },
   "vendor_name": {
     "label": "Vendor Name",

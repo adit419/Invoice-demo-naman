@@ -4,7 +4,15 @@
     "section": "PROPERTY & PARTIES",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "This offer covers three adjoining outdoor Sitting Area units (No. 4, 5 & 7) as one 81.59 m\u00b2 package"
+    "ai_match_reasoning": "This offer covers three adjoining outdoor Sitting Area units (No. 4, 5 & 7) as one 81.59 m\u00b2 package",
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.146371,
+      "bbox_top": 0.434132,
+      "bbox_width": 0.45998,
+      "bbox_height": 0.026091,
+      "value_confidence": 0.93
+    }
   },
   "vendor_name": {
     "label": "Vendor Name",
