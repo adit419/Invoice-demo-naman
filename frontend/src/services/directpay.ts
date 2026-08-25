@@ -660,12 +660,13 @@ export const directpayService = {
   // dashboard does over listInvoices.
   listTracker: () => api.get<{ items: DpTrackerRow[] }>("/dp-api/tracker"),
 
-  /** Matching-stage Escalate. Mails the trigger-upload payload address; the
-   *  subject/body are composed server-side, so only the reviewer's note goes up.
-   *  `sent: false` with `to: null` means the invoice carried no payload email —
-   *  nothing was sent and the caller should keep its local confirmation. */
+  /** Matching-stage Escalate. Posts a reply on the invoice's originating
+   *  FreshDesk ticket (the `tag` from its trigger-upload payload); the body is
+   *  composed server-side, so only the reviewer's note goes up.
+   *  `reason: "no_ticket"` means the invoice has no originating ticket — nothing
+   *  was posted and the caller should keep its local confirmation. */
   escalateInvoice: (id: string, note?: string) =>
-    api.post<{ sent: boolean; to: string | null; reason?: string }>(
+    api.post<{ sent: boolean; ticket_id: string | null; reason?: string }>(
       `/dp-api/invoices/${id}/escalate`, { note },
     ),
 

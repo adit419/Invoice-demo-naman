@@ -279,6 +279,13 @@ class DpFixtureLoader:
 
         return bundles
 
+    @property
+    def root(self) -> Path:
+        """The resolved fixtures/dp directory. Public so callers that need a
+        sibling of the vendor folders (drive_uploads/) follow the same
+        DP_FIXTURES_DIR / Docker-mount resolution this class already did."""
+        return self._root
+
     def page_count(self, pdf_path: Optional[Path]) -> int:
         """Pages in a fixture PDF, read straight from the file's bytes.
 

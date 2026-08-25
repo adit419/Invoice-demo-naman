@@ -345,3 +345,38 @@ def directpay_escalation_html(
           f'border-radius:8px;font-size:13.5px;color:#92400e;"><strong>Why it is blocked:</strong><br>{reason}</div>'
         + extra + note_block,
     )
+
+
+def directpay_duplicate_rejected_html(
+    invoice_number: str,
+    vendor_name: str,
+    uploaded_file_name: str,
+    existing_status: str,
+    existing_file_name: str,
+) -> str:
+    """An upload was refused because this invoice is already in the system.
+
+    Names both the file just sent and the one already held, so the recipient can
+    tell a genuine accidental re-send from two different files that happen to
+    describe the same invoice."""
+    STATUS = {
+        "extraction": "awaiting extraction", "extracted": "extracted",
+        "fp_extraction": "at Faktur Pajak", "matching": "at Matching",
+        "bill_posting": "at Bill Posting", "posted": "already posted to the ERP",
+    }
+    return _dp_shell(
+        "Duplicate invoice — not processed",
+        "This invoice is already in DirectPay, so the upload was not processed again.",
+        _dp_rows([
+            ("Invoice Number", invoice_number),
+            ("Vendor", vendor_name),
+            ("File you sent", uploaded_file_name),
+            ("Already held as", existing_file_name),
+            ("Current status", STATUS.get(existing_status, existing_status)),
+        ])
+        + '<p style="margin:20px 0 0;font-size:13px;color:#92400e;background:#fffbeb;'
+          'border:1px solid #fde68a;border-radius:8px;padding:12px 14px;">'
+          "No action is needed if this was an accidental re-send. If you believe these "
+          "are two different invoices, reply with the details and they can be reviewed."
+          "</p>",
+    )

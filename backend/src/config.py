@@ -58,6 +58,29 @@ class Settings(BaseSettings):
     pricing_gmail_target_email: str = "finance-pricing@neoflo.ai"
     pricing_gmail_poll_interval: int = 60  # seconds
 
+    # FreshDesk — DirectPay replies to the vendor's original ticket instead of
+    # sending fresh mail. A vendor emails vendor@neoflo.ai, that lands as a
+    # ticket, and VendorQuery polls FreshDesk and kicks off the upload carrying
+    # the ticket id in `tag`. Every notification then posts back into that same
+    # thread. freshdesk_token is the Basic-auth value ("<api_key>:X" base64'd, or
+    # the raw API key — see freshdesk_client).
+    freshdesk_enabled: bool = False
+    freshdesk_domain: str = "neoflo.freshdesk.com"
+    freshdesk_token: str = ""
+
+    # Google Drive upload for DirectPay's standardised documents. Reuses the
+    # gmail_client_id / gmail_client_secret / gmail_refresh_token above — one
+    # OAuth app, one refresh token, three scopes (gmail.send, gmail.modify,
+    # drive). There is no separate Drive credential.
+    drive_enabled: bool = False
+    # The shared drive / folder documents land in. A shared drive's own ID
+    # doubles as its root folder ID, which is why one value serves as both the
+    # upload parent and the driveId.
+    drive_folder_id: str = ""
+    # Test seam: pointed at a local stub so the upload path can be exercised
+    # end-to-end without Google. Never set in normal operation.
+    drive_api_base: str = "https://www.googleapis.com"
+
     class Config:
         env_file = str(_ENV_FILE)
         extra = "ignore"

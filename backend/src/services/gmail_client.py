@@ -3,7 +3,6 @@ Gmail REST client using OAuth2 refresh-token flow.
 Uses httpx directly — no google-api-python-client dependency.
 """
 import base64
-from datetime import datetime, timedelta, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Optional
@@ -11,32 +10,16 @@ from typing import Optional
 import httpx
 
 from ..config import settings
+from . import google_auth
 
-_TOKEN_URL = "https://oauth2.googleapis.com/token"
 _GMAIL_BASE = "https://gmail.googleapis.com/gmail/v1/users/me"
-
-_cached_token: Optional[str] = None
-_token_expiry: Optional[datetime] = None
 
 
 async def _get_access_token() -> str:
-    global _cached_token, _token_expiry
-    now = datetime.now(timezone.utc)
-    if _cached_token and _token_expiry and (_token_expiry - now).total_seconds() > 60:
-        return _cached_token
-
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(_TOKEN_URL, data={
-            "client_id": settings.gmail_client_id,
-            "client_secret": settings.gmail_client_secret,
-            "refresh_token": settings.gmail_refresh_token,
-            "grant_type": "refresh_token",
-        })
-        resp.raise_for_status()
-        data = resp.json()
-        _cached_token = data["access_token"]
-        _token_expiry = now + timedelta(seconds=data.get("expires_in", 3600))
-        return _cached_token
+    """Delegates to the shared token cache — Gmail and Drive run off the same
+    OAuth app and refresh token, so they share one. Kept under this name so the
+    existing call sites in this module are unchanged."""
+    return await google_auth.get_access_token()
 
 
 async def list_unread_invoice_messages() -> list[dict]:
@@ -87,72 +70,30 @@ async def mark_as_read(message_id: str) -> None:
         )
 
 
-async def send_html_email(
-    to: str,
-    subject: str,
-    html_body: str,
-    thread_id: Optional[str] = None,
-    in_reply_to: Optional[str] = None,
-) -> dict:
-    """Send an HTML mail; returns Gmail's own {"id", "threadId"}.
+async def send_html_email(to: str, subject: str, html_body: str) -> None:
+    """Send an HTML mail.
 
-    `thread_id` + `in_reply_to` keep a follow-up in the SAME conversation as an
-    earlier message. Gmail needs both halves to thread reliably: `threadId` in
-    the request body, and RFC 5322 In-Reply-To/References headers naming the
-    earlier message's Message-ID. Pass the ids a previous call returned.
-
-    Both are optional and default to today's behaviour, so existing callers
-    (api/v1/bill_posting.py, api/v1/stp.py, directpay/service.py) are unaffected
-    — they simply ignore the return value.
+    Threading support (threadId / In-Reply-To, and a follow-up fetch for the RFC
+    Message-ID) briefly lived here for DirectPay's notifications. Those now reply
+    on the originating FreshDesk ticket instead, where threading is inherent, so
+    it had no callers and was removed rather than left as dead machinery. The
+    three remaining call sites — P2P bill posting, P2P STP, and DirectPay's
+    Gmail-era paths — each send a standalone message.
     """
     token = await _get_access_token()
     msg = MIMEMultipart("alternative")
     msg["From"] = settings.gmail_target_email
     msg["To"] = to
     msg["Subject"] = subject
-    if in_reply_to:
-        msg["In-Reply-To"] = in_reply_to
-        msg["References"] = in_reply_to
     msg.attach(MIMEText(html_body, "html"))
     raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
-    payload: dict = {"raw": raw}
-    if thread_id:
-        payload["threadId"] = thread_id
     async with httpx.AsyncClient() as client:
         resp = await client.post(
             f"{_GMAIL_BASE}/messages/send",
             headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-            json=payload,
+            json={"raw": raw},
         )
         resp.raise_for_status()
-        sent = resp.json()
-
-    # The RFC Message-ID (what a later In-Reply-To must name) isn't in the send
-    # response — only Gmail's own opaque id is. Fetch the header once so a
-    # follow-up can thread against it.
-    rfc_message_id = None
-    try:
-        async with httpx.AsyncClient() as client:
-            meta = await client.get(
-                f"{_GMAIL_BASE}/messages/{sent['id']}",
-                params={"format": "metadata", "metadataHeaders": "Message-ID"},
-                headers={"Authorization": f"Bearer {token}"},
-            )
-            meta.raise_for_status()
-            for h in meta.json().get("payload", {}).get("headers", []):
-                if h.get("name", "").lower() == "message-id":
-                    rfc_message_id = h.get("value")
-                    break
-    except Exception:
-        # Threading is a nicety; a failed lookup must not fail the send that
-        # already succeeded.
-        pass
-
-    return {
-        "id": sent.get("id"),
-        "threadId": sent.get("threadId"),
-        "messageIdHeader": rfc_message_id,
-    }
 
 
 def extract_pdf_attachments(message: dict) -> list[dict]:

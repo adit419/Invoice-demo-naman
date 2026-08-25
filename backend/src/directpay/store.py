@@ -32,6 +32,12 @@ async def ensure_dp_indexes(db: AsyncIOMotorDatabase) -> None:
     await dp_contract_runs(db).create_index([("created_at", DESCENDING)])
     await dp_invoice_runs(db).create_index([("created_at", DESCENDING)])
     await dp_invoice_runs(db).create_index([("contract_id", ASCENDING)])
+    # Duplicate detection looks runs up by file name on every upload — by the
+    # invoice's own name and by every companion name the run has received.
+    await dp_invoice_runs(db).create_index([("file_name", ASCENDING)])
+    await dp_contract_runs(db).create_index([("file_name", ASCENDING)])
+    await dp_invoice_runs(db).create_index([("uploaded_file_names", ASCENDING)])
+    await dp_contract_runs(db).create_index([("uploaded_file_names", ASCENDING)])
     await dp_contract_recommendations(db).create_index([("run_id", ASCENDING)], unique=True)
     await dp_field_acknowledgement_memory(db).create_index(
         [("field_name", ASCENDING), ("source_value", ASCENDING)], unique=True

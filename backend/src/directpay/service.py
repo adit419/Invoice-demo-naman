@@ -5,6 +5,8 @@ click and STP's automated equivalent always run the exact same code path.
 Mirrors the P2P split between `stages.approve_stage()` (shared core) and its
 thin HTTP wrappers in `api/v1/*.py`.
 """
+import hashlib
+import json
 import re
 from datetime import datetime, timezone
 from typing import Optional
@@ -1125,6 +1127,9 @@ async def invoice_out(db, doc: dict) -> dict:
         # Exposed so the notification history is observable (and testable)
         # rather than write-only; see _dp_notify.
         "notifications": doc.get("notifications") or [],
+        # Documents pushed to the shared drive, with their Drive links — see
+        # upload_dp_documents_to_drive.
+        "drive_uploads": doc.get("drive_uploads") or [],
         "review": doc.get("review"),
         "pdf_url": f"/dp-api/invoices/{doc['_id']}/pdf",
         "created_at": doc.get("created_at"),
@@ -1167,10 +1172,20 @@ async def upload_contract(
     if bundle is None:
         raise NotFoundError("No DirectPay fixture scenarios configured")
 
+    # Same filename rule as invoices — the same file is the same contract,
+    # whatever stage the existing one has reached.
+    existing = await find_duplicate_by_filename(db, dp_contract_runs, filename)
+    if existing:
+        raise DuplicateInvoiceError(existing, filename)
+
     now = _now()
     doc = {
         "fixture_key": bundle.key,
         "file_name": filename,
+        # A contract run only ever holds one file, so this always mirrors
+        # file_name — kept so both collections present the same shape to the
+        # shared find_duplicate_by_filename.
+        "uploaded_file_names": [filename],
         "status": "review",
         # Same provenance/notification metadata the invoice side records, so both
         # trigger-upload endpoints accept and store the same payload (see
@@ -1474,8 +1489,11 @@ async def get_invoice_doc(db, oid: ObjectId) -> dict:
 
 async def upload_invoice_documents(
     db, filename: str, email: Optional[str] = None, tag: Optional[str] = None, source: str = "manual"
-) -> list[dict]:
-    """Every run this upload should produce.
+) -> tuple[list[dict], list[dict]]:
+    """Every run this upload should produce, plus any it refused as a duplicate.
+
+    Returns (runs, duplicates). A duplicate is not an error here — see the
+    comment at the loop below.
 
     Normally exactly one. But a vendor's real document can be a single file that
     physically contains SEVERAL of its invoices — GRAHA_MEGARIA's 6-page PDF holds
@@ -1493,25 +1511,147 @@ async def upload_invoice_documents(
     if bundle is None:
         raise NotFoundError("No DirectPay fixture scenarios configured")
 
+    # Duplicates are COLLECTED, not raised, so one already-seen invoice inside a
+    # combined file doesn't stop the others being created. The caller decides what
+    # to do with a request where everything was a duplicate.
+    runs: list[dict] = []
+    duplicates: list[dict] = []
+
+    documents = []
     if combined:
         by_key = {d.key: d for d in bundle.documents}
-        return [
-            await _create_or_reuse_invoice_run(db, bundle, by_key[k], filename, email, tag, source)
-            for k in combined.document_keys
-            if k in by_key
-        ]
+        documents = [by_key[k] for k in combined.document_keys if k in by_key]
+    else:
+        _, document = loader.resolve_document(filename or "")
+        documents = [document]
 
-    _, document = loader.resolve_document(filename or "")
-    return [await _create_or_reuse_invoice_run(db, bundle, document, filename, email, tag, source)]
+    for document in documents:
+        try:
+            runs.append(await _create_or_reuse_invoice_run(db, bundle, document, filename, email, tag, source))
+        except DuplicateInvoiceError as dup:
+            duplicates.append({"file_name": filename, **dup.to_payload()})
+
+    return runs, duplicates
 
 
-async def upload_invoice(
-    db, filename: str, email: Optional[str] = None, tag: Optional[str] = None, source: str = "manual"
-) -> dict:
-    """Single-run upload. Kept for callers that want exactly one run back; a
-    combined file resolves to its first document here."""
-    runs = await upload_invoice_documents(db, filename, email, tag, source)
-    return runs[0]
+# A single-run `upload_invoice()` wrapper used to sit here. It had no callers —
+# both endpoints go through upload_invoice_documents — and it couldn't survive
+# duplicate detection honestly: with a (runs, duplicates) result there is no
+# single run to hand back when the upload was refused as a duplicate. Removed
+# rather than left returning something misleading.
+
+
+# ── Duplicate detection ────────────────────────────────────────────────────────
+# One rule, for invoices and contracts alike: the same FILE NAME is the same
+# document. Processing status is irrelevant — status says which stage a document
+# sits at, not whether we already have it — so a posted or rejected run blocks a
+# re-upload exactly as an in-flight one does.
+#
+# This replaced a fingerprint over vendor / invoice number / service period /
+# store location / amounts. Filename is what the requirement asks for and is
+# simpler in every direction: nothing to compute, nothing to normalise, and it
+# needs no extracted data, so the check works at upload time without reaching
+# into the fixture for values the run doesn't have yet.
+
+
+def _normalise_upload_name(filename: str) -> str:
+    """Case and surrounding whitespace are not meaningful in a file name here."""
+    return (filename or "").strip().lower()
+
+
+async def find_duplicate_by_filename(db, collection, filename: str) -> Optional[dict]:
+    """An existing run for this exact file, or None.
+
+    Matches `uploaded_file_names` as well as `file_name`, because a run holds
+    more than one file: `file_name` is the invoice's own PDF, while its Faktur
+    Pajak and supporting documents arrive as separate uploads under their own
+    names. Only the former was recorded before, so re-sending a companion after
+    the run reached posted/rejected — where the in-flight branch in
+    upload_invoice_documents no longer applies — matched nothing and started a
+    phantom run whose file_name was a Faktur Pajak.
+    """
+    name = _normalise_upload_name(filename)
+    if not name:
+        return None
+    cursor = collection(db).find({}).sort("created_at", 1)
+    for doc in await cursor.to_list(length=1000):
+        if _normalise_upload_name(doc.get("file_name")) == name:
+            return doc
+        if any(_normalise_upload_name(n) == name for n in (doc.get("uploaded_file_names") or [])):
+            return doc
+    return None
+
+
+class DuplicateInvoiceError(Exception):
+    """Raised when an upload is a file the system already holds."""
+
+    def __init__(self, existing: dict, filename: str):
+        extracted = _strip_na(_merge(existing.get("base_extracted") or {}, existing.get("edited_extracted")))
+        self.existing_id = str(existing["_id"])
+        self.existing_status = existing.get("status")
+        self.existing_file_name = existing.get("file_name")
+        self.file_name = filename
+        self.vendor_name = extracted.get("vendor_name")
+        self.invoice_number = extracted.get("invoice_number")
+        self.message = f"{filename} has already been uploaded"
+        super().__init__(self.message)
+
+    def to_payload(self) -> dict:
+        return {
+            "duplicate": True,
+            "message": self.message,
+            "file_name": self.file_name,
+            "existing_invoice_id": self.existing_id,
+            "existing_status": self.existing_status,
+            "existing_file_name": self.existing_file_name,
+            "vendor_name": self.vendor_name,
+            "invoice_number": self.invoice_number,
+        }
+
+
+def _uploaded_artefact(document, filename: str) -> str:
+    """Which of an invoice's documents this upload actually is.
+
+    A vendor's invoice, its Faktur Pajak and its supporting document all resolve
+    to the SAME document_key, so the key alone can't tell them apart — but the
+    duplicate rule has to. Re-sending the invoice itself is a duplicate;
+    sending its Faktur Pajak afterwards is the second half of one submission.
+
+    Decided by matching the uploaded name against the document's own companion
+    file names, the same normalise-and-substring rule fixture resolution uses.
+    """
+    if document is None:
+        return "invoice"
+    from .fixtures import _normalise
+
+    # Identify the invoice POSITIVELY — the aliases naming the document's own PDF
+    # — rather than trying to spot companions by keyword. The alias vocabulary is
+    # too varied for that: PALLADIUM's Faktur Pajak is "inv_fp_4", but DEBORA's
+    # own invoice answers to "listrik", "ipl" and "electricity_retribusi", none of
+    # which look like an invoice.
+    #
+    # The two error directions are not equally bad, which is why this leans this
+    # way. Mistaking the invoice for a companion only permits a harmless
+    # re-attach to an existing run (no new row, no reprocessing), and a posted
+    # invoice is still caught by the filename check further down. Mistaking a
+    # companion for the invoice would REFUSE a legitimate Faktur Pajak upload and
+    # break the documented invoice+FP flow.
+    norm = _normalise(filename or "")
+    pdf_path = getattr(document, "pdf_path", None)
+    stem = _normalise(pdf_path.stem) if pdf_path else _normalise(document.key or "")
+    primary = {stem, stem.replace("invoice", "inv")} - {""}
+
+    # Longest alias wins, the same rule resolve_document() resolves with —
+    # "invoice_1" is a substring of "supporting_doc_invoice_1", so the more
+    # specific alias has to take precedence.
+    best, best_len = None, -1
+    for alias in (getattr(document, "match", None) or []):
+        n = _normalise(alias)
+        if n and n in norm and len(n) > best_len:
+            best, best_len = n, len(n)
+    if best is None:
+        return "invoice"
+    return "invoice" if best in primary else "companion"
 
 
 async def _create_or_reuse_invoice_run(
@@ -1536,6 +1676,8 @@ async def _create_or_reuse_invoice_run(
     # Without this scope the lookup could not tell the FP partner of the run
     # just created from a deliberate re-run, so every later upload of either
     # file kept returning the very first run forever — even a posted one.
+    artefact = _uploaded_artefact(document, filename)
+
     if document:
         cursor = dp_invoice_runs(db).find({
             "fixture_key": bundle.key,
@@ -1544,7 +1686,34 @@ async def _create_or_reuse_invoice_run(
         }).sort("created_at", -1)
         in_flight = await cursor.to_list(length=1)
         if in_flight:
-            return await invoice_out(db, in_flight[0])
+            run = in_flight[0]
+            seen = run.get("uploaded_artefacts") or []
+            names = [_normalise_upload_name(n) for n in (run.get("uploaded_file_names") or [])]
+            # The invoice's own PDF arriving a SECOND time is the duplicate this
+            # feature is about. A companion (Faktur Pajak, supporting document)
+            # arriving is the rest of one submission, in either order — an FP can
+            # land first and the invoice after it, and that invoice is not a
+            # duplicate because it had never been supplied.
+            if artefact == "invoice" and artefact in seen:
+                raise DuplicateInvoiceError(run, filename)
+            # A companion is judged by NAME, not by the "companion" token: a
+            # Faktur Pajak and a supporting document are both companions and
+            # both belong here, but the same file twice is a duplicate like any
+            # other.
+            if artefact != "invoice" and _normalise_upload_name(filename) in names:
+                raise DuplicateInvoiceError(run, filename)
+            update: dict = {"uploaded_file_names": filename}
+            if artefact not in seen:
+                update["uploaded_artefacts"] = artefact
+            await dp_invoice_runs(db).update_one({"_id": run["_id"]}, {"$push": update})
+            return await invoice_out(db, await get_invoice_doc(db, run["_id"]))
+
+    # Same file name as something we already hold -> duplicate. Checked here,
+    # after the in-flight reuse above, so an invoice's Faktur Pajak (a DIFFERENT
+    # file name) still attaches to its run rather than being refused.
+    existing = await find_duplicate_by_filename(db, dp_invoice_runs, filename)
+    if existing:
+        raise DuplicateInvoiceError(existing, filename)
 
     now = _now()
     doc = {
@@ -1555,6 +1724,14 @@ async def _create_or_reuse_invoice_run(
         "document_key": document.key if document else None,
         "file_name": filename,
         "status": "extraction",  # idle — matches kopi-demo: extraction hasn't run until /extract
+        # Which of this invoice's documents have actually been uploaded. Lets a
+        # re-sent invoice be told apart from its Faktur Pajak arriving — see
+        # _uploaded_artefact.
+        "uploaded_artefacts": [artefact],
+        # Every file name this run has received, companions included. `file_name`
+        # above only ever holds the invoice's own PDF, so this is what duplicate
+        # detection matches a companion against — see find_duplicate_by_filename.
+        "uploaded_file_names": [filename],
         "base_extracted": None,
         "edited_extracted": None,
         # Set only at extract time, and only for a document whose
@@ -1709,6 +1886,13 @@ async def confirm_extraction(db, oid: ObjectId, extracted_patch: Optional[dict],
         if has_fp:
             await dp_invoice_runs(db).update_one({"_id": oid}, {"$set": {"status": "fp_extraction", "updated_at": _now()}})
             doc["status"] = "fp_extraction"
+
+    # Drive upload, trigger 1 of 2: an invoice with NO Faktur Pajak stage has all
+    # its data settled the moment extraction is confirmed, so its documents go up
+    # now. One WITH an FP waits — see approve_faktur_pajak — because the FP is
+    # part of the same document set and its own stage can still change things.
+    if doc.get("status") != "fp_extraction":
+        await upload_dp_documents_to_drive(db, oid)
 
     return await invoice_out(db, doc)
 
@@ -1978,6 +2162,11 @@ async def approve_faktur_pajak(db, oid: ObjectId, force: bool = False) -> dict:
         {"_id": oid}, {"$set": {"status": "extracted", "updated_at": _now()}}
     )
     doc["status"] = "extracted"
+
+    # Drive upload, trigger 2 of 2: the Faktur Pajak is settled, so the whole
+    # document set (invoice + FP + any supporting document) goes up together.
+    await upload_dp_documents_to_drive(db, oid)
+
     return await invoice_out(db, doc)
 
 
@@ -2498,73 +2687,59 @@ async def post_bill(db, oid: ObjectId) -> dict:
     return result
 
 
-def _dp_notification_email(doc: dict) -> Optional[str]:
-    """The ONE address DirectPay may ever email: the `email` given in the
-    /ingestion/trigger-upload payload (stored as source_meta.sender).
+def _dp_ticket_id(doc: dict) -> Optional[str]:
+    """The FreshDesk ticket this run's notifications belong to.
 
-    There is deliberately NO fallback. This used to try the invoice's, then the
-    matched contract's, extracted `vendor_email` — but those are real addresses
-    lifted off the source documents (corporatesecretary@bangunerasejahtera.com,
-    rosauli.lumbantobing@sinarmasland.com, deborawage.perindo@gmail.com), so a
-    manual upload with no payload email could mail an outside company from
-    sales@neoflo.ai. The payload address belongs to the customer's own AP user,
-    who asked to be notified; nobody else has.
+    A vendor emails vendor@neoflo.ai, FreshDesk raises a ticket, and VendorQuery
+    polls it and starts the upload carrying that ticket id in the trigger-upload
+    payload's `tag`. Every notification then replies on that ticket.
 
-    None means "send nothing" — never "find someone else to tell".
+    None means send NOTHING — for every notification type, with no fallback to
+    mailing anyone. A manual upload has no originating ticket, so there is no
+    conversation to reply into and nobody who asked to be told.
     """
-    return (doc.get("source_meta") or {}).get("sender") or None
+    tag = (doc.get("tag") or "").strip()
+    if not tag:
+        return None
+    # Accept a bare id ("81234") or a decorated one ("ticket-81234", "FD#81234")
+    # — VendorQuery sets this, and the exact shape isn't ours to dictate.
+    digits = re.sub(r"\D+", "", tag)
+    return digits or None
 
 
-async def _dp_notify(db, oid: ObjectId, doc: dict, kind: str, stage: str, subject: str, html: str) -> bool:
-    """Send one notification about one invoice, at most once per (kind, stage).
+async def _dp_notify(db, oid: ObjectId, doc: dict, kind: str, stage: str, html: str) -> bool:
+    """Post one notification as a reply on this run's FreshDesk ticket, at most
+    once per (kind, stage).
 
-    Four rules live here so no caller has to remember them:
+    Three rules live here so no caller has to remember them:
 
-    1. NO recipient, NO email. _dp_notification_email returns the trigger-upload
-       payload address or nothing at all (see its docstring) — a manually
-       uploaded invoice therefore never mails anyone.
+    1. NO ticket, NO notification. See _dp_ticket_id — there is no fallback to
+       emailing from sales@neoflo.ai; that path is retired.
     2. Idempotent per (kind, stage). The Auto-Process cascade is re-entrant
-       (resume_dp_stp_if_enabled re-runs it whenever a human clears a hold), so a
-       naive send would re-mail the same hold on every resume.
-    3. Threaded. Every later notification about the same invoice continues the
-       first one's Gmail thread, so the recipient reads one conversation per
-       invoice rather than a scatter of unrelated mails. Gmail wants the original
-       threadId AND a matching subject, so follow-ups reuse the first subject
-       with an "Re:" prefix and pass In-Reply-To.
-    4. Never fatal. A mail failure is logged and swallowed — posting a bill or
-       holding a cascade must not depend on Gmail being reachable.
+       (resume_dp_stp_if_enabled re-runs it whenever a human clears a hold), so
+       without this the same hold would post again on every resume.
+    3. Never fatal. A FreshDesk failure is logged and swallowed — posting a bill
+       or holding a cascade must not depend on FreshDesk being reachable. The
+       client already retries with backoff before giving up.
+
+    Threading needs no work here: replies land on the ticket, so every
+    notification for a run is one conversation by construction.
     """
-    recipient = _dp_notification_email(doc)
-    if not recipient:
+    import logging
+    ticket_id = _dp_ticket_id(doc)
+    if not ticket_id:
         return False
 
     sent = doc.get("notifications") or []
-    # At most one notification per (kind, stage) — for every kind, including a
-    # human-initiated escalation. The cascade is re-entrant
-    # (resume_dp_stp_if_enabled re-runs it whenever a human clears a hold), so
-    # without this the same hold would re-mail on every resume.
     if any(n.get("kind") == kind and n.get("stage") == stage for n in sent):
         return False
 
-    first = sent[0] if sent else None
-    thread_id = first.get("thread_id") if first else None
-    in_reply_to = next(
-        (n.get("message_id_header") for n in reversed(sent) if n.get("message_id_header")), None
-    )
-    if first and first.get("subject"):
-        base = first["subject"]
-        subject = base if base.lower().startswith("re:") else f"Re: {base}"
-
-    import logging
-    try:
-        from ..services import gmail_client
-        result = await gmail_client.send_html_email(
-            to=recipient, subject=subject, html_body=html,
-            thread_id=thread_id, in_reply_to=in_reply_to,
-        )
-    except Exception:
-        logging.getLogger(__name__).exception(
-            "DirectPay %s notification failed to %s for invoice %s", kind, recipient, oid
+    from ..services import freshdesk_client
+    result = await freshdesk_client.reply_to_ticket(ticket_id, html)
+    if not result.get("ok"):
+        logging.getLogger(__name__).warning(
+            "DirectPay %s notification not posted to ticket %s for invoice %s: %s",
+            kind, ticket_id, oid, result,
         )
         return False
 
@@ -2573,17 +2748,14 @@ async def _dp_notify(db, oid: ObjectId, doc: dict, kind: str, stage: str, subjec
         {"$push": {"notifications": {
             "kind": kind,
             "stage": stage,
-            "to": recipient,
-            "subject": subject,
-            "message_id": result.get("id"),
-            "thread_id": result.get("threadId"),
-            "message_id_header": result.get("messageIdHeader"),
+            "ticket_id": ticket_id,
+            "reply_id": result.get("reply_id"),
             "sent_at": _now(),
         }}},
     )
     logging.getLogger(__name__).info(
-        "DirectPay %s notification sent to %s for invoice %s (thread %s)",
-        kind, recipient, oid, result.get("threadId"),
+        "DirectPay %s notification posted to FreshDesk ticket %s for invoice %s",
+        kind, ticket_id, oid,
     )
     return True
 
@@ -2597,7 +2769,7 @@ async def _notify_dp_bill_posted(db, oid: ObjectId, doc: dict, erp: dict) -> Non
     invoices, so there is nothing to compute from, and a made-up date on a
     payment notification is worse than no date."""
     extracted = _strip_na(_merge(doc.get("base_extracted") or {}, doc.get("edited_extracted")))
-    if not _dp_notification_email(doc):
+    if not _dp_ticket_id(doc):
         return
     from ..services.email_templates import directpay_payment_scheduled_html
 
@@ -2614,7 +2786,6 @@ async def _notify_dp_bill_posted(db, oid: ObjectId, doc: dict, erp: dict) -> Non
     )
     await _dp_notify(
         db, oid, doc, kind="posted", stage="bill_posting",
-        subject=f"Invoice {erp['bill_number']} posted — payment scheduled",
         html=html,
     )
 
@@ -2659,7 +2830,7 @@ async def notify_dp_auto_process_hold(db, oid: ObjectId, reason: str) -> None:
     did.
     """
     doc = await get_invoice_doc(db, oid)
-    if not _dp_notification_email(doc):
+    if not _dp_ticket_id(doc):
         return
 
     extracted = _strip_na(_merge(doc.get("base_extracted") or {}, doc.get("edited_extracted")))
@@ -2709,7 +2880,6 @@ async def notify_dp_auto_process_hold(db, oid: ObjectId, reason: str) -> None:
     )
     await _dp_notify(
         db, oid, doc, kind="action_required", stage=reason,
-        subject=f"Action required: {extracted.get('invoice_number') or doc.get('file_name') or 'invoice'} — {stage_label}",
         html=html,
     )
 
@@ -2723,24 +2893,24 @@ async def escalate_invoice(db, oid: ObjectId, note: Optional[str] = None) -> dic
     send arbitrary email from that address. `note` — the reviewer's own words —
     is the only caller-supplied part, and it's rendered as a quoted block.
 
-    Returns {"sent", "to", "reason"}. Three ways `sent` can be false, and the UI
-    must tell them apart — reporting any of them as a success, or as each other,
-    misleads the reviewer:
-        no_payload_email   nothing to send to; the UI keeps its local confirmation
+    Returns {"sent", "ticket_id", "reason"}. Three ways `sent` can be false, and
+    the UI must tell them apart — reporting any of them as a success, or as each
+    other, misleads the reviewer:
+        no_ticket          no originating FreshDesk ticket; nothing is posted
         already_escalated  this invoice was escalated before; one is the limit
-        send_failed        we tried and Gmail refused
+        send_failed        we tried and FreshDesk refused
     """
     doc = await get_invoice_doc(db, oid)
-    recipient = _dp_notification_email(doc)
-    if not recipient:
-        return {"sent": False, "to": None, "reason": "no_payload_email"}
+    ticket_id = _dp_ticket_id(doc)
+    if not ticket_id:
+        return {"sent": False, "ticket_id": None, "reason": "no_ticket"}
 
     # One escalation per invoice. Escalating is a hand-off — the invoice is now
     # awaiting someone else's decision — so a second one adds nothing and just
     # re-mails the same request. The UI disables the button off this same record,
     # and this is the authoritative check behind it.
     if any(n.get("kind") == "escalation" for n in (doc.get("notifications") or [])):
-        return {"sent": False, "to": recipient, "reason": "already_escalated"}
+        return {"sent": False, "ticket_id": ticket_id, "reason": "already_escalated"}
 
     extracted = _strip_na(_merge(doc.get("base_extracted") or {}, doc.get("edited_extracted")))
     findings = _refresh_findings_from_extracted((doc.get("match_result") or {}).get("findings") or [], extracted)
@@ -2776,15 +2946,166 @@ async def escalate_invoice(db, oid: ObjectId, note: Optional[str] = None) -> dic
     )
     sent = await _dp_notify(
         db, oid, doc, kind="escalation", stage="matching",
-        subject=f"Escalation: {invoice_number} — Total Amount Before VAT outside tolerance",
         html=html,
     )
     # "no recipient" and "we tried and it failed" must not look the same to the
     # UI — one is a legitimate no-op, the other is a problem the reviewer needs to
     # know about, and reporting a failure as a quiet success is worse than either.
     if sent:
-        return {"sent": True, "to": recipient}
-    return {"sent": False, "to": recipient, "reason": "send_failed"}
+        return {"sent": True, "ticket_id": ticket_id}
+    return {"sent": False, "ticket_id": ticket_id, "reason": "send_failed"}
+
+
+async def notify_dp_duplicate_rejected(db, duplicate: dict, tag: Optional[str]) -> None:
+    """Tell the sender their upload was refused because we already hold that file.
+
+    Replies on the ticket named by THIS upload's tag — which may be a different
+    ticket from the one that first sent the file, so the reply goes where the
+    latest request came from rather than to the original run's ticket.
+
+    Can't go through _dp_notify: that keys idempotency off a run, and a refused
+    duplicate has no run of its own.
+    """
+    import logging
+    ticket_id = _dp_ticket_id({"tag": tag})
+    if not ticket_id:
+        return
+
+    from ..services.email_templates import directpay_duplicate_rejected_html
+    from ..services import freshdesk_client
+
+    html = directpay_duplicate_rejected_html(
+        invoice_number=duplicate.get("invoice_number") or "—",
+        vendor_name=duplicate.get("vendor_name") or "—",
+        uploaded_file_name=duplicate.get("file_name") or "—",
+        existing_status=duplicate.get("existing_status") or "—",
+        existing_file_name=duplicate.get("existing_file_name") or "—",
+    )
+    result = await freshdesk_client.reply_to_ticket(ticket_id, html)
+    if result.get("ok"):
+        logging.getLogger(__name__).info(
+            "DirectPay duplicate notice posted to ticket %s (re-upload of %s)",
+            ticket_id, duplicate.get("file_name"),
+        )
+    else:
+        logging.getLogger(__name__).warning(
+            "DirectPay duplicate notice not posted to ticket %s: %s", ticket_id, result
+        )
+
+
+# ── Drive upload ───────────────────────────────────────────────────────────────
+# The documents to upload, already split out of any combined PDF and named to the
+# [VendorName]_[InvoiceNo]_[DocType] convention, are pre-materialised on disk in
+# fixtures/dp/drive_uploads/ with a manifest keyed by (fixture_key,
+# document_key). Doing the splitting and naming there rather than here keeps this
+# a straight file-to-Drive push, and means the exact set of files can be reviewed
+# on disk before anything is sent.
+
+_DRIVE_MANIFEST_CACHE: Optional[dict] = None
+
+
+def _drive_uploads_dir():
+    # Sits beside the vendor folders under the same fixtures root the loader
+    # resolved, so it follows DP_FIXTURES_DIR and the Docker mount for free.
+    return get_dp_loader().root / "drive_uploads"
+
+
+def _drive_manifest() -> dict:
+    """(fixture_key, document_key) -> the manifest entry for that invoice."""
+    global _DRIVE_MANIFEST_CACHE
+    if _DRIVE_MANIFEST_CACHE is not None:
+        return _DRIVE_MANIFEST_CACHE
+
+    index: dict = {}
+    manifest = _drive_uploads_dir() / "manifest.json"
+    if manifest.is_file():
+        for entry in json.loads(manifest.read_text()):
+            index[(entry["fixture_key"], entry.get("document_key"))] = entry
+    _DRIVE_MANIFEST_CACHE = index
+    return index
+
+
+def _drive_documents_for(doc: dict) -> list[dict]:
+    """Which files this run should upload. Empty when the fixture has no entry."""
+    entry = _drive_manifest().get((doc.get("fixture_key"), doc.get("document_key")))
+    if entry is None:
+        # A single-invoice folder records document_key None; the manifest uses
+        # the key "invoice" for those.
+        entry = _drive_manifest().get((doc.get("fixture_key"), "invoice"))
+    return (entry or {}).get("documents") or []
+
+
+async def upload_dp_documents_to_drive(db, oid: ObjectId) -> dict:
+    """Push this invoice's standardised documents to the shared drive.
+
+    Called once the invoice's data is settled — after Confirm Extraction for an
+    invoice with no Faktur Pajak, and after the Faktur Pajak is approved where
+    there is one. Not earlier: the file names carry the vendor and invoice
+    number, and a reviewer can still correct either on the extraction screen, so
+    uploading sooner risks a name built from a value that's about to change.
+
+    Idempotent on two levels — the run records what it has already sent, and each
+    name is checked against the folder before uploading, because Drive happily
+    accepts two files with the same name. That second check matters more than it
+    looks: the in-memory DB resets on restart, so without it every restart would
+    add another copy of everything. Never raises — a Drive outage must not block
+    an invoice from being processed.
+    """
+    import logging
+    log = logging.getLogger(__name__)
+
+    from ..services import drive_client
+    doc = await get_invoice_doc(db, oid)
+    already = {u.get("file_name") for u in (doc.get("drive_uploads") or [])}
+    wanted = _drive_documents_for(doc)
+
+    if not wanted:
+        return {"uploaded": 0, "skipped": 0, "reason": "no_manifest_entry"}
+    if not drive_client.is_configured():
+        # Not an error: the feature is simply off, or has no destination yet.
+        return {"uploaded": 0, "skipped": len(wanted), "reason": "drive_not_configured"}
+
+    root = _drive_uploads_dir()
+    uploaded, skipped = [], 0
+    for want in wanted:
+        name = want["file"]
+        if name in already:
+            skipped += 1
+            continue
+        path = root / name
+        if not path.is_file():
+            log.warning("DirectPay Drive upload: %s missing from %s", name, root)
+            skipped += 1
+            continue
+        existing = None
+        try:
+            existing = await drive_client.find_in_folder(name)
+            if existing:
+                # Already in the destination (a previous run, a manual copy).
+                # Recorded so the run knows, but not re-sent — "no re-uploads"
+                # applies to the folder, not just to our own bookkeeping.
+                result = existing
+            else:
+                result = await drive_client.upload_pdf(name, path.read_bytes())
+        except Exception:
+            log.exception("DirectPay Drive upload failed for %s (invoice %s)", name, oid)
+            skipped += 1
+            continue
+        uploaded.append({
+            "doc_type": want.get("doc_type"),
+            "file_name": name,
+            "file_id": result.get("id"),
+            "web_view_link": result.get("webViewLink"),
+            "pre_existing": existing is not None,
+            "uploaded_at": _now(),
+        })
+
+    if uploaded:
+        await dp_invoice_runs(db).update_one(
+            {"_id": oid}, {"$push": {"drive_uploads": {"$each": uploaded}}}
+        )
+        log.info("DirectPay Drive: %d document(s) handled for invoice %s", len(uploaded), oid)
+    return {"uploaded": len(uploaded), "skipped": skipped}
 
 
 def _dp_display_date(value) -> Optional[str]:
