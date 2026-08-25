@@ -5,6 +5,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/components/ui";
 import { StageTransitionOverlay } from "@/components/StageTransitionOverlay";
 import { directpayService, DpContractRun, DpInvoiceRun } from "@/services/directpay";
+import { duplicateUploads, DuplicateUpload } from "@/services/api";
+import { DpNotice, DpNoticeState } from "@/components/directpay/DpNotice";
 import { invoiceRoute } from "@/utils/directpayRoutes";
 // Shared with the Tracker (pages/directpay/tracker.tsx) — these were defined
 // here until that screen needed the same tone palette, cell styles, pagination
@@ -119,6 +121,28 @@ function contractRoute(c: DpContractRun): string {
     return `/directpay/contract/${c.id}/extraction-postprocessing`;
   }
   return `/directpay/contract/${c.id}/review`;
+}
+
+/**
+ * The notice shown when an upload was refused as something already held.
+ *
+ * Names the file in the detail line, because "Duplicate contract" alone leaves
+ * the user guessing which of a multi-file selection was the problem. Past three
+ * names it switches to a count — a popup listing six file names is a wall.
+ */
+function duplicateNotice(dups: DuplicateUpload[], kind: "invoice" | "contract"): DpNoticeState {
+  const noun = kind === "invoice" ? "invoice" : "contract";
+  const names = dups.map((d) => d.file_name).filter(Boolean) as string[];
+  const many = names.length > 1;
+  return {
+    tone: "warning",
+    title: many ? `${names.length} duplicate ${noun}s — not processed` : `Duplicate ${noun} — not processed`,
+    detail: names.length === 0
+      ? `Already uploaded, so nothing was created.`
+      : names.length <= 3
+        ? `${names.join(", ")} ${many ? "have" : "has"} already been uploaded, so ${many ? "they were" : "it was"} skipped.`
+        : `${names.length} files have already been uploaded, so they were skipped.`,
+  };
 }
 
 // Statuses at which an Auto-Process run is definitely no longer mid-cascade —
@@ -511,10 +535,17 @@ function DirectPayDashboard() {
   type BatchFileStatus = { name: string; status: "pending" | "uploading" | "done" | "error" };
   const [batchFiles, setBatchFiles] = useState<BatchFileStatus[] | null>(null);
 
+  // The top-centre upload notice (refused duplicate, or a genuine failure).
+  // Held here rather than pushed through useToast: DirectPay's own notice styling
+  // and placement — see DpNotice.
+  const [notice, setNotice] = useState<DpNoticeState | null>(null);
+  const clearNotice = useCallback(() => setNotice(null), []);
+
   const handleUploadInvoices = async (files: File[]) => {
     const local: BatchFileStatus[] = files.map(f => ({ name: f.name, status: "pending" }));
     setBatchFiles([...local]);
     const runIds: string[] = [];
+    const duplicates: DuplicateUpload[] = [];
     for (let i = 0; i < files.length; i++) {
       local[i] = { ...local[i], status: "uploading" };
       setBatchFiles([...local]);
@@ -531,8 +562,12 @@ function DirectPayDashboard() {
           else await directpayService.extractInvoice(run.id);
         }
         local[i] = { ...local[i], status: "done" };
-      } catch {
+      } catch (err) {
         local[i] = { ...local[i], status: "error" };
+        // Kept per-file rather than counted with the rest: "3 of 5 failed" would
+        // not tell the user that the reason was a file already on the system,
+        // which needs no retry.
+        for (const d of duplicateUploads(err) ?? []) duplicates.push(d);
       }
       setBatchFiles([...local]);
     }
@@ -560,8 +595,20 @@ function DirectPayDashboard() {
     // No success toast: the uploaded rows appearing in the list IS the
     // confirmation, so a popup on top of it is redundant. Failures still speak
     // up, since nothing else on screen would explain a missing row.
-    if (failed > 0) {
-      toast(`${files.length - failed} of ${files.length} invoices uploaded — ${failed} failed`, failed === files.length ? "error" : "warning");
+    if (duplicates.length) {
+      setNotice(duplicateNotice(duplicates, "invoice"));
+    }
+    // Only what failed for some OTHER reason is a failure — the duplicates
+    // above are already accounted for and would otherwise be counted twice.
+    // They also take precedence in the notice: a duplicate needs no retry,
+    // which is the one thing the user needs to know.
+    const genuinelyFailed = failed - duplicates.length;
+    if (genuinelyFailed > 0 && !duplicates.length) {
+      setNotice({
+        tone: genuinelyFailed === files.length ? "error" : "warning",
+        title: `${genuinelyFailed} of ${files.length} invoices failed to upload`,
+        detail: files.length - failed > 0 ? `${files.length - failed} uploaded successfully.` : undefined,
+      });
     }
   };
 
@@ -647,8 +694,17 @@ function DirectPayDashboard() {
         return;
       }
       router.push(`/directpay/contract/${runs[0].id}/review`);
-    } catch {
-      toast(tab === "invoices" ? "Invoice upload failed" : "Contract upload failed", "error");
+    } catch (err) {
+      // A refused duplicate is not a failure to report as one: the file was
+      // read fine and the system already holds it. Say which file, and put it
+      // top-centre — the dashboard underneath is unchanged, so nothing else on
+      // screen would explain why no new row appeared.
+      const dups = duplicateUploads(err);
+      const noun = tab === "invoices" ? "invoice" : "contract";
+      setNotice(dups
+        ? duplicateNotice(dups, noun)
+        : { tone: "error", title: `${noun === "invoice" ? "Invoice" : "Contract"} upload failed`,
+            detail: err instanceof Error && err.message ? err.message : undefined });
       setUploading(false);
       setAutoExtracting(null);
     }
@@ -776,6 +832,7 @@ function DirectPayDashboard() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#ffffff", display: "flex", flexDirection: "column", fontFamily: "Inter, sans-serif" }}>
+      <DpNotice notice={notice} onClose={clearNotice} />
       <style jsx>{`
         .dp-dash-scroll { scrollbar-width: thin; scrollbar-color: transparent transparent; }
         .dp-dash-scroll.scrolling { scrollbar-color: #c5c8ce transparent; }
