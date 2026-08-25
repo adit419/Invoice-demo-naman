@@ -2,9 +2,9 @@
   "fp_number": "080.001-26.48181617",
   "vendor_name": "PT PAKUWON SENTOSA ABADI",
   "customer_name": "PT. BUMI BERKAH BOGA",
-  "taxable_amount": 447608.0,
+  "taxable_amount": 488300.0,
   "vat_amount": 0.0,
   "ai_reasoning": {
-    "vat_amount": "Faktur Pajak states \u201cPPN DIBEBASKAN SESUAI PP NOMOR 49 TAHUN 2022 (air bersih)\u201d \u2014 VAT on clean water is exempt, so the mechanically-computed Rp 53,713 is waived and Rp 0.00 is actually charged. Agrees with the invoice\u2019s own 0.00 and the Rp 488,300 payable."
+    "vat_amount": "Faktur Pajak states “PPN DIBEBASKAN SESUAI PP NOMOR 49 TAHUN 2022 (air bersih)” — VAT on clean water is exempt, so the mechanically-computed Rp 53,713 is waived and Rp 0.00 is actually charged. Agrees with the invoice’s own 0.00 and the Rp 488,300 payable."
   }
 }
