@@ -6,12 +6,12 @@
     "audit_trail": null,
     "ai_match_reasoning": "Source has a floor-number inconsistency (letterhead says \"Floor GF-39\", body text/Annexes say \"GF-05\") \u2014 GF-05 treated as authoritative per majority usage, not resolved by assumption",
     "bbox": {
-      "page": 1,
-      "bbox_left": 0.330484,
-      "bbox_top": 0.335672,
-      "bbox_width": 0.225,
-      "bbox_height": 0.009239,
-      "value_confidence": 0.9
+      "page": 8,
+      "bbox_left": 0.445396,
+      "bbox_top": 0.167641,
+      "bbox_width": 0.176747,
+      "bbox_height": 0.026495,
+      "value_confidence": 0.93
     }
   },
   "vendor_name": {

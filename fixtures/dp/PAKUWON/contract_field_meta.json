@@ -7,10 +7,10 @@
     "ai_match_reasoning": "Source has a floor-number inconsistency (Lease Application body text says \"Fourth Floor\", Booking Form/payment schedule/floor plan say \"6th Floor\") \u2014 6th Floor treated as authoritative per majority usage, not resolved by assumption",
     "bbox": {
       "page": 1,
-      "bbox_left": 0.113362,
-      "bbox_top": 0.381197,
-      "bbox_width": 0.357618,
-      "bbox_height": 0.009615,
+      "bbox_left": 0.113026,
+      "bbox_top": 0.299976,
+      "bbox_width": 0.772202,
+      "bbox_height": 0.093542,
       "value_confidence": 0.9
     }
   },
