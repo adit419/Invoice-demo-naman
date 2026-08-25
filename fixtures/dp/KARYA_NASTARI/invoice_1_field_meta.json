@@ -92,20 +92,20 @@
   "vendor_bank_name": {
     "bbox": {
       "page": 1,
-      "bbox_left": 0.46549,
-      "bbox_top": 0.65404,
-      "bbox_width": 0.033595,
-      "bbox_height": 0.010606,
+      "bbox_left": 0.426824,
+      "bbox_top": 0.652091,
+      "bbox_width": 0.144,
+      "bbox_height": 0.064909,
       "value_confidence": 0.93
     }
   },
   "vendor_bank_account_number": {
     "bbox": {
       "page": 1,
-      "bbox_left": 0.428366,
-      "bbox_top": 0.677677,
-      "bbox_width": 0.10902,
-      "bbox_height": 0.011111,
+      "bbox_left": 0.410265,
+      "bbox_top": 0.676227,
+      "bbox_width": 0.143588,
+      "bbox_height": 0.059364,
       "value_confidence": 0.93
     }
   },
