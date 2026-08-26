@@ -62,7 +62,16 @@ FIXTURES_DP = REPO_ROOT / "fixtures" / "dp"
 # Fields whose value is computed/derived, never printed in the contract
 # itself (their own names say as much) — searching for these would only
 # ever find (or worse, coincidentally false-positive-match) unrelated text.
-CONTRACT_SKIP_FIELDS = {"computed_status", "days_to_expiry"}
+# rent_scenario_notes joins this list for the same reason despite being a
+# free-text field, not a computed one: it's the author's OWN multi-sentence
+# synthesis of the whole document (see this module's own docstring), never a
+# literal transcription. Verified as a real false-positive source once the
+# trailing-parenthetical variant (below) started trying its embedded asides
+# as candidates: RATNA_INTAN's rent_scenario_notes landed on "(Kenangan
+# Signature, Chigo)" — a brand-name aside from an unrelated subletting
+# clause deep in the document, textually genuine but meaningless as "the"
+# highlight for this field's actual content.
+CONTRACT_SKIP_FIELDS = {"computed_status", "days_to_expiry", "rent_scenario_notes"}
 
 # Cheaper OCR settings than the invoice script's — a contract can run 30+
 # pages (vs. an invoice's 1-2), so the same 8-tiles-x-3-PSMs-per-page
@@ -88,6 +97,38 @@ _ISO_DATE_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})$")
 _COMPOSITE_SEPARATORS = (" (", " — ", " – ", " - ", ": ")
 
 
+# A composite value's literal, page-printed fact is sometimes followed by an
+# editorial annotation the fixture author added themselves — always
+# introduced with this exact marker (verified: GRAHA_MEGARIA/PALLADIUM/
+# PAKUWON's premises_address all read "...Indonesia. NOTE: Section 1(a)
+# states X while Y states Z ..."). The pre-existing _COMPOSITE_SEPARATORS
+# split below picks whichever separator is FIRST IN ITS OWN PRIORITY LIST,
+# not whichever occurs earliest in the string — a dash or colon buried deep
+# inside the NOTE clause itself can outrank it, producing a "leading
+# segment" that swallows half the annotation and then never matches
+# literally anywhere. Tried as an EXTRA candidate below, never a
+# replacement for the existing split — a value with no "NOTE:" at all is
+# completely unaffected.
+_NOTE_MARKER = "NOTE:"
+
+# Several fields (contract_type especially) are phrased as "<English
+# description> (<literal Indonesian document term>)" — the parenthetical is
+# the part actually printed on the page, not the leading English
+# description (verified: DEBORA_KEMANG/GRAHA_MEGARIA/KARYA_NASTARI/PAKUWON's
+# contract_type all have their real page text sitting in a parenthetical —
+# "Perjanjian Kerja Sama", "Penawaran Umum Perpanjangan Sewa", "Surat
+# Penawaran Sewa Baru" — none of which the leading-segment split below ever
+# tries, since it only ever looks at the text BEFORE a separator). Every
+# parenthetical group is tried, not just the first — some values (e.g.
+# PALLADIUM's contract_type) have more than one, and the literal one isn't
+# always first ("(LOI)" before "(Perjanjian Sewa Menyewa)"). Same
+# minimum-length gate as the leading-segment split below — a short
+# parenthetical ("(LOI)") carries the same false-positive risk as any other
+# short generic value and is better left to _is_short_generic_value's own
+# gate than guessed at here.
+_PAREN_RE = re.compile(r"\(([^()]{3,})\)")
+
+
 def _contract_value_variants(value) -> list:
     """Extra candidate values to try alongside the raw value itself —
     ISO-date reformatting and "just the leading fact" for a composite
@@ -108,6 +149,8 @@ def _contract_value_variants(value) -> list:
             f"{d:02d}-{mo:02d}-{y}",
             f"{d:02d}.{mo:02d}.{y}",
         ]
+
+    variants = []
     for sep in _COMPOSITE_SEPARATORS:
         if sep in value:
             leading = value.split(sep, 1)[0].strip()
@@ -118,9 +161,31 @@ def _contract_value_variants(value) -> list:
             # hand the matcher a near-meaningless single common word to go
             # find "somewhere" in a 30-page contract.
             if len(leading) >= _MIN_COMPOSITE_SEGMENT_CHARS:
-                return [leading]
-            return []
-    return []
+                variants.append(leading)
+            break  # only the pre-existing priority-first split, unchanged
+
+    if _NOTE_MARKER in value:
+        prefix = value.split(_NOTE_MARKER, 1)[0].strip()
+        if len(prefix) >= _MIN_COMPOSITE_SEGMENT_CHARS:
+            variants.append(prefix)
+
+    for paren_match in _PAREN_RE.finditer(value):
+        inner = paren_match.group(1).strip()
+        # A parenthetical containing a digit is almost always a supporting
+        # DATE or figure (e.g. "(12-Mar-2026 to 11-Mar-2027)", "(paid
+        # 21-07-2026)") rather than the field's own defining literal phrase —
+        # verified false positives: DEBORA_KEMANG's revenue_share_pct (15%)
+        # matched onto an unrelated Year-1 date range, and RATNA_INTAN's
+        # security_deposit (an amount) matched onto its own "paid" date
+        # instead. Every GENUINE parenthetical match seen (contract-type/
+        # co-landlord phrases — "Perjanjian Kerja Sama", "PT Graha Megaria
+        # Raya", "Penawaran Umum Perpanjangan Sewa", "Surat Permohonan Sewa",
+        # "Notaris Melissa Bianca Phrisckylla, Bekasi") is pure name/phrase
+        # text with no digits at all, so this costs nothing on real matches.
+        if len(inner) >= _MIN_COMPOSITE_SEGMENT_CHARS and not any(c.isdigit() for c in inner):
+            variants.append(inner)
+
+    return list(dict.fromkeys(variants))  # dedupe, preserve priority order
 
 
 # A bare short number (day/month/percentage/installment counts — "3", "10",
@@ -207,12 +272,67 @@ def _nearby_text(words_by_page: dict, page_number: int, rect: "fitz.Rect") -> st
     return " ".join(w[4].lower() for w in nbrs)
 
 
-def _field_unit_ok(field: str, nearby_text: str) -> bool:
+# _nearby_text's 6-token lookahead is appropriate for "bulan"/"hari" (a
+# months figure's own unit word can sit a few words after it, e.g. "24 (dua
+# puluh empat) bulan"), but it's too wide for a percent sign: every verified
+# genuine percent occurrence on these documents has the "%" glued to or
+# immediately after its own digits, never several tokens later — and a
+# 6-token reach can cross into an ENTIRELY DIFFERENT number's own "%".
+# Verified false positive: DEBORA_KEMANG's vat_rate(11) matched "tanggal 11
+# Maret 2027)" (an unrelated date, correctly gated by the parenthetical
+# check's own proximity) but then passed the unit check anyway, because the
+# very next sentence's unrelated "15% (lima belas persen)" fell inside the
+# same 6-token lookahead. Scoped narrowly: only the matched word plus the
+# ONE immediately following token (covers "11 %" with a stray space,
+# "11%" glued — though that also has its own faster _value_glued_to_percent
+# path above — and nothing further).
+_PCT_UNIT_WINDOW_TOKENS = 1
+
+
+def _immediate_nearby_text(words_by_page: dict, page_number: int, rect: "fitz.Rect") -> str:
+    words = words_by_page.get(page_number)
+    if not words:
+        return ""
+    ws, idx = _match_word_index(words, rect)
+    if idx is None:
+        return ""
+    nbrs = ws[idx:idx + _PCT_UNIT_WINDOW_TOKENS + 1]
+    return " ".join(w[4].lower() for w in nbrs)
+
+
+def _field_unit_ok(field: str, nearby_text: str, tight_text: str) -> bool:
     if field.endswith("_months"):
         return "bulan" in nearby_text and "hari" not in nearby_text
     if field.endswith(("_rate", "_pct")):
-        return "%" in nearby_text or "persen" in nearby_text
+        return "%" in tight_text or "persen" in tight_text
     return True
+
+
+# A short number glued DIRECTLY to its own "%" (no space — "PPN 11%", not
+# "11 %") is unambiguous proof of a real percentage on its own, independent
+# of the "N (spelled-out N)" parenthetical convention _has_nearby_parenthetical
+# looks for — verified: GRAHA_MEGARIA's vat_rate=11 is printed exactly this
+# way ("...per bulan + PPN 11%") with no parenthetical anywhere nearby, so
+# the parenthetical-first gate below rejected a match _field_unit_ok would
+# otherwise have happily confirmed. Scoped to _rate/_pct fields only (the
+# one field shape actually verified to appear glued like this) and checked
+# against the SAME matched word the gate below would otherwise inspect —
+# never a separate, independently-chosen occurrence.
+def _value_glued_to_percent(words_by_page: dict, page_number: int, rect: "fitz.Rect", value) -> bool:
+    words = words_by_page.get(page_number)
+    if not words:
+        return False
+    ws, idx = _match_word_index(words, rect)
+    if idx is None:
+        return False
+    word_text = ws[idx][4].strip()
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, (int, float)):
+        num = f"{int(value)}" if float(value).is_integer() else str(value)
+    else:
+        num = str(value).strip()
+    return word_text.startswith(f"{num}%")
 
 
 def _is_short_generic_value(value) -> bool:
@@ -253,10 +373,19 @@ def _locate_field_best(doc, native_words, ocr_pages, page_rects, field, value):
             (bbox["bbox_top"] + bbox["bbox_height"]) * page_rects[bbox["page"]].height,
         )
         words_by_page = native_words if bbox["page"] in native_words else ocr_pages
-        if not _has_nearby_parenthetical(words_by_page, bbox["page"], rect):
-            return None
-        if not _field_unit_ok(field, _nearby_text(words_by_page, bbox["page"], rect)):
-            return None
+        glued_percent = (
+            field.endswith(("_rate", "_pct"))
+            and _value_glued_to_percent(words_by_page, bbox["page"], rect, value)
+        )
+        if not glued_percent:
+            if not _has_nearby_parenthetical(words_by_page, bbox["page"], rect):
+                return None
+            if not _field_unit_ok(
+                field,
+                _nearby_text(words_by_page, bbox["page"], rect),
+                _immediate_nearby_text(words_by_page, bbox["page"], rect),
+            ):
+                return None
     return best
 
 
@@ -291,7 +420,12 @@ def build_contract_field_meta(pdf_path: Path, extraction: dict, existing_meta: d
         entry.pop("bbox", None)
 
     found, skipped, missing = [], [], []
-    for field, value in extraction.items():
+    # contract_type processed FIRST (regardless of its position in the JSON)
+    # so its own match location is known before any other field's — see the
+    # collision check below.
+    ordered_fields = sorted(extraction.items(), key=lambda kv: kv[0] != "contract_type")
+    contract_type_rect_key = None
+    for field, value in ordered_fields:
         if field in CONTRACT_SKIP_FIELDS:
             skipped.append(field)
             continue
@@ -310,6 +444,29 @@ def build_contract_field_meta(pdf_path: Path, extraction: dict, existing_meta: d
             continue
 
         bbox, source = best
+        rect_key = (
+            bbox["page"], round(bbox["bbox_left"], 4), round(bbox["bbox_top"], 4),
+            round(bbox["bbox_width"], 4), round(bbox["bbox_height"], 4),
+        )
+        if field == "contract_type":
+            contract_type_rect_key = rect_key
+        elif contract_type_rect_key is not None and rect_key == contract_type_rect_key:
+            # Landed on the EXACT SAME text as this document's own
+            # contract_type match — verified real cases: DEBORA_KEMANG's
+            # rent_basis_type and GRAHA_MEGARIA/KARYA_NASTARI's
+            # stamp_duty_registered all echo their contract_type's own
+            # "(Perjanjian Kerja Sama)"/"(Penawaran Umum Perpanjangan
+            # Sewa)"/"(Surat Penawaran Sewa Baru)" phrase as a passing aside
+            # ("...not a conventional lease", "...this is a General Renewal
+            # Offer, not yet registered..."). That phrase IS contract_type's
+            # own defining fact, not this other field's — highlighting the
+            # document's genre line for a field asking about rent basis or
+            # stamp duty is misleading, not merely imprecise. contract_type
+            # itself keeps the match; every other field with the identical
+            # location is treated as not found instead of borrowing it.
+            missing.append(field)
+            continue
+
         entry = out.get(field, {})
         entry["bbox"] = bbox
         out[field] = entry

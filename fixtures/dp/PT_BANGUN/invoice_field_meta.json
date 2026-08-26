@@ -22,10 +22,10 @@
   "vendor_name": {
     "bbox": {
       "page": 1,
-      "bbox_left": 0.034689,
-      "bbox_top": 0.36604,
-      "bbox_width": 0.17237,
-      "bbox_height": 0.0078,
+      "bbox_left": 0.169681,
+      "bbox_top": 0.0156,
+      "bbox_width": 0.167261,
+      "bbox_height": 0.009703,
       "value_confidence": 0.93
     }
   },
@@ -62,10 +62,10 @@
   "total_amount_before_vat": {
     "bbox": {
       "page": 1,
-      "bbox_left": 0.548571,
-      "bbox_top": 0.175125,
-      "bbox_width": 0.074218,
-      "bbox_height": 0.0078,
+      "bbox_left": 0.867227,
+      "bbox_top": 0.319263,
+      "bbox_width": 0.094118,
+      "bbox_height": 0.01308,
       "value_confidence": 0.93
     }
   },

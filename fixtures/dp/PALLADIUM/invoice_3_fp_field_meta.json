@@ -32,9 +32,9 @@
   "taxable_amount": {
     "bbox": {
       "page": 1,
-      "bbox_left": 0.254813,
-      "bbox_top": 0.482428,
-      "bbox_width": 0.059283,
+      "bbox_left": 0.852809,
+      "bbox_top": 0.529043,
+      "bbox_width": 0.082074,
       "bbox_height": 0.014571,
       "value_confidence": 0.95
     }

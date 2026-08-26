@@ -4,7 +4,15 @@
     "section": "PROPERTY & PARTIES",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "Source has a floor-number inconsistency (letterhead says \"Floor GF-39\", body text/Annexes say \"GF-05\") \u2014 GF-05 treated as authoritative per majority usage, not resolved by assumption"
+    "ai_match_reasoning": "Source has a floor-number inconsistency (letterhead says \"Floor GF-39\", body text/Annexes say \"GF-05\") \u2014 GF-05 treated as authoritative per majority usage, not resolved by assumption",
+    "bbox": {
+      "page": 8,
+      "bbox_left": 0.445396,
+      "bbox_top": 0.167641,
+      "bbox_width": 0.176747,
+      "bbox_height": 0.026495,
+      "value_confidence": 0.93
+    }
   },
   "vendor_name": {
     "label": "Vendor Name",
@@ -172,7 +180,15 @@
     "section": "RENT & DEPOSIT",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": "Rent-only figure \u2014 deliberately EXCLUDES Service Charge, Promotion Fee and Deposits per the source's own annotation, unlike PT_BANGUN/RATNA_INTAN's all-in totals. Kept as the full annotated string rather than a bare number to preserve that scope caveat."
+    "ai_match_reasoning": "Rent-only figure \u2014 deliberately EXCLUDES Service Charge, Promotion Fee and Deposits per the source's own annotation, unlike PT_BANGUN/RATNA_INTAN's all-in totals. Kept as the full annotated string rather than a bare number to preserve that scope caveat.",
+    "bbox": {
+      "page": 12,
+      "bbox_left": 0.36129,
+      "bbox_top": 0.306245,
+      "bbox_width": 0.076613,
+      "bbox_height": 0.007699,
+      "value_confidence": 0.93
+    }
   },
   "no_of_installments": {
     "label": "No. of Installments",
@@ -214,7 +230,15 @@
     "section": "RENT & DEPOSIT",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 12,
+      "bbox_left": 0.368952,
+      "bbox_top": 0.256915,
+      "bbox_width": 0.068952,
+      "bbox_height": 0.01939,
+      "value_confidence": 0.93
+    }
   },
   "escalation_rate": {
     "label": "Escalation Clause (%)",
@@ -301,7 +325,15 @@
     "section": "LEGAL & COMPLIANCE",
     "mandatory": true,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 5,
+      "bbox_left": 0.251613,
+      "bbox_top": 0.736812,
+      "bbox_width": 0.069355,
+      "bbox_height": 0.00941,
+      "value_confidence": 0.93
+    }
   },
   "registration_number": {
     "label": "Registration Number",
@@ -421,7 +453,15 @@
     "section": "OTHER",
     "mandatory": false,
     "audit_trail": null,
-    "ai_match_reasoning": null
+    "ai_match_reasoning": null,
+    "bbox": {
+      "page": 2,
+      "bbox_left": 0.433548,
+      "bbox_top": 0.236955,
+      "bbox_width": 0.156532,
+      "bbox_height": 0.009068,
+      "value_confidence": 0.93
+    }
   },
   "floor": {
     "label": "Floor",

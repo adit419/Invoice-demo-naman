@@ -82,9 +82,9 @@
   "total_amount": {
     "bbox": {
       "page": 1,
-      "bbox_left": 0.033008,
-      "bbox_top": 0.250718,
-      "bbox_width": 0.094531,
+      "bbox_left": 0.908215,
+      "bbox_top": 0.529975,
+      "bbox_width": 0.058584,
       "bbox_height": 0.011409,
       "value_confidence": 0.95
     }
@@ -99,14 +99,34 @@
       "value_confidence": 0.95
     }
   },
+  "vendor_name": {
+    "bbox": {
+      "page": 2,
+      "bbox_left": 0.1266,
+      "bbox_top": 0.233,
+      "bbox_width": 0.2013,
+      "bbox_height": 0.015,
+      "value_confidence": 0.9
+    }
+  },
+  "vendor_address": {
+    "bbox": {
+      "page": 2,
+      "bbox_left": 0.2273,
+      "bbox_top": 0.5078,
+      "bbox_width": 0.466,
+      "bbox_height": 0.027,
+      "value_confidence": 0.9
+    }
+  },
   "vendor_bank_name": {
     "bbox": {
       "page": 1,
-      "bbox_left": 0.802378,
-      "bbox_top": 0.870448,
-      "bbox_width": 0.164688,
-      "bbox_height": 0.00986,
-      "value_confidence": 0.91
+      "bbox_left": 0.507106,
+      "bbox_top": 0.650901,
+      "bbox_width": 0.236976,
+      "bbox_height": 0.062004,
+      "value_confidence": 0.93
     }
   },
   "vendor_bank_account_number": {

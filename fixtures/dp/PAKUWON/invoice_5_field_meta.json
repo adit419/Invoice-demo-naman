@@ -82,20 +82,20 @@
   "vat_gst": {
     "bbox": {
       "page": 1,
-      "bbox_left": 0.662317,
-      "bbox_top": 0.266488,
-      "bbox_width": 0.070133,
-      "bbox_height": 0.020168,
+      "bbox_left": 0.804739,
+      "bbox_top": 0.462551,
+      "bbox_width": 0.025752,
+      "bbox_height": 0.022854,
       "value_confidence": 0.95
     }
   },
   "total_amount": {
     "bbox": {
       "page": 1,
-      "bbox_left": 0.904823,
-      "bbox_top": 0.462549,
-      "bbox_width": 0.047832,
-      "bbox_height": 0.022848,
+      "bbox_left": 0.904412,
+      "bbox_top": 0.637424,
+      "bbox_width": 0.047843,
+      "bbox_height": 0.022854,
       "value_confidence": 0.95
     }
   },
@@ -136,6 +136,16 @@
       "bbox_top": 0.674419,
       "bbox_width": 0.041242,
       "bbox_height": 0.022727,
+      "value_confidence": 0.95
+    }
+  },
+  "description": {
+    "bbox": {
+      "page": 1,
+      "bbox_left": 0.044526,
+      "bbox_top": 0.737677,
+      "bbox_width": 0.292026,
+      "bbox_height": 0.022854,
       "value_confidence": 0.95
     }
   }

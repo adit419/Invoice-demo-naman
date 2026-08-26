@@ -12,11 +12,11 @@
   "vendor_name": {
     "bbox": {
       "page": 1,
-      "bbox_left": 0.033987,
-      "bbox_top": 0.963636,
-      "bbox_width": 0.14732,
-      "bbox_height": 0.009192,
-      "value_confidence": 0.91
+      "bbox_left": 0.032912,
+      "bbox_top": 0.961227,
+      "bbox_width": 0.213588,
+      "bbox_height": 0.013,
+      "value_confidence": 0.93
     }
   },
   "customer_legal_entity": {
@@ -82,20 +82,20 @@
   "vendor_bank_name": {
     "bbox": {
       "page": 1,
-      "bbox_left": 0.48549,
-      "bbox_top": 0.665859,
-      "bbox_width": 0.034248,
-      "bbox_height": 0.010101,
+      "bbox_left": 0.447412,
+      "bbox_top": 0.663909,
+      "bbox_width": 0.111059,
+      "bbox_height": 0.060364,
       "value_confidence": 0.93
     }
   },
   "vendor_bank_account_number": {
     "bbox": {
       "page": 1,
-      "bbox_left": 0.44902,
-      "bbox_top": 0.689495,
-      "bbox_width": 0.10719,
-      "bbox_height": 0.010606,
+      "bbox_left": 0.432029,
+      "bbox_top": 0.688045,
+      "bbox_width": 0.141824,
+      "bbox_height": 0.058455,
       "value_confidence": 0.93
     }
   },
